@@ -155,7 +155,9 @@
                     <Button Style="{StaticResource RoundIconButtonStyle}"
                             Command="{Binding StartStopCommand}"
                             Visibility="{Binding RecordButtonVisibility}"
-                            Content="REC" />`r`n`r`n                    <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
+                            Content="REC" />
+
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
                         <Button Style="{StaticResource CircleIconButtonStyle}" Command="{Binding PauseResumeCommand}">
                             <Grid>
                                 <TextBlock Visibility="{Binding PauseGlyphVisibility}"
@@ -313,4 +315,5 @@
         </Border>
     </Grid>
 </Window>
+
 
