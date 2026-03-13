@@ -158,3 +158,11 @@
    - Process mode + PID未指定時の例外
 3. フェイク実装で Audio/Encoding 依存を切り離し、ローカルで安定実行可能にした。
 4. dotnet test tests/VoxArchive.IntegrationTests/VoxArchive.IntegrationTests.csproj -m:1 で 4/4 成功。
+
+## 2026-03-13 Session-14
+
+### 実施
+1. 	ests/VoxArchive.LongRunTests を追加し、10秒連続動作の長時間系テストを実装。
+2. scripts/Run-QualityGate.ps1 を追加し、build + integration + long-run test を一括実行可能にした。
+3. docs/testing/local-e2e-checklist.md を追加し、実機E2E手順を明文化。
+4. dotnet build、dotnet test（Integration/LongRun）を実行し全通過を確認。
