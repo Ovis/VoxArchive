@@ -108,3 +108,13 @@
 3. RecordingRuntimeContext に IDeviceService を追加。
 4. LocalRecordingBootstrapper に WasapiDeviceService を組み込み、設定未指定時は既定デバイスIDを適用。
 5. dotnet build VoxArchive.sln -m:1 警告なしで成功。
+
+## 2026-03-13 Session-09
+
+### 実施
+1. NaudioRuntimeSupport を追加し、NAudio有無で Capture 実装を切替。
+2. NaudioSpeakerCaptureService / NaudioMicCaptureService を追加。
+3. NaudioCaptureUtils を追加し、反射で WasapiLoopbackCapture / WasapiCapture を起動。
+4. DataAvailable の PCM を mono float へ変換して CaptureChunk として通知。
+5. NAudio未導入時は既存 SpeakerCaptureService / MicCaptureService へフォールバックする構成へ変更。
+6. dotnet build VoxArchive.sln -m:1 成功。

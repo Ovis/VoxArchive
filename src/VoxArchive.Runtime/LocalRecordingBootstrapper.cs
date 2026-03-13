@@ -30,8 +30,8 @@ public sealed class LocalRecordingBootstrapper
         var defaultMic = await deviceService.GetDefaultMicrophoneDeviceAsync(cancellationToken);
         var options = ApplyDefaults(loaded, defaultSpeaker, defaultMic);
 
-        var speakerCaptureService = new SpeakerCaptureService();
-        var micCaptureService = new MicCaptureService();
+        var speakerCaptureService = NaudioRuntimeSupport.CreateSpeakerCaptureService();
+        var micCaptureService = NaudioRuntimeSupport.CreateMicCaptureService();
         var processLoopbackCaptureService = new ProcessLoopbackCaptureService();
 
         var speakerSource = new SpeakerLoopbackCaptureSource(speakerCaptureService);
