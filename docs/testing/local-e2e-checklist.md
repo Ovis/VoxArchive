@@ -14,14 +14,17 @@
 3. 出力モードを選択
 4. 30秒録音して停止
 5. 出力 FLAC を再生し、左右で Speaker/Mic が分離されていることを確認
-6. `recording.log` に状態遷移と1秒統計が出力されることを確認
+6. ログ出力を確認
+   - `recording.log`
+   - `recording-metrics.csv`
+   - `recording-metrics.jsonl`
 
 ## Processフォールバック確認
 1. 出力モードを `ProcessLoopback` にする
 2. 対象プロセス PID を指定して録音開始
 3. 対象プロセスを終了する
 4. UI のメッセージに `出力切替` が表示されることを確認
-5. `recording.log` に切替前後の状態が残ることを確認
+5. ログに切替前後の状態が残ることを確認
 
 ## 長時間確認
 1. 1時間録音を実施

@@ -166,3 +166,16 @@
 2. scripts/Run-QualityGate.ps1 を追加し、build + integration + long-run test を一括実行可能にした。
 3. docs/testing/local-e2e-checklist.md を追加し、実機E2E手順を明文化。
 4. dotnet build、dotnet test（Integration/LongRun）を実行し全通過を確認。
+
+## 2026-03-13 Session-15
+
+### 実施
+1. CompositeRecordingTelemetrySink を追加し、複数シンク同時出力を実装。
+2. CsvRecordingTelemetrySink と JsonlRecordingTelemetrySink を追加。
+3. Runtime のテレメトリ配線を更新し、
+   - recording.log
+   - recording-metrics.csv
+   - recording-metrics.jsonl
+   を同時生成するように変更。
+4. E2E手順書を更新して上記ファイル確認を明記。
+5. build + integration test + long-run test 全通過を確認。

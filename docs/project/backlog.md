@@ -17,6 +17,7 @@
 - [x] 録音統計の1秒集計ログ化
 - [x] 結合テスト整備（RecordingService中核フロー）
 - [x] 長時間連続動作テスト基盤（10秒連続）
+- [x] 長時間検証向けCSV/JSONL出力
 
 ## Later
 - [x] RingBuffer 実装

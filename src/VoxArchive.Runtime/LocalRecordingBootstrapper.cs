@@ -50,8 +50,15 @@ public sealed class LocalRecordingBootstrapper
         IFrameBuilder frameBuilder = new FrameBuilder(speakerBuffer, micBuffer, resampler);
         IFfmpegFlacEncoder encoder = new FfmpegFlacEncoder();
 
-        var logPath = Path.Combine(Path.GetDirectoryName(_settingsPath) ?? ".", "recording.log");
-        IRecordingTelemetrySink telemetrySink = new FileRecordingTelemetrySink(logPath);
+        var baseDir = Path.GetDirectoryName(_settingsPath) ?? ".";
+        var logPath = Path.Combine(baseDir, "recording.log");
+        var csvPath = Path.Combine(baseDir, "recording-metrics.csv");
+        var jsonlPath = Path.Combine(baseDir, "recording-metrics.jsonl");
+
+        IRecordingTelemetrySink telemetrySink = new CompositeRecordingTelemetrySink(
+            new FileRecordingTelemetrySink(logPath),
+            new CsvRecordingTelemetrySink(csvPath),
+            new JsonlRecordingTelemetrySink(jsonlPath));
 
         IRecordingService recordingService = new RecordingService(
             outputCaptureController,
