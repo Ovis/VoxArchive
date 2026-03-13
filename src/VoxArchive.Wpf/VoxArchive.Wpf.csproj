@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoxArchive.Runtime\VoxArchive.Runtime.csproj" />
+    <ProjectReference Include="..\VoxArchive.Application.Abstractions\VoxArchive.Application.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Domain\VoxArchive.Domain.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>

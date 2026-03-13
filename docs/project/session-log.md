@@ -90,3 +90,12 @@
 1. WASAPIベースのデバイス列挙サービス実装。
 2. NAudio実キャプチャへ置換。
 3. WPFアプリプロジェクトを作成し Runtime を接続。
+
+## 2026-03-13 Session-07
+
+### 実施
+1. VoxArchive.Wpf プロジェクトを追加してソリューションへ接続。
+2. App 起動時に LocalRecordingBootstrapper を実行し Runtime 初期化する処理を追加。
+3. MainViewModel / DelegateCommand を追加し、Start/Pause/Resume/Stop の最小操作を実装。
+4. MainWindow.xaml を録音操作+状態表示の簡易UIへ更新。
+5. dotnet build VoxArchive.sln -m:1 成功。
