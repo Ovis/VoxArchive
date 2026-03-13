@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Media;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Runtime;
@@ -30,6 +31,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _alignmentMillisecondsText = "0";
     private bool _isMiniMode;
     private ProcessListItem? _selectedProcessItem;
+    private bool _isSpeakerCaptureEnabled = true;
+    private bool _isMicCaptureEnabled = true;
 
     public MainViewModel(RecordingRuntimeContext context)
     {
@@ -48,11 +51,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _selectedMicDeviceId = _options.MicDeviceId;
         _selectedOutputMode = _options.OutputCaptureMode;
         _alignmentMillisecondsText = _options.ChannelAlignmentMilliseconds.ToString();
+        _isSpeakerCaptureEnabled = _recordingService.IsSpeakerCaptureEnabled;
+        _isMicCaptureEnabled = _recordingService.IsMicCaptureEnabled;
 
         StartStopCommand = new DelegateCommand(StartOrStopAsync, CanStartOrStop);
         PauseResumeCommand = new DelegateCommand(PauseOrResumeAsync, CanPauseOrResume);
         ToggleMiniModeCommand = new DelegateCommand(ToggleMiniModeAsync, () => IsStoppedOrError);
         RefreshProcessesCommand = new DelegateCommand(LoadProcessesAsync, () => IsProcessSelectionEnabled);
+        ToggleSpeakerCaptureCommand = new DelegateCommand(ToggleSpeakerCaptureAsync);
+        ToggleMicCaptureCommand = new DelegateCommand(ToggleMicCaptureAsync);
 
         _recordingService.StateChanged += (_, s) => RunOnUi(() =>
         {
@@ -75,8 +82,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             OutputPathText = $"出力: {st.OutputFilePath ?? "-"}";
             ElapsedText = st.ElapsedTime.ToString(@"hh\:mm\:ss");
-            SpeakerLevelPercent = Math.Clamp(st.SpeakerLevel * 100.0, 0, 100);
-            MicLevelPercent = Math.Clamp(st.MicLevel * 100.0, 0, 100);
+            SpeakerLevelPercent = IsSpeakerCaptureEnabled ? Math.Clamp(st.SpeakerLevel * 100.0, 0, 100) : 0;
+            MicLevelPercent = IsMicCaptureEnabled ? Math.Clamp(st.MicLevel * 100.0, 0, 100) : 0;
             MetricsText = $"Drift {st.DriftCorrectionPpm:F1} ppm / MicBuf {st.MicBufferMilliseconds:F0}ms / SpkBuf {st.SpeakerBufferMilliseconds:F0}ms / UF {st.UnderflowCount} / OF {st.OverflowCount}";
         });
 
@@ -90,6 +97,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public DelegateCommand PauseResumeCommand { get; }
     public DelegateCommand ToggleMiniModeCommand { get; }
     public DelegateCommand RefreshProcessesCommand { get; }
+    public DelegateCommand ToggleSpeakerCaptureCommand { get; }
+    public DelegateCommand ToggleMicCaptureCommand { get; }
 
     public ObservableCollection<AudioDeviceInfo> SpeakerDevices { get; }
     public ObservableCollection<AudioDeviceInfo> MicDevices { get; }
@@ -101,12 +110,76 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string MetricsText { get => _metricsText; private set => SetField(ref _metricsText, value); }
     public string LastErrorText { get => _lastErrorText; private set => SetField(ref _lastErrorText, value); }
     public string ElapsedText { get => _elapsedText; private set => SetField(ref _elapsedText, value); }
-    public double SpeakerLevelPercent { get => _speakerLevelPercent; private set => SetField(ref _speakerLevelPercent, value); }
-    public double MicLevelPercent { get => _micLevelPercent; private set => SetField(ref _micLevelPercent, value); }
+    public double SpeakerLevelPercent
+    {
+        get => _speakerLevelPercent;
+        private set
+        {
+            if (SetField(ref _speakerLevelPercent, value))
+            {
+                OnPropertyChanged(nameof(SpeakerIconBrush));
+            }
+        }
+    }
+
+    public double MicLevelPercent
+    {
+        get => _micLevelPercent;
+        private set
+        {
+            if (SetField(ref _micLevelPercent, value))
+            {
+                OnPropertyChanged(nameof(MicIconBrush));
+            }
+        }
+    }
 
     public string SelectedSpeakerDeviceId { get => _selectedSpeakerDeviceId; set => SetField(ref _selectedSpeakerDeviceId, value); }
     public string SelectedMicDeviceId { get => _selectedMicDeviceId; set => SetField(ref _selectedMicDeviceId, value); }
     public string AlignmentMillisecondsText { get => _alignmentMillisecondsText; set => SetField(ref _alignmentMillisecondsText, value); }
+
+    public bool IsSpeakerCaptureEnabled
+    {
+        get => _isSpeakerCaptureEnabled;
+        private set
+        {
+            if (SetField(ref _isSpeakerCaptureEnabled, value))
+            {
+                _recordingService.SetSpeakerCaptureEnabled(value);
+                if (!value)
+                {
+                    SpeakerLevelPercent = 0;
+                }
+
+                OnPropertyChanged(nameof(SpeakerMuteSlashVisibility));
+                OnPropertyChanged(nameof(SpeakerIconBrush));
+            }
+        }
+    }
+
+    public bool IsMicCaptureEnabled
+    {
+        get => _isMicCaptureEnabled;
+        private set
+        {
+            if (SetField(ref _isMicCaptureEnabled, value))
+            {
+                _recordingService.SetMicCaptureEnabled(value);
+                if (!value)
+                {
+                    MicLevelPercent = 0;
+                }
+
+                OnPropertyChanged(nameof(MicMuteSlashVisibility));
+                OnPropertyChanged(nameof(MicIconBrush));
+            }
+        }
+    }
+
+    public Brush SpeakerIconBrush => BuildIconBrush(IsSpeakerCaptureEnabled, SpeakerLevelPercent, Colors.DeepSkyBlue);
+    public Brush MicIconBrush => BuildIconBrush(IsMicCaptureEnabled, MicLevelPercent, Color.FromRgb(54, 224, 98));
+    public Visibility SpeakerMuteSlashVisibility => IsSpeakerCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility MicMuteSlashVisibility => IsMicCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
 
     public OutputCaptureMode SelectedOutputMode
     {
@@ -278,6 +351,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             await _settingsService.SaveRecordingOptionsAsync(_options);
             var path = await _recordingService.StartAsync(_options);
+            _recordingService.SetSpeakerCaptureEnabled(IsSpeakerCaptureEnabled);
+            _recordingService.SetMicCaptureEnabled(IsMicCaptureEnabled);
             OutputPathText = $"出力: {path}";
             return;
         }
@@ -297,6 +372,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             await _recordingService.PauseAsync();
         }
+    }
+
+    private Task ToggleSpeakerCaptureAsync()
+    {
+        IsSpeakerCaptureEnabled = !IsSpeakerCaptureEnabled;
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleMicCaptureAsync()
+    {
+        IsMicCaptureEnabled = !IsMicCaptureEnabled;
+        return Task.CompletedTask;
     }
 
     private Task ToggleMiniModeAsync()
@@ -345,6 +432,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             OutputDirectory = output
         };
+    }
+
+    private static Brush BuildIconBrush(bool isEnabled, double levelPercent, Color accent)
+    {
+        if (!isEnabled)
+        {
+            return new SolidColorBrush(Color.FromRgb(122, 134, 149));
+        }
+
+        var t = Math.Clamp(levelPercent / 100.0, 0.0, 1.0);
+        var baseColor = Color.FromRgb(210, 216, 225);
+        var r = (byte)Math.Round(baseColor.R + ((accent.R - baseColor.R) * t));
+        var g = (byte)Math.Round(baseColor.G + ((accent.G - baseColor.G) * t));
+        var b = (byte)Math.Round(baseColor.B + ((accent.B - baseColor.B) * t));
+        return new SolidColorBrush(Color.FromRgb(r, g, b));
     }
 
     private static void RunOnUi(Action action)
@@ -400,4 +502,3 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-

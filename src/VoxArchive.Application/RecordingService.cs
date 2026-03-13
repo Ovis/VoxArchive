@@ -2,6 +2,7 @@ using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Encoding.Abstractions;
+using System.Buffers;
 
 namespace VoxArchive.Application;
 
@@ -29,6 +30,8 @@ public sealed class RecordingService : IRecordingService
     private long _overflowCount;
     private double _lastSpeakerLevel;
     private double _lastMicLevel;
+    private volatile bool _speakerCaptureEnabled = true;
+    private volatile bool _micCaptureEnabled = true;
 
     public RecordingService(
         IOutputCaptureController outputCaptureController,
@@ -58,11 +61,23 @@ public sealed class RecordingService : IRecordingService
     }
 
     public RecordingState CurrentState => _stateMachine.CurrentState;
+    public bool IsSpeakerCaptureEnabled => _speakerCaptureEnabled;
+    public bool IsMicCaptureEnabled => _micCaptureEnabled;
 
     public event EventHandler<RecordingState>? StateChanged;
     public event EventHandler<RecordingStatistics>? StatisticsUpdated;
     public event EventHandler<string>? ErrorOccurred;
     public event EventHandler<OutputSourceChangedEvent>? OutputSourceChanged;
+
+    public void SetSpeakerCaptureEnabled(bool enabled)
+    {
+        _speakerCaptureEnabled = enabled;
+    }
+
+    public void SetMicCaptureEnabled(bool enabled)
+    {
+        _micCaptureEnabled = enabled;
+    }
 
     public async Task<string> StartAsync(RecordingOptions options, CancellationToken cancellationToken = default)
     {
@@ -82,6 +97,8 @@ public sealed class RecordingService : IRecordingService
             _outputPath = BuildOutputFilePath(effectiveOptions.OutputDirectory);
             _startedAt = DateTimeOffset.UtcNow;
             _isPaused = false;
+            _speakerCaptureEnabled = true;
+            _micCaptureEnabled = true;
             _underflowCount = 0;
             _overflowCount = 0;
             _speakerBuffer.Clear();
@@ -261,12 +278,49 @@ public sealed class RecordingService : IRecordingService
 
     private void OnSpeakerChunkCaptured(object? sender, CaptureChunk chunk)
     {
+        if (!_speakerCaptureEnabled)
+        {
+            WriteSilence(_speakerBuffer, chunk.Samples.Length);
+            return;
+        }
+
         WriteChunkWithRateNormalization(_speakerBuffer, chunk);
     }
 
     private void OnMicChunkCaptured(object? sender, CaptureChunk chunk)
     {
+        if (!_micCaptureEnabled)
+        {
+            WriteSilence(_micBuffer, chunk.Samples.Length);
+            return;
+        }
+
         WriteChunkWithRateNormalization(_micBuffer, chunk);
+    }
+
+    private static void WriteSilence(IRingBuffer buffer, int samples)
+    {
+        if (samples <= 0)
+        {
+            return;
+        }
+
+        var rented = ArrayPool<float>.Shared.Rent(Math.Min(samples, 4096));
+        Array.Clear(rented, 0, rented.Length);
+        try
+        {
+            var remaining = samples;
+            while (remaining > 0)
+            {
+                var len = Math.Min(remaining, rented.Length);
+                WriteSamples(buffer, rented.AsSpan(0, len));
+                remaining -= len;
+            }
+        }
+        finally
+        {
+            ArrayPool<float>.Shared.Return(rented);
+        }
     }
 
     private void WriteChunkWithRateNormalization(IRingBuffer buffer, CaptureChunk chunk)
@@ -439,5 +493,7 @@ public sealed class RecordingService : IRecordingService
         return (samples * 1000d) / _activeOptions.SampleRate;
     }
 }
+
+
 
 

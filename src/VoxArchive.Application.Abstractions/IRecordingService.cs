@@ -5,6 +5,9 @@ namespace VoxArchive.Application.Abstractions;
 public interface IRecordingService
 {
     RecordingState CurrentState { get; }
+    bool IsSpeakerCaptureEnabled { get; }
+    bool IsMicCaptureEnabled { get; }
+
     event EventHandler<RecordingState>? StateChanged;
     event EventHandler<RecordingStatistics>? StatisticsUpdated;
     event EventHandler<string>? ErrorOccurred;
@@ -14,4 +17,6 @@ public interface IRecordingService
     Task PauseAsync(CancellationToken cancellationToken = default);
     Task ResumeAsync(CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);
+    void SetSpeakerCaptureEnabled(bool enabled);
+    void SetMicCaptureEnabled(bool enabled);
 }
