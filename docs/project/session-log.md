@@ -27,3 +27,17 @@
 ### 2026-03-13 Session-01 追記
 - Application 層に RecordingService の最小実装を追加（状態遷移とイベント通知を実装）。
 - backlog を更新し、状態遷移ガードとRecordingServiceスケルトンを完了扱いに変更。
+
+## 2026-03-13 Session-02
+
+### 実施
+1. src/VoxArchive.Audio プロジェクトを追加し、ソリューションへ組み込み。
+2. FloatRingBuffer を実装（固定容量、スレッドセーフ、ゼロ埋め読み出し対応）。
+3. PiDriftCorrector を実装（Kp/Ki、ppm上限制限、ratio算出）。
+4. LinearVariableRateResampler を実装（線形補間、ratio追従）。
+5. dotnet build VoxArchive.sln -m:1 で成功確認。
+
+### 次アクション
+1. Speaker/Mic キャプチャ抽象実装の骨格追加。
+2. FrameBuilder 最小実装追加。
+3. ffmpeg エンコーダラッパー最小実装追加。
