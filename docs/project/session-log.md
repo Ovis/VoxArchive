@@ -99,3 +99,12 @@
 3. MainViewModel / DelegateCommand を追加し、Start/Pause/Resume/Stop の最小操作を実装。
 4. MainWindow.xaml を録音操作+状態表示の簡易UIへ更新。
 5. dotnet build VoxArchive.sln -m:1 成功。
+
+## 2026-03-13 Session-08
+
+### 実施
+1. WasapiDeviceService を追加し、WASAPI(COM)でSpeaker/Micデバイス列挙を実装。
+2. 既定デバイス判定（Multimedia role）と FriendlyName 取得を実装。
+3. RecordingRuntimeContext に IDeviceService を追加。
+4. LocalRecordingBootstrapper に WasapiDeviceService を組み込み、設定未指定時は既定デバイスIDを適用。
+5. dotnet build VoxArchive.sln -m:1 警告なしで成功。

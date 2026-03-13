@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using VoxArchive.Application;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio;
@@ -9,6 +10,7 @@ using VoxArchive.Infrastructure;
 
 namespace VoxArchive.Runtime;
 
+[SupportedOSPlatform("windows")]
 public sealed class LocalRecordingBootstrapper
 {
     private readonly string _settingsPath;
@@ -21,7 +23,12 @@ public sealed class LocalRecordingBootstrapper
     public async Task<RecordingRuntimeContext> InitializeAsync(CancellationToken cancellationToken = default)
     {
         ISettingsService settingsService = new JsonSettingsService(_settingsPath);
-        var options = await settingsService.LoadRecordingOptionsAsync(cancellationToken);
+        IDeviceService deviceService = new WasapiDeviceService();
+
+        var loaded = await settingsService.LoadRecordingOptionsAsync(cancellationToken);
+        var defaultSpeaker = await deviceService.GetDefaultSpeakerDeviceAsync(cancellationToken);
+        var defaultMic = await deviceService.GetDefaultMicrophoneDeviceAsync(cancellationToken);
+        var options = ApplyDefaults(loaded, defaultSpeaker, defaultMic);
 
         var speakerCaptureService = new SpeakerCaptureService();
         var micCaptureService = new MicCaptureService();
@@ -56,6 +63,25 @@ public sealed class LocalRecordingBootstrapper
         return new RecordingRuntimeContext(
             RecordingService: recordingService,
             SettingsService: settingsService,
+            DeviceService: deviceService,
             DefaultOptions: options);
+    }
+
+    private static RecordingOptions ApplyDefaults(RecordingOptions loaded, AudioDeviceInfo? defaultSpeaker, AudioDeviceInfo? defaultMic)
+    {
+        var outputDirectory = string.IsNullOrWhiteSpace(loaded.OutputDirectory)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "VoxArchive")
+            : loaded.OutputDirectory;
+
+        return loaded with
+        {
+            OutputDirectory = outputDirectory,
+            SpeakerDeviceId = string.IsNullOrWhiteSpace(loaded.SpeakerDeviceId)
+                ? (defaultSpeaker?.DeviceId ?? string.Empty)
+                : loaded.SpeakerDeviceId,
+            MicDeviceId = string.IsNullOrWhiteSpace(loaded.MicDeviceId)
+                ? (defaultMic?.DeviceId ?? string.Empty)
+                : loaded.MicDeviceId
+        };
     }
 }

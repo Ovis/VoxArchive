@@ -10,6 +10,7 @@
 - [x] Processフォールバック通知を Application 層へ伝搬
 - [x] DI構成と起動シーケンスの実装
 - [x] WPF起動プロジェクトと最小操作UIの実装
+- [x] デバイス列挙サービス実装（WASAPI）
 
 ## Later
 - [x] RingBuffer 実装
@@ -20,7 +21,6 @@
 - [x] 可変レートリサンプラ実装
 - [x] Process Loopback 実装
 - [x] Failover Coordinator 実装
-- [ ] デバイス列挙サービス実装（WASAPI）
 - [ ] 実キャプチャ実装（NAudio）
 - [ ] WPF UI 詳細仕様の反映（常時表示バー/ミニモード/デバイス選択）
 - [ ] 結合テスト整備
