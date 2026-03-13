@@ -43,30 +43,43 @@ public sealed class WasapiDeviceService : IDeviceService
         try
         {
             enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-            enumerator.EnumAudioEndpoints(flow, DeviceState.Active, out collection);
-            enumerator.GetDefaultAudioEndpoint(flow, ERole.eMultimedia, out defaultDevice);
 
+            Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(flow, ERole.eMultimedia, out defaultDevice));
             var defaultDeviceId = GetDeviceId(defaultDevice);
 
-            collection.GetCount(out var count);
-            for (var i = 0; i < count; i++)
+            if (TryEnumAudioEndpoints(enumerator, flow, out collection) && collection is not null)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                collection.Item(i, out var device);
-                try
+                Marshal.ThrowExceptionForHR(collection.GetCount(out var count));
+                for (uint i = 0; i < count; i++)
                 {
-                    var deviceId = GetDeviceId(device);
-                    var friendlyName = GetFriendlyName(device);
-                    results.Add(new AudioDeviceInfo(
-                        DeviceId: deviceId,
-                        FriendlyName: string.IsNullOrWhiteSpace(friendlyName) ? deviceId : friendlyName,
-                        IsDefault: string.Equals(deviceId, defaultDeviceId, StringComparison.OrdinalIgnoreCase),
-                        DeviceKind: kind));
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    Marshal.ThrowExceptionForHR(collection.Item(i, out var device));
+                    try
+                    {
+                        var deviceId = GetDeviceId(device);
+                        var friendlyName = GetFriendlyName(device);
+                        results.Add(new AudioDeviceInfo(
+                            DeviceId: deviceId,
+                            FriendlyName: string.IsNullOrWhiteSpace(friendlyName) ? deviceId : friendlyName,
+                            IsDefault: string.Equals(deviceId, defaultDeviceId, StringComparison.OrdinalIgnoreCase),
+                            DeviceKind: kind));
+                    }
+                    finally
+                    {
+                        ReleaseCom(device);
+                    }
                 }
-                finally
-                {
-                    ReleaseCom(device);
-                }
+            }
+            else
+            {
+                // 一部環境で EnumAudioEndpoints の COM マーシャリングに失敗するため既定デバイスへフォールバック。
+                var friendlyName = GetFriendlyName(defaultDevice);
+                results.Add(new AudioDeviceInfo(
+                    DeviceId: defaultDeviceId,
+                    FriendlyName: string.IsNullOrWhiteSpace(friendlyName) ? defaultDeviceId : friendlyName,
+                    IsDefault: true,
+                    DeviceKind: kind));
             }
         }
         finally
@@ -79,9 +92,24 @@ public sealed class WasapiDeviceService : IDeviceService
         return results;
     }
 
+    private static bool TryEnumAudioEndpoints(IMMDeviceEnumerator enumerator, EDataFlow flow, out IMMDeviceCollection? collection)
+    {
+        collection = null;
+
+        try
+        {
+            Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(flow, (uint)DeviceState.Active, out collection));
+            return collection is not null;
+        }
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+    }
+
     private static string GetDeviceId(IMMDevice device)
     {
-        device.GetId(out var ptr);
+        Marshal.ThrowExceptionForHR(device.GetId(out var ptr));
         try
         {
             return Marshal.PtrToStringUni(ptr) ?? string.Empty;
@@ -94,11 +122,11 @@ public sealed class WasapiDeviceService : IDeviceService
 
     private static string GetFriendlyName(IMMDevice device)
     {
-        device.OpenPropertyStore(Stgm.Read, out var propertyStore);
+        Marshal.ThrowExceptionForHR(device.OpenPropertyStore((uint)Stgm.Read, out var propertyStore));
         try
         {
             var key = PropertyKey.DeviceFriendlyName;
-            propertyStore.GetValue(ref key, out var value);
+            Marshal.ThrowExceptionForHR(propertyStore.GetValue(ref key, out var value));
             try
             {
                 return value.GetString();
@@ -198,11 +226,20 @@ public sealed class WasapiDeviceService : IDeviceService
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IMMDeviceEnumerator
     {
-        void EnumAudioEndpoints(EDataFlow dataFlow, DeviceState stateMask, out IMMDeviceCollection devices);
-        void GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, out IMMDevice endpoint);
-        void GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
-        void RegisterEndpointNotificationCallback(IntPtr client);
-        void UnregisterEndpointNotificationCallback(IntPtr client);
+        [PreserveSig]
+        int EnumAudioEndpoints(EDataFlow dataFlow, uint stateMask, out IMMDeviceCollection devices);
+
+        [PreserveSig]
+        int GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, out IMMDevice endpoint);
+
+        [PreserveSig]
+        int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
+
+        [PreserveSig]
+        int RegisterEndpointNotificationCallback(IntPtr client);
+
+        [PreserveSig]
+        int UnregisterEndpointNotificationCallback(IntPtr client);
     }
 
     [ComImport]
@@ -210,8 +247,11 @@ public sealed class WasapiDeviceService : IDeviceService
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IMMDeviceCollection
     {
-        void GetCount(out int deviceCount);
-        void Item(int deviceNumber, out IMMDevice device);
+        [PreserveSig]
+        int GetCount(out uint deviceCount);
+
+        [PreserveSig]
+        int Item(uint deviceNumber, out IMMDevice device);
     }
 
     [ComImport]
@@ -219,10 +259,17 @@ public sealed class WasapiDeviceService : IDeviceService
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IMMDevice
     {
-        void Activate(ref Guid iid, int dwClsCtx, IntPtr activationParams, out IntPtr interfacePointer);
-        void OpenPropertyStore(Stgm stgmAccess, out IPropertyStore properties);
-        void GetId(out IntPtr id);
-        void GetState(out DeviceState state);
+        [PreserveSig]
+        int Activate(ref Guid iid, uint dwClsCtx, IntPtr activationParams, out IntPtr interfacePointer);
+
+        [PreserveSig]
+        int OpenPropertyStore(uint stgmAccess, out IPropertyStore properties);
+
+        [PreserveSig]
+        int GetId(out IntPtr id);
+
+        [PreserveSig]
+        int GetState(out uint state);
     }
 
     [ComImport]
@@ -230,11 +277,20 @@ public sealed class WasapiDeviceService : IDeviceService
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IPropertyStore
     {
-        void GetCount(out int propertyCount);
-        void GetAt(int propertyIndex, out PropertyKey key);
-        void GetValue(ref PropertyKey key, out PropVariant pv);
-        void SetValue(ref PropertyKey key, ref PropVariant pv);
-        void Commit();
+        [PreserveSig]
+        int GetCount(out uint propertyCount);
+
+        [PreserveSig]
+        int GetAt(uint propertyIndex, out PropertyKey key);
+
+        [PreserveSig]
+        int GetValue(ref PropertyKey key, out PropVariant pv);
+
+        [PreserveSig]
+        int SetValue(ref PropertyKey key, ref PropVariant pv);
+
+        [PreserveSig]
+        int Commit();
     }
 
     [ComImport]
@@ -243,4 +299,3 @@ public sealed class WasapiDeviceService : IDeviceService
     {
     }
 }
-
