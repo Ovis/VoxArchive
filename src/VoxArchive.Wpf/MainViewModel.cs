@@ -1,7 +1,7 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Windows;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Runtime;
@@ -12,18 +12,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly IRecordingService _recordingService;
     private readonly ISettingsService _settingsService;
+    private readonly IDeviceService _deviceService;
     private RecordingOptions _options;
 
     private string _stateText = "状態: Stopped";
     private string _outputPathText = "出力: -";
     private string _metricsText = "統計: -";
     private string _lastErrorText = string.Empty;
+    private string _selectedSpeakerDeviceId = string.Empty;
+    private string _selectedMicDeviceId = string.Empty;
+    private OutputCaptureMode _selectedOutputMode;
+    private string _targetProcessIdText = string.Empty;
 
     public MainViewModel(RecordingRuntimeContext context)
     {
         _recordingService = context.RecordingService;
         _settingsService = context.SettingsService;
+        _deviceService = context.DeviceService;
         _options = EnsureDefaults(context.DefaultOptions);
+
+        SpeakerDevices = new ObservableCollection<AudioDeviceInfo>();
+        MicDevices = new ObservableCollection<AudioDeviceInfo>();
+        OutputModes = new[] { OutputCaptureMode.SpeakerLoopback, OutputCaptureMode.ProcessLoopback };
+
+        _selectedSpeakerDeviceId = _options.SpeakerDeviceId;
+        _selectedMicDeviceId = _options.MicDeviceId;
+        _selectedOutputMode = _options.OutputCaptureMode;
+        _targetProcessIdText = _options.TargetProcessId?.ToString() ?? string.Empty;
 
         StartCommand = new DelegateCommand(StartAsync, () => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error);
         PauseCommand = new DelegateCommand(PauseAsync, () => _recordingService.CurrentState == RecordingState.Recording);
@@ -43,6 +58,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OutputPathText = $"出力: {st.OutputFilePath ?? "-"}";
             MetricsText = $"経過 {st.ElapsedTime:hh\\:mm\\:ss} / Drift {st.DriftCorrectionPpm:F1} ppm / MicBuf {st.MicBufferMilliseconds:F0}ms / SpkBuf {st.SpeakerBufferMilliseconds:F0}ms";
         });
+
+        _ = LoadDevicesAsync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -52,15 +69,69 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public DelegateCommand ResumeCommand { get; }
     public DelegateCommand StopCommand { get; }
 
+    public ObservableCollection<AudioDeviceInfo> SpeakerDevices { get; }
+    public ObservableCollection<AudioDeviceInfo> MicDevices { get; }
+    public IReadOnlyList<OutputCaptureMode> OutputModes { get; }
+
     public string StateText { get => _stateText; private set => SetField(ref _stateText, value); }
     public string OutputPathText { get => _outputPathText; private set => SetField(ref _outputPathText, value); }
     public string MetricsText { get => _metricsText; private set => SetField(ref _metricsText, value); }
     public string LastErrorText { get => _lastErrorText; private set => SetField(ref _lastErrorText, value); }
 
+    public string SelectedSpeakerDeviceId { get => _selectedSpeakerDeviceId; set => SetField(ref _selectedSpeakerDeviceId, value); }
+    public string SelectedMicDeviceId { get => _selectedMicDeviceId; set => SetField(ref _selectedMicDeviceId, value); }
+    public OutputCaptureMode SelectedOutputMode { get => _selectedOutputMode; set => SetField(ref _selectedOutputMode, value); }
+    public string TargetProcessIdText { get => _targetProcessIdText; set => SetField(ref _targetProcessIdText, value); }
+
+    private async Task LoadDevicesAsync()
+    {
+        try
+        {
+            var speakers = await _deviceService.GetSpeakerDevicesAsync();
+            var mics = await _deviceService.GetMicrophoneDevicesAsync();
+
+            RunOnUi(() =>
+            {
+                SpeakerDevices.Clear();
+                foreach (var d in speakers)
+                {
+                    SpeakerDevices.Add(d);
+                }
+
+                MicDevices.Clear();
+                foreach (var d in mics)
+                {
+                    MicDevices.Add(d);
+                }
+
+                if (string.IsNullOrWhiteSpace(SelectedSpeakerDeviceId))
+                {
+                    SelectedSpeakerDeviceId = speakers.FirstOrDefault(x => x.IsDefault)?.DeviceId ?? speakers.FirstOrDefault()?.DeviceId ?? string.Empty;
+                }
+
+                if (string.IsNullOrWhiteSpace(SelectedMicDeviceId))
+                {
+                    SelectedMicDeviceId = mics.FirstOrDefault(x => x.IsDefault)?.DeviceId ?? mics.FirstOrDefault()?.DeviceId ?? string.Empty;
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            RunOnUi(() => LastErrorText = $"デバイス列挙失敗: {ex.Message}");
+        }
+    }
+
     private async Task StartAsync()
     {
         LastErrorText = string.Empty;
-        _options = EnsureDefaults(_options);
+        _options = EnsureDefaults(_options) with
+        {
+            SpeakerDeviceId = SelectedSpeakerDeviceId,
+            MicDeviceId = SelectedMicDeviceId,
+            OutputCaptureMode = SelectedOutputMode,
+            TargetProcessId = TryParseProcessId(TargetProcessIdText)
+        };
+
         await _settingsService.SaveRecordingOptionsAsync(_options);
         var path = await _recordingService.StartAsync(_options);
         OutputPathText = $"出力: {path}";
@@ -99,10 +170,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         return options with
         {
-            OutputDirectory = output,
-            SpeakerDeviceId = string.IsNullOrWhiteSpace(options.SpeakerDeviceId) ? "default-speaker" : options.SpeakerDeviceId,
-            MicDeviceId = string.IsNullOrWhiteSpace(options.MicDeviceId) ? "default-mic" : options.MicDeviceId,
+            OutputDirectory = output
         };
+    }
+
+    private static int? TryParseProcessId(string text)
+    {
+        return int.TryParse(text, out var pid) && pid > 0 ? pid : null;
     }
 
     private static void RunOnUi(Action action)

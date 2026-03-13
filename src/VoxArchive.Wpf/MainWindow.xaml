@@ -2,55 +2,72 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="VoxArchive"
-        Width="820"
-        Height="140"
-        MinWidth="760"
-        MinHeight="120"
+        Width="980"
+        Height="230"
+        MinWidth="920"
+        MinHeight="210"
         ResizeMode="CanMinimize"
         Topmost="True">
     <Grid Margin="12">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="16" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="8" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="8" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <Button Grid.Column="0"
-                Margin="0,0,8,0"
-                Padding="14,6"
-                Content="開始"
-                Command="{Binding StartCommand}" />
-        <Button Grid.Column="1"
-                Margin="0,0,8,0"
-                Padding="14,6"
-                Content="一時停止"
-                Command="{Binding PauseCommand}" />
-        <Button Grid.Column="2"
-                Margin="0,0,8,0"
-                Padding="14,6"
-                Content="再開"
-                Command="{Binding ResumeCommand}" />
-        <Button Grid.Column="3"
-                Margin="0,0,8,0"
-                Padding="14,6"
-                Content="停止"
-                Command="{Binding StopCommand}" />
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <Button Margin="0,0,8,0" Padding="14,6" Content="開始" Command="{Binding StartCommand}" />
+            <Button Margin="0,0,8,0" Padding="14,6" Content="一時停止" Command="{Binding PauseCommand}" />
+            <Button Margin="0,0,8,0" Padding="14,6" Content="再開" Command="{Binding ResumeCommand}" />
+            <Button Margin="0,0,8,0" Padding="14,6" Content="停止" Command="{Binding StopCommand}" />
+            <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="{Binding StateText}" />
+        </StackPanel>
 
-        <StackPanel Grid.Column="5"
-                    Orientation="Vertical">
-            <TextBlock FontSize="16"
-                       FontWeight="SemiBold"
-                       Text="{Binding StateText}" />
-            <TextBlock Margin="0,4,0,0"
-                       Text="{Binding OutputPathText}" />
-            <TextBlock Margin="0,2,0,0"
-                       Text="{Binding MetricsText}" />
-            <TextBlock Margin="0,2,0,0"
-                       Foreground="DarkRed"
-                       Text="{Binding LastErrorText}" />
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="80" />
+                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="80" />
+                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="80" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Speaker" />
+            <ComboBox Grid.Column="1"
+                      Margin="4,0,8,0"
+                      DisplayMemberPath="FriendlyName"
+                      ItemsSource="{Binding SpeakerDevices}"
+                      SelectedValuePath="DeviceId"
+                      SelectedValue="{Binding SelectedSpeakerDeviceId, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Mic" />
+            <ComboBox Grid.Column="3"
+                      Margin="4,0,8,0"
+                      DisplayMemberPath="FriendlyName"
+                      ItemsSource="{Binding MicDevices}"
+                      SelectedValuePath="DeviceId"
+                      SelectedValue="{Binding SelectedMicDeviceId, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="Mode" />
+            <ComboBox Grid.Column="5"
+                      Margin="4,0,0,0"
+                      ItemsSource="{Binding OutputModes}"
+                      SelectedItem="{Binding SelectedOutputMode, UpdateSourceTrigger=PropertyChanged}" />
+        </Grid>
+
+        <StackPanel Grid.Row="4" Orientation="Vertical">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center" Text="Process PID" />
+                <TextBox Width="120"
+                         Margin="8,0,0,0"
+                         Text="{Binding TargetProcessIdText, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+            <TextBlock Margin="0,6,0,0" Text="{Binding OutputPathText}" />
+            <TextBlock Margin="0,2,0,0" Text="{Binding MetricsText}" />
+            <TextBlock Margin="0,2,0,0" Foreground="DarkRed" Text="{Binding LastErrorText}" />
         </StackPanel>
     </Grid>
 </Window>

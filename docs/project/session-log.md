@@ -118,3 +118,12 @@
 4. DataAvailable の PCM を mono float へ変換して CaptureChunk として通知。
 5. NAudio未導入時は既存 SpeakerCaptureService / MicCaptureService へフォールバックする構成へ変更。
 6. dotnet build VoxArchive.sln -m:1 成功。
+
+## 2026-03-13 Session-10
+
+### 実施
+1. MainWindow に Speaker/Mic デバイス選択UIを追加。
+2. 出力モード選択（SpeakerLoopback / ProcessLoopback）と PID 入力UIを追加。
+3. MainViewModel に IDeviceService 連携を実装し、起動時デバイス列挙・既定選択を反映。
+4. Start時にUI選択値を RecordingOptions に反映して保存・録音開始するよう更新。
+5. dotnet build VoxArchive.sln -m:1 成功。
