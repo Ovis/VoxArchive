@@ -161,13 +161,15 @@
                     <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
                         <Button Style="{StaticResource CircleIconButtonStyle}" Command="{Binding PauseResumeCommand}">
                             <Grid>
-                                <TextBlock Visibility="{Binding PauseGlyphVisibility}"
-                                           Text="&#xE769;"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="18"
-                                           Foreground="{StaticResource TextPrimary}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
+                                <Grid Visibility="{Binding PauseGlyphVisibility}" Width="24" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="9" />
+                                        <ColumnDefinition Width="6" />
+                                        <ColumnDefinition Width="9" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Background="{StaticResource TextPrimary}" CornerRadius="1" />
+                                    <Border Grid.Column="2" Background="{StaticResource TextPrimary}" CornerRadius="1" />
+                                </Grid>
                                 <TextBlock Visibility="{Binding ResumeGlyphVisibility}"
                                            Text="&#xE768;"
                                            FontFamily="Segoe MDL2 Assets"
@@ -315,4 +317,5 @@
         </Border>
     </Grid>
 </Window>
+
 
