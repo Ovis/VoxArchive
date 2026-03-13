@@ -214,12 +214,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (_recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error)
         {
             LastErrorText = string.Empty;
+
+            var mode = SelectedOutputMode;
+            var targetPid = SelectedProcessItem?.ProcessId;
+
+            if (mode == OutputCaptureMode.ProcessLoopback)
+            {
+                if (targetPid is null || !await _processCatalogService.ExistsAsync(targetPid.Value))
+                {
+                    var result = MessageBox.Show(
+                        "選択したアプリは現在起動していません。\nスピーカー録音に切り替えて開始しますか？",
+                        "録音開始確認",
+                        MessageBoxButton.OKCancel,
+                        MessageBoxImage.Question,
+                        MessageBoxResult.OK);
+
+                    if (result != MessageBoxResult.OK)
+                    {
+                        LastErrorText = "録音開始をキャンセルしました。";
+                        return;
+                    }
+
+                    mode = OutputCaptureMode.SpeakerLoopback;
+                    targetPid = null;
+                    SelectedOutputMode = OutputCaptureMode.SpeakerLoopback;
+                }
+            }
+
             _options = EnsureDefaults(_options) with
             {
                 SpeakerDeviceId = SelectedSpeakerDeviceId,
                 MicDeviceId = SelectedMicDeviceId,
-                OutputCaptureMode = SelectedOutputMode,
-                TargetProcessId = SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? SelectedProcessItem?.ProcessId : null
+                OutputCaptureMode = mode,
+                TargetProcessId = targetPid
             };
 
             await _settingsService.SaveRecordingOptionsAsync(_options);

@@ -196,3 +196,12 @@
 3. WPFにプロセス選択コンボボックスを追加し、ProcessLoopback時に選択PIDを使用するよう更新。
 4. プロセス一覧の手動更新コマンドを追加。
 5. build + integration test + long-run test 全通過を確認。
+
+## 2026-03-13 Session-18
+
+### 実施
+1. OutputCaptureController を強化し、Process開始失敗時に Speaker へ自動フォールバックするよう更新。
+2. ProcessLoopbackCaptureService を拡張し、NAudio の WasapiProcessLoopbackCapture が存在する場合に反射で取り込み開始する実装を追加。
+3. WPF開始時に対象プロセス不在なら、
+   「スピーカー録音に切り替えて開始しますか？」確認ダイアログを表示。
+4. Runtime/Process選択UI連携を維持したまま build + test（Integration/LongRun）全通過を確認。

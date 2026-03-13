@@ -36,7 +36,21 @@ public sealed class OutputCaptureController : IOutputCaptureController
         {
             _lastOptions = options;
             var next = options.OutputCaptureMode == OutputCaptureMode.ProcessLoopback ? _processSource : _speakerSource;
-            await StartSourceAsync(next, options, "Start");
+
+            try
+            {
+                await StartSourceAsync(next, options, "Start", cancellationToken);
+            }
+            catch when (ReferenceEquals(next, _processSource))
+            {
+                var speakerOptions = options with
+                {
+                    OutputCaptureMode = OutputCaptureMode.SpeakerLoopback,
+                    TargetProcessId = null
+                };
+                _lastOptions = speakerOptions;
+                await StartSourceAsync(_speakerSource, speakerOptions, "ProcessStartFailedFallback", cancellationToken);
+            }
         }
         finally
         {
@@ -61,7 +75,7 @@ public sealed class OutputCaptureController : IOutputCaptureController
             };
 
             _lastOptions = speakerOptions;
-            await StartSourceAsync(_speakerSource, speakerOptions, reason);
+            await StartSourceAsync(_speakerSource, speakerOptions, reason, cancellationToken);
         }
         finally
         {
@@ -86,17 +100,17 @@ public sealed class OutputCaptureController : IOutputCaptureController
         }
     }
 
-    private async Task StartSourceAsync(IOutputCaptureSource nextSource, RecordingOptions options, string reason)
+    private async Task StartSourceAsync(IOutputCaptureSource nextSource, RecordingOptions options, string reason, CancellationToken cancellationToken)
     {
         var previousMode = _activeSource?.Mode ?? nextSource.Mode;
 
         if (_activeSource is not null)
         {
-            await _activeSource.StopAsync();
+            await _activeSource.StopAsync(cancellationToken);
         }
 
         _activeSource = nextSource;
-        await _activeSource.StartAsync(options);
+        await _activeSource.StartAsync(options, cancellationToken);
 
         if (previousMode != _activeSource.Mode || reason != "Start")
         {
