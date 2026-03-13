@@ -28,20 +28,54 @@ function Resolve-SessionRoot {
     return $latest.FullName
 }
 
+function Get-EvidenceStatus {
+    param(
+        [string]$FullPath
+    )
+
+    if (-not (Test-Path $FullPath)) {
+        return "MISSING"
+    }
+
+    $content = Get-Content -Raw $FullPath
+    if ($content -match '(?im)^status\s*:\s*PASS\s*$') {
+        return "PASS"
+    }
+
+    if ($content -match '(?im)^status\s*:\s*FAIL\s*$') {
+        return "FAIL"
+    }
+
+    return "PENDING"
+}
+
 function New-ArtifactResult {
     param(
         [string]$Name,
         [string]$RelativePath,
         [string]$Description,
-        [string]$SessionRoot
+        [string]$SessionRoot,
+        [bool]$UseEvidenceStatus
     )
 
     $fullPath = Join-Path $SessionRoot $RelativePath
-    $exists = Test-Path $fullPath
+    if ($UseEvidenceStatus) {
+        $status = Get-EvidenceStatus -FullPath $fullPath
+        $satisfied = $status -eq "PASS"
+        $exists = $status -ne "MISSING"
+    }
+    else {
+        $exists = Test-Path $fullPath
+        $status = if ($exists) { "PASS" } else { "MISSING" }
+        $satisfied = $exists
+    }
+
     return [pscustomobject]@{
         Name = $Name
         RelativePath = $RelativePath
         Exists = $exists
+        Status = $status
+        Satisfied = $satisfied
         Description = $Description
     }
 }
@@ -50,25 +84,25 @@ $sessionRoot = Resolve-SessionRoot -Base $BaseDir -Id $SessionId
 $sessionName = Split-Path $sessionRoot -Leaf
 
 $artifacts = @(
-    New-ArtifactResult -Name "メトリクスCSV" -RelativePath "metrics/recording-metrics.csv" -Description "統計CSV" -SessionRoot $sessionRoot
-    New-ArtifactResult -Name "メトリクスJSONL" -RelativePath "metrics/recording-metrics.jsonl" -Description "統計JSONL" -SessionRoot $sessionRoot
-    New-ArtifactResult -Name "録音ログ" -RelativePath "metrics/recording.log" -Description "テキストログ" -SessionRoot $sessionRoot
-    New-ArtifactResult -Name "長時間レポート" -RelativePath "report/longrun-report.md" -Description "1h/3h検証レポート" -SessionRoot $sessionRoot
-    New-ArtifactResult -Name "1h証跡" -RelativePath "report/evidence-1h.md" -Description "1時間録音の結果" -SessionRoot $sessionRoot
-    New-ArtifactResult -Name "3h証跡" -RelativePath "report/evidence-3h.md" -Description "3時間録音の結果" -SessionRoot $sessionRoot
-    New-ArtifactResult -Name "CH分離証跡" -RelativePath "report/evidence-channels.md" -Description "CH1=Speaker / CH2=Mic の確認" -SessionRoot $sessionRoot
-    New-ArtifactResult -Name "Processフォールバック証跡" -RelativePath "report/evidence-process-fallback.md" -Description "Process->Speaker 切替確認" -SessionRoot $sessionRoot
+    New-ArtifactResult -Name "メトリクスCSV" -RelativePath "metrics/recording-metrics.csv" -Description "統計CSV" -SessionRoot $sessionRoot -UseEvidenceStatus:$false
+    New-ArtifactResult -Name "メトリクスJSONL" -RelativePath "metrics/recording-metrics.jsonl" -Description "統計JSONL" -SessionRoot $sessionRoot -UseEvidenceStatus:$false
+    New-ArtifactResult -Name "録音ログ" -RelativePath "metrics/recording.log" -Description "テキストログ" -SessionRoot $sessionRoot -UseEvidenceStatus:$false
+    New-ArtifactResult -Name "長時間レポート" -RelativePath "report/longrun-report.md" -Description "1h/3h検証レポート" -SessionRoot $sessionRoot -UseEvidenceStatus:$false
+    New-ArtifactResult -Name "1h証跡" -RelativePath "report/evidence-1h.md" -Description "1時間録音の結果（status: PASS必須）" -SessionRoot $sessionRoot -UseEvidenceStatus:$true
+    New-ArtifactResult -Name "3h証跡" -RelativePath "report/evidence-3h.md" -Description "3時間録音の結果（status: PASS必須）" -SessionRoot $sessionRoot -UseEvidenceStatus:$true
+    New-ArtifactResult -Name "CH分離証跡" -RelativePath "report/evidence-channels.md" -Description "CH1=Speaker / CH2=Mic（status: PASS必須）" -SessionRoot $sessionRoot -UseEvidenceStatus:$true
+    New-ArtifactResult -Name "Processフォールバック証跡" -RelativePath "report/evidence-process-fallback.md" -Description "Process->Speaker 切替確認（status: PASS必須）" -SessionRoot $sessionRoot -UseEvidenceStatus:$true
 )
 
-$existsMap = @{}
+$artifactByName = @{}
 foreach ($artifact in $artifacts) {
-    $existsMap[$artifact.Name] = $artifact.Exists
+    $artifactByName[$artifact.Name] = $artifact
 }
 
-$requirement2 = if ($existsMap["メトリクスCSV"] -and $existsMap["メトリクスJSONL"] -and $existsMap["録音ログ"]) { "PASS" } else { "PENDING" }
-$requirement3 = if ($existsMap["CH分離証跡"]) { "PASS" } else { "PENDING" }
-$requirement4 = if ($existsMap["1h証跡"] -and $existsMap["3h証跡"]) { "PASS" } else { "PENDING" }
-$processFallback = if ($existsMap["Processフォールバック証跡"]) { "PASS" } else { "PENDING" }
+$requirement2 = if ($artifactByName["メトリクスCSV"].Satisfied -and $artifactByName["メトリクスJSONL"].Satisfied -and $artifactByName["録音ログ"].Satisfied) { "PASS" } else { "PENDING" }
+$requirement3 = if ($artifactByName["CH分離証跡"].Satisfied) { "PASS" } else { "PENDING" }
+$requirement4 = if ($artifactByName["1h証跡"].Satisfied -and $artifactByName["3h証跡"].Satisfied) { "PASS" } else { "PENDING" }
+$processFallback = if ($artifactByName["Processフォールバック証跡"].Satisfied) { "PASS" } else { "PENDING" }
 
 if ([string]::IsNullOrWhiteSpace($OutputFile)) {
     $OutputFile = Join-Path $sessionRoot "spec-evidence-summary.md"
@@ -84,8 +118,7 @@ $lines.Add("- root: $sessionRoot")
 $lines.Add("")
 $lines.Add("## Artifacts")
 foreach ($artifact in $artifacts) {
-    $status = if ($artifact.Exists) { "PASS" } else { "MISSING" }
-    $lines.Add("- [$status] $($artifact.Name): $($artifact.RelativePath) ($($artifact.Description))")
+    $lines.Add("- [$($artifact.Status)] $($artifact.Name): $($artifact.RelativePath) ($($artifact.Description))")
 }
 $lines.Add("")
 $lines.Add("## Completion Projection")
@@ -99,8 +132,8 @@ if ($requirement2 -eq "PASS" -and $requirement3 -eq "PASS" -and $requirement4 -e
     $lines.Add("- すべての必須証跡が揃っています。`docs/release/spec-completion-checklist.md` を更新してください。")
 }
 else {
-    foreach ($artifact in $artifacts | Where-Object { -not $_.Exists }) {
-        $lines.Add("- 未取得: $($artifact.Name) -> $($artifact.RelativePath)")
+    foreach ($artifact in $artifacts | Where-Object { -not $_.Satisfied }) {
+        $lines.Add("- 要対応: $($artifact.Name) ($($artifact.Status)) -> $($artifact.RelativePath)")
     }
 }
 

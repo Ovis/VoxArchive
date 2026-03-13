@@ -18,6 +18,31 @@ New-Item -ItemType Directory -Force -Path $root,$reportDir,$metricsDir,$systemDi
 
 Copy-Item "docs/testing/reports/longrun-report-template.md" (Join-Path $reportDir "longrun-report.md") -Force
 
+$evidenceTemplates = @(
+    @{ Name = "evidence-1h.md"; Title = "1h 録音証跡"; Check = "1時間録音の安定動作" }
+    @{ Name = "evidence-3h.md"; Title = "3h 録音証跡"; Check = "3時間録音の安定動作" }
+    @{ Name = "evidence-channels.md"; Title = "CH分離証跡"; Check = "CH1=Speaker / CH2=Mic" }
+    @{ Name = "evidence-process-fallback.md"; Title = "Processフォールバック証跡"; Check = "Process -> Speaker の一方向切替" }
+)
+
+foreach ($template in $evidenceTemplates) {
+    @"
+# $($template.Title)
+
+status: PENDING
+
+## check
+- $($template.Check)
+
+## evidence
+- 実施日時:
+- 実施者:
+- 手順:
+- 結果:
+- 補足:
+"@ | Set-Content (Join-Path $reportDir $template.Name)
+}
+
 $gitHash = git rev-parse --short HEAD
 $branch = git branch --show-current
 $dotnetVersion = dotnet --version
@@ -66,6 +91,10 @@ $memInfo = Get-SafeCimInfo -ClassName "Win32_ComputerSystem" -Properties @("Tota
 
 ## paths
 - report: $reportDir\longrun-report.md
+- evidence 1h: $reportDir\evidence-1h.md
+- evidence 3h: $reportDir\evidence-3h.md
+- evidence channels: $reportDir\evidence-channels.md
+- evidence process fallback: $reportDir\evidence-process-fallback.md
 - metrics csv: $metricsDir\recording-metrics.csv
 - metrics jsonl: $metricsDir\recording-metrics.jsonl
 - recording log: $metricsDir\recording.log
@@ -74,7 +103,8 @@ $memInfo = Get-SafeCimInfo -ClassName "Win32_ComputerSystem" -Properties @("Tota
 ## next
 1. アプリ実行前に保存先を上記 metrics ディレクトリへ設定
 2. 1h / 3h 録音実施
-3. Analyze-RecordingMetrics.ps1 で summary 作成
+3. evidence-*.md の status を PASS/FAIL に更新
+4. Analyze-RecordingMetrics.ps1 で summary 作成
 "@ | Set-Content (Join-Path $root "README.md")
 
 Write-Host "Initialized long-run session: $root"

@@ -232,3 +232,15 @@
 ### 次アクション
 1. 実機 1h/3h 録音を実施し、`report/evidence-*.md` を埋める。
 2. `Validate-SpecCompletionEvidence.ps1` でサマリ生成し、`spec-completion-checklist.md` の PENDING を PASS 化する。
+
+## 2026-03-13 Session-21
+
+### 実施
+1. `Initialize-LongRunSession.ps1` を拡張し、`evidence-*.md` テンプレート（status: PENDING）を自動生成するようにした。
+2. `Validate-SpecCompletionEvidence.ps1` を拡張し、証跡ファイルの存在だけでなく `status: PASS` を満たした場合のみ完了扱いにする判定へ強化した。
+3. `docs/testing/longrun-operations.md` を更新し、証跡ファイルの status 更新手順を明記した。
+4. `dryrun-evidence` セッションを生成し、判定サマリが期待どおり `PENDING/MISSING` を出力することを確認した。
+
+### 次アクション
+1. 実機セッションで `evidence-*.md` を PASS 化し、完了条件の残項目を解消する。
+2. 取得済み証跡を `docs/release/spec-completion-checklist.md` に反映する。

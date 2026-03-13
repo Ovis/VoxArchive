@@ -21,7 +21,7 @@ pwsh -File scripts/Analyze-RecordingMetrics.ps1 -MetricsCsv <metrics/recording-m
 ```
 
 6. `report/longrun-report.md` へ結果を転記
-7. 必要に応じて以下の証跡ファイルを作成
+7. 以下の証跡ファイルを更新し、`status: PASS` または `status: FAIL` を明記
    - `report/evidence-1h.md`
    - `report/evidence-3h.md`
    - `report/evidence-channels.md`
