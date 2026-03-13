@@ -49,3 +49,16 @@
 2. src/VoxArchive.Audio に FrameBuilder を実装（L/Rインターリーブ + PCM16変換 + レベル算出）。
 3. SpeakerCaptureService / MicCaptureService の骨格実装を追加。
 4. backlog を更新し Next 項目を完了化。
+
+## 2026-03-13 Session-04
+
+### 実施
+1. IProcessLoopbackCaptureService を追加し Audio 抽象を拡張。
+2. IOutputCaptureController に SourceChanged イベントを追加。
+3. Audio 実装として以下を追加。
+   - ProcessLoopbackCaptureService（PID監視）
+   - SpeakerLoopbackCaptureSource / ProcessLoopbackCaptureSource 
+   - OutputCaptureController（自動フォールバック）
+   - OutputCaptureFailoverCoordinator（開始時判定と切替制御）
+4. dotnet build VoxArchive.sln -m:1 成功（警告なし）。
+
