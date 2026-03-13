@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VoxArchive.Application.Abstractions/VoxArchive.Application.Abstractions.csproj" />
+    <Project Path="src/VoxArchive.Audio.Abstractions/VoxArchive.Audio.Abstractions.csproj" />
+    <Project Path="src/VoxArchive.Domain/VoxArchive.Domain.csproj" />
+    <Project Path="src/VoxArchive.Encoding.Abstractions/VoxArchive.Encoding.Abstractions.csproj" />
+  </Folder>
+</Solution>
