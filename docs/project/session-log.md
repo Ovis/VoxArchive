@@ -205,3 +205,17 @@
 3. WPF開始時に対象プロセス不在なら、
    「スピーカー録音に切り替えて開始しますか？」確認ダイアログを表示。
 4. Runtime/Process選択UI連携を維持したまま build + test（Integration/LongRun）全通過を確認。
+## 2026-03-13 Session-19
+
+### 実施
+1. `docs/release/spec-completion-checklist.md` の判定ルールと完了条件を整理し、PASS/PENDINGを明示。
+2. `scripts/longrun/Initialize-LongRunSession.ps1` を追加し、長時間検証セッションのログ配置を自動初期化できるようにした。
+3. 権限制約環境でも停止しないよう、CIM取得をフォールバック付きに修正。
+4. `docs/testing/longrun-operations.md` を追加し、1h/3h検証の運用手順を固定化。
+5. `pwsh -File scripts/longrun/Initialize-LongRunSession.ps1 -SessionId dryrun-test` の実行成功を確認。
+
+### 次アクション
+1. 実機 1h 録音の証跡取得（CH1/CH2確認含む）。
+2. 実機 3h 録音の証跡取得。
+3. `spec-completion-checklist.md` のPENDING項目をPASSへ更新。
+
