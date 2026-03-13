@@ -1,3 +1,4 @@
+using System.Reflection;
 using VoxArchive.Audio.Abstractions;
 
 namespace VoxArchive.Audio;
@@ -6,8 +7,7 @@ public static class NaudioRuntimeSupport
 {
     public static bool IsAvailable()
     {
-        return Type.GetType("NAudio.Wave.WasapiCapture, NAudio", throwOnError: false) is not null
-            && Type.GetType("NAudio.Wave.WasapiLoopbackCapture, NAudio", throwOnError: false) is not null;
+        return TryGetNaudioAssembly() is not null;
     }
 
     public static ISpeakerCaptureService CreateSpeakerCaptureService()
@@ -31,5 +31,20 @@ public static class NaudioRuntimeSupport
 
         throw new InvalidOperationException(
             "NAudio runtime is not available. Ensure the NAudio package is restored and deployed.");
+    }
+
+    private static Assembly? TryGetNaudioAssembly()
+    {
+        try
+        {
+            var assembly = Assembly.Load("NAudio");
+            var hasCapture = assembly.GetType("NAudio.Wave.WasapiCapture", throwOnError: false) is not null;
+            var hasLoopback = assembly.GetType("NAudio.Wave.WasapiLoopbackCapture", throwOnError: false) is not null;
+            return hasCapture && hasLoopback ? assembly : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

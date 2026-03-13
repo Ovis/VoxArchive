@@ -1,9 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\VoxArchive.Runtime\VoxArchive.Runtime.csproj" />
     <ProjectReference Include="..\VoxArchive.Application.Abstractions\VoxArchive.Application.Abstractions.csproj" />
     <ProjectReference Include="..\VoxArchive.Domain\VoxArchive.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 
   <PropertyGroup>
