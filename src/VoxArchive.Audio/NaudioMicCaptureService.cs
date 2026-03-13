@@ -17,7 +17,7 @@ public sealed class NaudioMicCaptureService : IMicCaptureService
 
     public Task StartAsync(string micDeviceId, int sampleRate, CancellationToken cancellationToken = default)
     {
-        _capture = NaudioCaptureUtils.CreateCapture("NAudio.Wave.WasapiCapture, NAudio", micDeviceId);
+        _capture = NaudioCaptureUtils.CreateCapture("NAudio.CoreAudioApi.WasapiCapture, NAudio.Wasapi", micDeviceId);
         _sampleRate = NaudioCaptureUtils.ResolveSampleRate(_capture);
         (_channels, _bitsPerSample, _isFloat) = NaudioCaptureUtils.ResolveFormat(_capture);
 
@@ -67,3 +67,4 @@ public sealed class NaudioMicCaptureService : IMicCaptureService
         ChunkCaptured?.Invoke(this, new CaptureChunk(mono, _sampleRate, DateTimeOffset.UtcNow));
     }
 }
+

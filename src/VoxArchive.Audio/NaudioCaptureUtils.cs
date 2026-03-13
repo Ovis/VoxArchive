@@ -107,7 +107,7 @@ internal static class NaudioCaptureUtils
 
     private static object? TryGetDevice(string deviceId)
     {
-        var enumeratorType = Type.GetType("NAudio.CoreAudioApi.MMDeviceEnumerator, NAudio", throwOnError: false);
+        var enumeratorType = Type.GetType("NAudio.CoreAudioApi.MMDeviceEnumerator, NAudio.Core", throwOnError: false);
         if (enumeratorType is null)
         {
             return null;
@@ -161,3 +161,4 @@ internal static class NaudioCaptureUtils
         return 0f;
     }
 }
+

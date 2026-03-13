@@ -17,7 +17,7 @@ public sealed class NaudioSpeakerCaptureService : ISpeakerCaptureService
 
     public Task StartAsync(string speakerDeviceId, int sampleRate, CancellationToken cancellationToken = default)
     {
-        _capture = NaudioCaptureUtils.CreateCapture("NAudio.Wave.WasapiLoopbackCapture, NAudio", speakerDeviceId);
+        _capture = NaudioCaptureUtils.CreateCapture("NAudio.Wave.WasapiLoopbackCapture, NAudio.Wasapi", speakerDeviceId);
         _sampleRate = NaudioCaptureUtils.ResolveSampleRate(_capture);
         (_channels, _bitsPerSample, _isFloat) = NaudioCaptureUtils.ResolveFormat(_capture);
 
@@ -67,3 +67,4 @@ public sealed class NaudioSpeakerCaptureService : ISpeakerCaptureService
         ChunkCaptured?.Invoke(this, new CaptureChunk(mono, _sampleRate, DateTimeOffset.UtcNow));
     }
 }
+
