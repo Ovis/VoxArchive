@@ -42,13 +42,72 @@
             <Setter Property="Background" Value="#2A1010" />
             <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
             <Setter Property="Foreground" Value="{StaticResource Accent}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Circle"
+                                Width="{TemplateBinding Width}"
+                                Height="{TemplateBinding Height}"
+                                CornerRadius="28"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Circle" Property="Opacity" Value="0.9" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Circle" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Circle" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
-        <Style x:Key="SquareIconButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Width" Value="44" />
-            <Setter Property="Height" Value="44" />
+        <Style x:Key="CircleIconButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="56" />
+            <Setter Property="Height" Value="56" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Background" Value="#1F2A38" />
+            <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Circle"
+                                Width="{TemplateBinding Width}"
+                                Height="{TemplateBinding Height}"
+                                CornerRadius="28"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Circle" Property="Opacity" Value="0.9" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Circle" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Circle" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="ComboBox">
@@ -88,9 +147,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="20" />
                     <ColumnDefinition Width="170" />
-                    <ColumnDefinition Width="16" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
@@ -101,7 +158,7 @@
                             Content="REC" />
 
                     <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
-                        <Button Style="{StaticResource SquareIconButtonStyle}" Command="{Binding PauseResumeCommand}">
+                        <Button Style="{StaticResource CircleIconButtonStyle}" Command="{Binding PauseResumeCommand}">
                             <Grid>
                                 <Grid Visibility="{Binding PauseGlyphVisibility}">
                                     <Grid.ColumnDefinitions>
@@ -115,7 +172,7 @@
                             </Grid>
                         </Button>
 
-                        <Button Style="{StaticResource SquareIconButtonStyle}"
+                        <Button Style="{StaticResource CircleIconButtonStyle}"
                                 Margin="0"
                                 Command="{Binding StartStopCommand}">
                             <Border Width="16" Height="16" Background="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -130,13 +187,7 @@
                            FontWeight="Bold"
                            VerticalAlignment="Center" />
 
-                <TextBlock Grid.Column="4"
-                           Text="{Binding StateText}"
-                           Foreground="{StaticResource TextMuted}"
-                           FontSize="15"
-                           VerticalAlignment="Center" />
-
-                <Button Grid.Column="6"
+                <Button Grid.Column="4"
                         Padding="10,6"
                         Margin="10,0,0,0"
                         Content="{Binding MiniModeButtonText}"
