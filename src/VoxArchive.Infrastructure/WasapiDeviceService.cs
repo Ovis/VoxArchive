@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
@@ -10,13 +9,13 @@ public sealed class WasapiDeviceService : IDeviceService
 {
     public Task<IReadOnlyList<AudioDeviceInfo>> GetSpeakerDevicesAsync(CancellationToken cancellationToken = default)
     {
-        var devices = EnumerateDevices(EDataFlow.eRender, DeviceKind.Speaker, cancellationToken);
+        var devices = EnumerateDevices(isSpeaker: true, DeviceKind.Speaker, cancellationToken);
         return Task.FromResult<IReadOnlyList<AudioDeviceInfo>>(devices);
     }
 
     public Task<IReadOnlyList<AudioDeviceInfo>> GetMicrophoneDevicesAsync(CancellationToken cancellationToken = default)
     {
-        var devices = EnumerateDevices(EDataFlow.eCapture, DeviceKind.Microphone, cancellationToken);
+        var devices = EnumerateDevices(isSpeaker: false, DeviceKind.Microphone, cancellationToken);
         return Task.FromResult<IReadOnlyList<AudioDeviceInfo>>(devices);
     }
 
@@ -32,270 +31,201 @@ public sealed class WasapiDeviceService : IDeviceService
         return microphones.FirstOrDefault(x => x.IsDefault);
     }
 
-    private static List<AudioDeviceInfo> EnumerateDevices(EDataFlow flow, DeviceKind kind, CancellationToken cancellationToken)
+    private static List<AudioDeviceInfo> EnumerateDevices(bool isSpeaker, DeviceKind kind, CancellationToken cancellationToken)
     {
         var results = new List<AudioDeviceInfo>();
-
-        IMMDeviceEnumerator? enumerator = null;
-        IMMDeviceCollection? collection = null;
-        IMMDevice? defaultDevice = null;
+        var types = TryResolveNaudioTypes();
+        if (types is null)
+        {
+            return results;
+        }
 
         try
         {
-            enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-
-            Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(flow, ERole.eMultimedia, out defaultDevice));
-            var defaultDeviceId = GetDeviceId(defaultDevice);
-
-            if (TryEnumAudioEndpoints(enumerator, flow, out collection) && collection is not null)
+            var enumerator = Activator.CreateInstance(types.EnumeratorType);
+            if (enumerator is null)
             {
-                Marshal.ThrowExceptionForHR(collection.GetCount(out var count));
-                for (uint i = 0; i < count; i++)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
+                return results;
+            }
 
-                    Marshal.ThrowExceptionForHR(collection.Item(i, out var device));
-                    try
+            try
+            {
+                var flow = Enum.Parse(types.DataFlowType, isSpeaker ? "Render" : "Capture");
+                var state = Enum.Parse(types.DeviceStateType, "Active");
+                var role = Enum.Parse(types.RoleType, "Multimedia");
+
+                string defaultDeviceId = string.Empty;
+                var defaultDevice = InvokeInstanceMethod(enumerator, "GetDefaultAudioEndpoint", flow, role);
+                try
+                {
+                    defaultDeviceId = GetDeviceId(defaultDevice);
+                }
+                finally
+                {
+                    TryDispose(defaultDevice);
+                }
+
+                var collection = InvokeInstanceMethod(enumerator, "EnumerateAudioEndPoints", flow, state);
+                try
+                {
+                    foreach (var device in EnumerateCollection(collection))
                     {
-                        var deviceId = GetDeviceId(device);
-                        var friendlyName = GetFriendlyName(device);
-                        results.Add(new AudioDeviceInfo(
-                            DeviceId: deviceId,
-                            FriendlyName: string.IsNullOrWhiteSpace(friendlyName) ? deviceId : friendlyName,
-                            IsDefault: string.Equals(deviceId, defaultDeviceId, StringComparison.OrdinalIgnoreCase),
-                            DeviceKind: kind));
-                    }
-                    finally
-                    {
-                        ReleaseCom(device);
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        try
+                        {
+                            var deviceId = GetDeviceId(device);
+                            if (string.IsNullOrWhiteSpace(deviceId))
+                            {
+                                continue;
+                            }
+
+                            var friendlyName = GetFriendlyName(device);
+                            results.Add(new AudioDeviceInfo(
+                                DeviceId: deviceId,
+                                FriendlyName: string.IsNullOrWhiteSpace(friendlyName) ? deviceId : friendlyName,
+                                IsDefault: string.Equals(deviceId, defaultDeviceId, StringComparison.OrdinalIgnoreCase),
+                                DeviceKind: kind));
+                        }
+                        finally
+                        {
+                            TryDispose(device);
+                        }
                     }
                 }
+                finally
+                {
+                    TryDispose(collection);
+                }
+
+                if (results.Count == 0 && defaultDeviceId.Length > 0)
+                {
+                    results.Add(new AudioDeviceInfo(
+                        DeviceId: defaultDeviceId,
+                        FriendlyName: defaultDeviceId,
+                        IsDefault: true,
+                        DeviceKind: kind));
+                }
             }
-            else
+            finally
             {
-                // 一部環境で EnumAudioEndpoints の COM マーシャリングに失敗するため既定デバイスへフォールバック。
-                var friendlyName = GetFriendlyName(defaultDevice);
-                results.Add(new AudioDeviceInfo(
-                    DeviceId: defaultDeviceId,
-                    FriendlyName: string.IsNullOrWhiteSpace(friendlyName) ? defaultDeviceId : friendlyName,
-                    IsDefault: true,
-                    DeviceKind: kind));
+                TryDispose(enumerator);
             }
         }
-        finally
+        catch
         {
-            ReleaseCom(defaultDevice);
-            ReleaseCom(collection);
-            ReleaseCom(enumerator);
+            return results;
         }
 
         return results;
     }
 
-    private static bool TryEnumAudioEndpoints(IMMDeviceEnumerator enumerator, EDataFlow flow, out IMMDeviceCollection? collection)
+    private static string GetDeviceId(object? device)
     {
-        collection = null;
-
-        try
-        {
-            Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(flow, (uint)DeviceState.Active, out collection));
-            return collection is not null;
-        }
-        catch (InvalidCastException)
-        {
-            return false;
-        }
+        return GetReadableStringProperty(device, "ID");
     }
 
-    private static string GetDeviceId(IMMDevice device)
+    private static string GetFriendlyName(object? device)
     {
-        Marshal.ThrowExceptionForHR(device.GetId(out var ptr));
-        try
-        {
-            return Marshal.PtrToStringUni(ptr) ?? string.Empty;
-        }
-        finally
-        {
-            Marshal.FreeCoTaskMem(ptr);
-        }
+        return GetReadableStringProperty(device, "FriendlyName");
     }
 
-    private static string GetFriendlyName(IMMDevice device)
-    {
-        Marshal.ThrowExceptionForHR(device.OpenPropertyStore((uint)Stgm.Read, out var propertyStore));
-        try
-        {
-            var key = PropertyKey.DeviceFriendlyName;
-            Marshal.ThrowExceptionForHR(propertyStore.GetValue(ref key, out var value));
-            try
-            {
-                return value.GetString();
-            }
-            finally
-            {
-                PropVariantClear(ref value);
-            }
-        }
-        finally
-        {
-            ReleaseCom(propertyStore);
-        }
-    }
-
-    private static void ReleaseCom(object? instance)
+    private static string GetReadableStringProperty(object? instance, string propertyName)
     {
         if (instance is null)
         {
-            return;
+            return string.Empty;
         }
 
-        Marshal.ReleaseComObject(instance);
-    }
-
-    [DllImport("ole32.dll")]
-    private static extern int PropVariantClear(ref PropVariant pvar);
-
-    private enum EDataFlow
-    {
-        eRender,
-        eCapture,
-        eAll,
-        EDataFlowEnumCount
-    }
-
-    private enum ERole
-    {
-        eConsole,
-        eMultimedia,
-        eCommunications,
-        ERoleEnumCount
-    }
-
-    [Flags]
-    private enum DeviceState : uint
-    {
-        Active = 0x00000001,
-        Disabled = 0x00000002,
-        NotPresent = 0x00000004,
-        Unplugged = 0x00000008,
-        All = 0x0000000F
-    }
-
-    private enum Stgm : uint
-    {
-        Read = 0x00000000
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct PropertyKey
-    {
-        public Guid fmtid;
-        public uint pid;
-
-        public static PropertyKey DeviceFriendlyName => new()
+        var property = instance.GetType().GetProperty(propertyName);
+        if (property is null)
         {
-            fmtid = new Guid("A45C254E-DF1C-4EFD-8020-67D146A850E0"),
-            pid = 14
-        };
+            return string.Empty;
+        }
+
+        var value = property.GetValue(instance);
+        if (value is string s)
+        {
+            return s;
+        }
+
+        return value?.ToString() ?? string.Empty;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct PropVariant
+    private static object InvokeInstanceMethod(object instance, string methodName, params object[] args)
     {
-        public ushort vt;
-        public ushort wReserved1;
-        public ushort wReserved2;
-        public ushort wReserved3;
-        public IntPtr pointerValue;
-        public int intValue;
-
-        public string GetString()
+        var method = instance.GetType().GetMethod(methodName);
+        if (method is null)
         {
-            const ushort VT_LPWSTR = 31;
-            if (vt != VT_LPWSTR || pointerValue == IntPtr.Zero)
+            throw new MissingMethodException(instance.GetType().FullName, methodName);
+        }
+
+        return method.Invoke(instance, args)
+            ?? throw new InvalidOperationException($"Method {methodName} returned null.");
+    }
+
+    private static IEnumerable<object> EnumerateCollection(object? collection)
+    {
+        if (collection is System.Collections.IEnumerable enumerable)
+        {
+            foreach (var item in enumerable)
             {
-                return string.Empty;
+                if (item is not null)
+                {
+                    yield return item;
+                }
             }
-
-            return Marshal.PtrToStringUni(pointerValue) ?? string.Empty;
         }
     }
 
-    [ComImport]
-    [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IMMDeviceEnumerator
+    private static void TryDispose(object? instance)
     {
-        [PreserveSig]
-        int EnumAudioEndpoints(EDataFlow dataFlow, uint stateMask, out IMMDeviceCollection devices);
-
-        [PreserveSig]
-        int GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, out IMMDevice endpoint);
-
-        [PreserveSig]
-        int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
-
-        [PreserveSig]
-        int RegisterEndpointNotificationCallback(IntPtr client);
-
-        [PreserveSig]
-        int UnregisterEndpointNotificationCallback(IntPtr client);
+        if (instance is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
     }
 
-    [ComImport]
-    [Guid("0BD7A1BE-7A1A-44DB-8397-C0A0F6B7A857")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IMMDeviceCollection
+    private static NaudioTypes? TryResolveNaudioTypes()
     {
-        [PreserveSig]
-        int GetCount(out uint deviceCount);
+        var enumeratorType = ResolveType(
+            "NAudio.CoreAudioApi.MMDeviceEnumerator, NAudio.Wasapi",
+            "NAudio.CoreAudioApi.MMDeviceEnumerator, NAudio.Core");
+        var dataFlowType = ResolveType(
+            "NAudio.CoreAudioApi.DataFlow, NAudio.Wasapi",
+            "NAudio.CoreAudioApi.DataFlow, NAudio.Core");
+        var deviceStateType = ResolveType(
+            "NAudio.CoreAudioApi.DeviceState, NAudio.Wasapi",
+            "NAudio.CoreAudioApi.DeviceState, NAudio.Core");
+        var roleType = ResolveType(
+            "NAudio.CoreAudioApi.Role, NAudio.Wasapi",
+            "NAudio.CoreAudioApi.Role, NAudio.Core");
 
-        [PreserveSig]
-        int Item(uint deviceNumber, out IMMDevice device);
+        if (enumeratorType is null || dataFlowType is null || deviceStateType is null || roleType is null)
+        {
+            return null;
+        }
+
+        return new NaudioTypes(enumeratorType, dataFlowType, deviceStateType, roleType);
     }
 
-    [ComImport]
-    [Guid("D666063F-1587-4E43-81F1-B948E807363F")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IMMDevice
+    private static Type? ResolveType(params string[] typeNames)
     {
-        [PreserveSig]
-        int Activate(ref Guid iid, uint dwClsCtx, IntPtr activationParams, out IntPtr interfacePointer);
+        foreach (var typeName in typeNames)
+        {
+            var type = Type.GetType(typeName, throwOnError: false);
+            if (type is not null)
+            {
+                return type;
+            }
+        }
 
-        [PreserveSig]
-        int OpenPropertyStore(uint stgmAccess, out IPropertyStore properties);
-
-        [PreserveSig]
-        int GetId(out IntPtr id);
-
-        [PreserveSig]
-        int GetState(out uint state);
+        return null;
     }
 
-    [ComImport]
-    [Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IPropertyStore
-    {
-        [PreserveSig]
-        int GetCount(out uint propertyCount);
-
-        [PreserveSig]
-        int GetAt(uint propertyIndex, out PropertyKey key);
-
-        [PreserveSig]
-        int GetValue(ref PropertyKey key, out PropVariant pv);
-
-        [PreserveSig]
-        int SetValue(ref PropertyKey key, ref PropVariant pv);
-
-        [PreserveSig]
-        int Commit();
-    }
-
-    [ComImport]
-    [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-    private class MMDeviceEnumeratorComObject
-    {
-    }
+    private sealed record NaudioTypes(
+        Type EnumeratorType,
+        Type DataFlowType,
+        Type DeviceStateType,
+        Type RoleType);
 }
