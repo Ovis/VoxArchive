@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using System.Reflection;
 using VoxArchive.Audio.Abstractions;
 
 namespace VoxArchive.Audio;
@@ -28,6 +30,36 @@ internal static class NaudioCaptureUtils
         }
 
         return defaultCtor.Invoke(Array.Empty<object>());
+    }
+
+    public static Delegate CreateDataAvailableDelegate(object target, EventInfo dataAvailableEvent, string methodName)
+    {
+        var handlerType = dataAvailableEvent.EventHandlerType
+            ?? throw new InvalidOperationException("DataAvailable event handler type was null.");
+
+        var invoke = handlerType.GetMethod("Invoke")
+            ?? throw new InvalidOperationException("Event handler invoke method was not found.");
+
+        var parameters = invoke.GetParameters();
+        if (parameters.Length != 2)
+        {
+            throw new InvalidOperationException("DataAvailable event must have 2 parameters.");
+        }
+
+        var callbackMethod = target.GetType().GetMethod(methodName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"Callback method not found: {methodName}");
+
+        var senderParam = Expression.Parameter(parameters[0].ParameterType, "sender");
+        var argsParam = Expression.Parameter(parameters[1].ParameterType, "args");
+
+        var call = Expression.Call(
+            Expression.Constant(target),
+            callbackMethod,
+            Expression.Convert(senderParam, typeof(object)),
+            Expression.Convert(argsParam, typeof(object)));
+
+        var lambda = Expression.Lambda(handlerType, call, senderParam, argsParam);
+        return lambda.Compile();
     }
 
     public static int ResolveSampleRate(object capture)
@@ -161,4 +193,5 @@ internal static class NaudioCaptureUtils
         return 0f;
     }
 }
+
 

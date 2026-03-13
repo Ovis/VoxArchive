@@ -39,7 +39,7 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
             (_channels, _bitsPerSample, _isFloat) = NaudioCaptureUtils.ResolveFormat(_capture);
 
             _dataAvailableEvent = _capture.GetType().GetEvent("DataAvailable");
-            _dataAvailableHandler = Delegate.CreateDelegate(_dataAvailableEvent!.EventHandlerType!, this, nameof(OnDataAvailable));
+            _dataAvailableHandler = NaudioCaptureUtils.CreateDataAvailableDelegate(this, _dataAvailableEvent!, nameof(OnDataAvailable));
             _dataAvailableEvent.AddEventHandler(_capture, _dataAvailableHandler);
             NaudioCaptureUtils.StartRecording(_capture);
         }
@@ -208,3 +208,4 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
         }
     }
 }
+
