@@ -12,11 +12,24 @@ public static class NaudioRuntimeSupport
 
     public static ISpeakerCaptureService CreateSpeakerCaptureService()
     {
-        return IsAvailable() ? new NaudioSpeakerCaptureService() : new SpeakerCaptureService();
+        EnsureAvailable();
+        return new NaudioSpeakerCaptureService();
     }
 
     public static IMicCaptureService CreateMicCaptureService()
     {
-        return IsAvailable() ? new NaudioMicCaptureService() : new MicCaptureService();
+        EnsureAvailable();
+        return new NaudioMicCaptureService();
+    }
+
+    private static void EnsureAvailable()
+    {
+        if (IsAvailable())
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            "NAudio runtime is not available. Ensure the NAudio package is restored and deployed.");
     }
 }
