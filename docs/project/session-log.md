@@ -187,3 +187,12 @@
 2. scripts/Analyze-RecordingMetrics.ps1 を追加し、CSVから集計Markdownを自動生成。
 3. docs/testing/local-e2e-checklist.md に集計手順を追記。
 4. サンプルCSVでスクリプト実行し、summary生成を確認。
+
+## 2026-03-13 Session-17
+
+### 実施
+1. ProcessCatalogService を追加して実行中プロセス一覧取得を実装。
+2. RecordingRuntimeContext に IProcessCatalogService を追加し、Runtime で注入。
+3. WPFにプロセス選択コンボボックスを追加し、ProcessLoopback時に選択PIDを使用するよう更新。
+4. プロセス一覧の手動更新コマンドを追加。
+5. build + integration test + long-run test 全通過を確認。

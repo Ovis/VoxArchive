@@ -24,6 +24,7 @@ public sealed class LocalRecordingBootstrapper
     {
         ISettingsService settingsService = new JsonSettingsService(_settingsPath);
         IDeviceService deviceService = new WasapiDeviceService();
+        IProcessCatalogService processCatalogService = new ProcessCatalogService();
 
         var loaded = await settingsService.LoadRecordingOptionsAsync(cancellationToken);
         var defaultSpeaker = await deviceService.GetDefaultSpeakerDeviceAsync(cancellationToken);
@@ -75,6 +76,7 @@ public sealed class LocalRecordingBootstrapper
             RecordingService: recordingService,
             SettingsService: settingsService,
             DeviceService: deviceService,
+            ProcessCatalogService: processCatalogService,
             DefaultOptions: options);
     }
 

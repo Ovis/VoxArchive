@@ -14,6 +14,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IRecordingService _recordingService;
     private readonly ISettingsService _settingsService;
     private readonly IDeviceService _deviceService;
+    private readonly IProcessCatalogService _processCatalogService;
     private RecordingOptions _options;
 
     private string _stateText = "状態: Stopped";
@@ -23,31 +24,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _selectedSpeakerDeviceId = string.Empty;
     private string _selectedMicDeviceId = string.Empty;
     private OutputCaptureMode _selectedOutputMode;
-    private string _targetProcessIdText = string.Empty;
     private string _elapsedText = "00:00:00";
     private double _speakerLevelPercent;
     private double _micLevelPercent;
     private bool _isMiniMode;
+    private ProcessListItem? _selectedProcessItem;
 
     public MainViewModel(RecordingRuntimeContext context)
     {
         _recordingService = context.RecordingService;
         _settingsService = context.SettingsService;
         _deviceService = context.DeviceService;
+        _processCatalogService = context.ProcessCatalogService;
         _options = EnsureDefaults(context.DefaultOptions);
 
         SpeakerDevices = new ObservableCollection<AudioDeviceInfo>();
         MicDevices = new ObservableCollection<AudioDeviceInfo>();
+        ProcessItems = new ObservableCollection<ProcessListItem>();
         OutputModes = new[] { OutputCaptureMode.SpeakerLoopback, OutputCaptureMode.ProcessLoopback };
 
         _selectedSpeakerDeviceId = _options.SpeakerDeviceId;
         _selectedMicDeviceId = _options.MicDeviceId;
         _selectedOutputMode = _options.OutputCaptureMode;
-        _targetProcessIdText = _options.TargetProcessId?.ToString() ?? string.Empty;
 
         StartStopCommand = new DelegateCommand(StartOrStopAsync, CanStartOrStop);
         PauseResumeCommand = new DelegateCommand(PauseOrResumeAsync, CanPauseOrResume);
         ToggleMiniModeCommand = new DelegateCommand(ToggleMiniModeAsync, () => IsStoppedOrError);
+        RefreshProcessesCommand = new DelegateCommand(LoadProcessesAsync, () => IsProcessSelectionEnabled);
 
         _recordingService.StateChanged += (_, s) => RunOnUi(() =>
         {
@@ -56,6 +59,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(PauseResumeButtonText));
             OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
             OnPropertyChanged(nameof(IsStoppedOrError));
+            OnPropertyChanged(nameof(IsProcessSelectionEnabled));
             RefreshCommands();
         });
 
@@ -71,6 +75,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         });
 
         _ = LoadDevicesAsync();
+        _ = LoadProcessesAsync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -78,9 +83,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public DelegateCommand StartStopCommand { get; }
     public DelegateCommand PauseResumeCommand { get; }
     public DelegateCommand ToggleMiniModeCommand { get; }
+    public DelegateCommand RefreshProcessesCommand { get; }
 
     public ObservableCollection<AudioDeviceInfo> SpeakerDevices { get; }
     public ObservableCollection<AudioDeviceInfo> MicDevices { get; }
+    public ObservableCollection<ProcessListItem> ProcessItems { get; }
     public IReadOnlyList<OutputCaptureMode> OutputModes { get; }
 
     public string StateText { get => _stateText; private set => SetField(ref _stateText, value); }
@@ -93,8 +100,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string SelectedSpeakerDeviceId { get => _selectedSpeakerDeviceId; set => SetField(ref _selectedSpeakerDeviceId, value); }
     public string SelectedMicDeviceId { get => _selectedMicDeviceId; set => SetField(ref _selectedMicDeviceId, value); }
-    public OutputCaptureMode SelectedOutputMode { get => _selectedOutputMode; set => SetField(ref _selectedOutputMode, value); }
-    public string TargetProcessIdText { get => _targetProcessIdText; set => SetField(ref _targetProcessIdText, value); }
+
+    public OutputCaptureMode SelectedOutputMode
+    {
+        get => _selectedOutputMode;
+        set
+        {
+            if (SetField(ref _selectedOutputMode, value))
+            {
+                OnPropertyChanged(nameof(IsProcessSelectionEnabled));
+                RefreshCommands();
+            }
+        }
+    }
+
+    public ProcessListItem? SelectedProcessItem
+    {
+        get => _selectedProcessItem;
+        set => SetField(ref _selectedProcessItem, value);
+    }
 
     public bool IsMiniMode
     {
@@ -116,6 +140,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public double WindowHeight => IsMiniMode ? 98 : 230;
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
+    public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
 
     public string StartStopButtonText => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error ? "録音開始" : "停止";
     public string PauseResumeButtonText => _recordingService.CurrentState == RecordingState.Paused ? "再開" : "一時停止";
@@ -159,6 +184,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private async Task LoadProcessesAsync()
+    {
+        try
+        {
+            var items = await _processCatalogService.GetRunningProcessesAsync();
+            RunOnUi(() =>
+            {
+                ProcessItems.Clear();
+                foreach (var p in items)
+                {
+                    ProcessItems.Add(new ProcessListItem(p));
+                }
+
+                if (_options.TargetProcessId is int pid)
+                {
+                    SelectedProcessItem = ProcessItems.FirstOrDefault(x => x.ProcessId == pid);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            RunOnUi(() => LastErrorText = $"プロセス列挙失敗: {ex.Message}");
+        }
+    }
+
     private async Task StartOrStopAsync()
     {
         if (_recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error)
@@ -169,7 +219,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 SpeakerDeviceId = SelectedSpeakerDeviceId,
                 MicDeviceId = SelectedMicDeviceId,
                 OutputCaptureMode = SelectedOutputMode,
-                TargetProcessId = TryParseProcessId(TargetProcessIdText)
+                TargetProcessId = SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? SelectedProcessItem?.ProcessId : null
             };
 
             await _settingsService.SaveRecordingOptionsAsync(_options);
@@ -203,7 +253,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private bool CanStartOrStop()
     {
-        return _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error or RecordingState.Recording or RecordingState.Paused;
+        if (_recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error)
+        {
+            if (SelectedOutputMode != OutputCaptureMode.ProcessLoopback)
+            {
+                return true;
+            }
+
+            return SelectedProcessItem is not null;
+        }
+
+        return _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused;
     }
 
     private bool CanPauseOrResume()
@@ -216,6 +276,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StartStopCommand.RaiseCanExecuteChanged();
         PauseResumeCommand.RaiseCanExecuteChanged();
         ToggleMiniModeCommand.RaiseCanExecuteChanged();
+        RefreshProcessesCommand.RaiseCanExecuteChanged();
     }
 
     private static RecordingOptions EnsureDefaults(RecordingOptions options)
@@ -230,11 +291,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             OutputDirectory = output
         };
-    }
-
-    private static int? TryParseProcessId(string text)
-    {
-        return int.TryParse(text, out var pid) && pid > 0 ? pid : null;
     }
 
     private static void RunOnUi(Action action)
@@ -257,11 +313,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         field = value;
         OnPropertyChanged(propertyName);
+        if (propertyName is nameof(SelectedOutputMode) or nameof(SelectedProcessItem))
+        {
+            RefreshCommands();
+        }
+
         return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+public sealed class ProcessListItem
+{
+    public ProcessListItem(ProcessInfo process)
+    {
+        ProcessId = process.ProcessId;
+        DisplayText = BuildDisplay(process);
+    }
+
+    public int ProcessId { get; }
+    public string DisplayText { get; }
+
+    private static string BuildDisplay(ProcessInfo process)
+    {
+        var app = string.IsNullOrWhiteSpace(process.ApplicationName) ? "(no-name)" : process.ApplicationName;
+        var exe = string.IsNullOrWhiteSpace(process.ExecutableName) ? "" : $" [{process.ExecutableName}]";
+        var title = string.IsNullOrWhiteSpace(process.WindowTitle) ? "" : $" - {process.WindowTitle}";
+        return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
