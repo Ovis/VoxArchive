@@ -235,7 +235,8 @@ public sealed class RecordingService : IRecordingService
         }
 
         var frameSamples = (_activeOptions.SampleRate * _activeOptions.FrameMilliseconds) / 1000;
-        var targetFillSamples = (_activeOptions.SampleRate * _activeOptions.TargetBufferMilliseconds) / 1000;
+        var effectiveTargetBufferMs = Math.Clamp(_activeOptions.TargetBufferMilliseconds, 40, 120);
+        var targetFillSamples = (_activeOptions.SampleRate * effectiveTargetBufferMs) / 1000;
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_activeOptions.FrameMilliseconds));
 
         while (await timer.WaitForNextTickAsync(cancellationToken))
@@ -259,12 +260,61 @@ public sealed class RecordingService : IRecordingService
 
     private void OnSpeakerChunkCaptured(object? sender, CaptureChunk chunk)
     {
-        WriteSamples(_speakerBuffer, chunk.Samples.Span);
+        WriteChunkWithRateNormalization(_speakerBuffer, chunk);
     }
 
     private void OnMicChunkCaptured(object? sender, CaptureChunk chunk)
     {
-        WriteSamples(_micBuffer, chunk.Samples.Span);
+        WriteChunkWithRateNormalization(_micBuffer, chunk);
+    }
+
+    private void WriteChunkWithRateNormalization(IRingBuffer buffer, CaptureChunk chunk)
+    {
+        var targetRate = _activeOptions?.SampleRate ?? chunk.SampleRate;
+        if (chunk.SampleRate <= 0 || targetRate <= 0 || chunk.SampleRate == targetRate)
+        {
+            WriteSamples(buffer, chunk.Samples.Span);
+            return;
+        }
+
+        var converted = ResampleLinear(chunk.Samples.Span, chunk.SampleRate, targetRate);
+        WriteSamples(buffer, converted);
+    }
+
+    private static float[] ResampleLinear(ReadOnlySpan<float> source, int sourceRate, int targetRate)
+    {
+        if (source.IsEmpty)
+        {
+            return Array.Empty<float>();
+        }
+
+        if (sourceRate <= 0 || targetRate <= 0 || sourceRate == targetRate)
+        {
+            return source.ToArray();
+        }
+
+        var outputLength = Math.Max(1, (int)Math.Round(source.Length * (double)targetRate / sourceRate));
+        var output = new float[outputLength];
+
+        if (source.Length == 1 || outputLength == 1)
+        {
+            output.AsSpan().Fill(source[0]);
+            return output;
+        }
+
+        var step = (double)(source.Length - 1) / (outputLength - 1);
+        for (var i = 0; i < outputLength; i++)
+        {
+            var srcPos = i * step;
+            var idx = (int)srcPos;
+            var frac = (float)(srcPos - idx);
+
+            var s0 = source[idx];
+            var s1 = source[Math.Min(idx + 1, source.Length - 1)];
+            output[i] = s0 + ((s1 - s0) * frac);
+        }
+
+        return output;
     }
 
     private static void WriteSamples(IRingBuffer buffer, ReadOnlySpan<float> samples)
