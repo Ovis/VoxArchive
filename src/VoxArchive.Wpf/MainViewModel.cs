@@ -62,6 +62,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
             OnPropertyChanged(nameof(IsStoppedOrError));
             OnPropertyChanged(nameof(IsProcessSelectionEnabled));
+            OnPropertyChanged(nameof(RecordButtonVisibility));
+            OnPropertyChanged(nameof(RecordingControlsVisibility));
+            OnPropertyChanged(nameof(PauseGlyphVisibility));
+            OnPropertyChanged(nameof(ResumeGlyphVisibility));
             RefreshCommands();
         });
 
@@ -144,6 +148,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
     public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
+    public Visibility RecordButtonVisibility => IsStoppedOrError ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RecordingControlsVisibility => _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+    public Visibility PauseGlyphVisibility => _recordingService.CurrentState == RecordingState.Recording
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+    public Visibility ResumeGlyphVisibility => _recordingService.CurrentState == RecordingState.Paused
+        ? Visibility.Visible
+        : Visibility.Collapsed;
 
     public string StartStopButtonText => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error ? "録音開始" : "停止";
     public string PauseResumeButtonText => _recordingService.CurrentState == RecordingState.Paused ? "再開" : "一時停止";
@@ -386,11 +400,4 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
-
-
-
-
-
-
 

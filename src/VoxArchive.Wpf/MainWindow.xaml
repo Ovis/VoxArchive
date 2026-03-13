@@ -33,6 +33,24 @@
             <Setter Property="Margin" Value="0,0,8,0" />
         </Style>
 
+        <Style x:Key="RoundIconButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="56" />
+            <Setter Property="Height" Value="56" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Background" Value="#2A1010" />
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="Foreground" Value="{StaticResource Accent}" />
+        </Style>
+
+        <Style x:Key="SquareIconButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+
         <Style TargetType="ComboBox">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
             <Setter Property="Background" Value="{StaticResource ControlBg}" />
@@ -68,70 +86,57 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="20" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="16" />
                     <ColumnDefinition Width="170" />
                     <ColumnDefinition Width="16" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Button Grid.Column="0"
-                        MinWidth="104"
-                        Content="{Binding StartStopButtonText}"
-                        Command="{Binding StartStopCommand}">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                            <Setter Property="Background" Value="#272F3D" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding StartStopButtonText}" Value="録音開始">
-                                    <Setter Property="Background" Value="{StaticResource Accent}" />
-                                    <Setter Property="BorderBrush" Value="#FF7575" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
+                <Grid Grid.Column="0" VerticalAlignment="Center">
+                    <Button Style="{StaticResource RoundIconButtonStyle}"
+                            Command="{Binding StartStopCommand}"
+                            Visibility="{Binding RecordButtonVisibility}"
+                            Content="REC" />
 
-                <Button Grid.Column="1"
-                        MinWidth="96"
-                        Content="{Binding PauseResumeButtonText}"
-                        Command="{Binding PauseResumeCommand}" />
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
+                        <Button Style="{StaticResource SquareIconButtonStyle}" Command="{Binding PauseResumeCommand}">
+                            <Grid>
+                                <Grid Visibility="{Binding PauseGlyphVisibility}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="7" Height="20" Background="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Border Grid.Column="1" Width="7" Height="20" Background="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Grid>
+                                <Path Visibility="{Binding ResumeGlyphVisibility}" Fill="{StaticResource TextPrimary}" Data="M 0 0 L 0 20 L 18 10 Z" Stretch="Uniform" Width="18" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
 
-                <Border Grid.Column="3"
-                        Width="56"
-                        Height="56"
-                        CornerRadius="28"
-                        BorderThickness="2"
-                        BorderBrush="{StaticResource Accent}"
-                        Background="#2A1010"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Center">
-                    <TextBlock Text="REC"
-                               Foreground="{StaticResource Accent}"
-                               FontSize="20"
-                               FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-                </Border>
+                        <Button Style="{StaticResource SquareIconButtonStyle}"
+                                Margin="0"
+                                Command="{Binding StartStopCommand}">
+                            <Border Width="16" Height="16" Background="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
 
-                <TextBlock Grid.Column="5"
+                <TextBlock Grid.Column="2"
                            Text="{Binding ElapsedText}"
                            FontFamily="Consolas"
                            FontSize="34"
                            FontWeight="Bold"
                            VerticalAlignment="Center" />
 
-                <TextBlock Grid.Column="7"
+                <TextBlock Grid.Column="4"
                            Text="{Binding StateText}"
                            Foreground="{StaticResource TextMuted}"
                            FontSize="15"
                            VerticalAlignment="Center" />
 
-                <Button Grid.Column="8"
+                <Button Grid.Column="6"
                         Padding="10,6"
                         Margin="10,0,0,0"
                         Content="{Binding MiniModeButtonText}"
