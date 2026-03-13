@@ -6,9 +6,9 @@
 
 ## Next
 - [x] RingBuffer 実装
-- [ ] Speaker/Mic キャプチャ抽象実装の骨格
-- [ ] FrameBuilder インターフェースに沿った最小実装
-- [ ] ffmpeg エンコーダラッパー最小実装
+- [x] Speaker/Mic キャプチャ抽象実装の骨格
+- [x] FrameBuilder インターフェースに沿った最小実装
+- [x] ffmpeg エンコーダラッパー最小実装
 
 ## Later
 - [x] PIドリフト補正実装

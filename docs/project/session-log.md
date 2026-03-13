@@ -41,3 +41,11 @@
 1. Speaker/Mic キャプチャ抽象実装の骨格追加。
 2. FrameBuilder 最小実装追加。
 3. ffmpeg エンコーダラッパー最小実装追加。
+
+## 2026-03-13 Session-03
+
+### 実施
+1. src/VoxArchive.Encoding を追加し、FfmpegFlacEncoder 最小実装を作成。
+2. src/VoxArchive.Audio に FrameBuilder を実装（L/Rインターリーブ + PCM16変換 + レベル算出）。
+3. SpeakerCaptureService / MicCaptureService の骨格実装を追加。
+4. backlog を更新し Next 項目を完了化。
