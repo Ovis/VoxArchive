@@ -7,34 +7,27 @@ public sealed class FrameBuilder : IFrameBuilder
     private readonly IRingBuffer _speakerBuffer;
     private readonly IRingBuffer _micBuffer;
     private readonly IVariableRateResampler _resampler;
-    private readonly float[] _speakerFrame;
-    private readonly float[] _micRawFrame;
-    private readonly float[] _micFrame;
-    private readonly byte[] _pcm16Interleaved;
 
-    public FrameBuilder(IRingBuffer speakerBuffer, IRingBuffer micBuffer, IVariableRateResampler resampler, int frameSamples)
+    private float[] _speakerFrame = Array.Empty<float>();
+    private float[] _micRawFrame = Array.Empty<float>();
+    private float[] _micFrame = Array.Empty<float>();
+    private byte[] _pcm16Interleaved = Array.Empty<byte>();
+
+    public FrameBuilder(IRingBuffer speakerBuffer, IRingBuffer micBuffer, IVariableRateResampler resampler)
+    {
+        _speakerBuffer = speakerBuffer;
+        _micBuffer = micBuffer;
+        _resampler = resampler;
+    }
+
+    public FrameBuildResult BuildFrame(int frameSamples, double micRatio)
     {
         if (frameSamples <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(frameSamples));
         }
 
-        _speakerBuffer = speakerBuffer;
-        _micBuffer = micBuffer;
-        _resampler = resampler;
-
-        _speakerFrame = new float[frameSamples];
-        _micRawFrame = new float[frameSamples];
-        _micFrame = new float[frameSamples];
-        _pcm16Interleaved = new byte[frameSamples * 2 * sizeof(short)];
-    }
-
-    public FrameBuildResult BuildFrame(int frameSamples, double micRatio)
-    {
-        if (frameSamples != _speakerFrame.Length)
-        {
-            throw new ArgumentException("frameSamples must match constructor frame size.", nameof(frameSamples));
-        }
+        EnsureCapacity(frameSamples);
 
         var speakerRead = _speakerBuffer.Read(_speakerFrame);
         if (speakerRead < frameSamples)
@@ -61,6 +54,19 @@ public sealed class FrameBuilder : IFrameBuilder
             AppliedPpm: (micRatio - 1d) * 1_000_000d,
             SpeakerLevel: Peak(_speakerFrame),
             MicLevel: Peak(_micFrame));
+    }
+
+    private void EnsureCapacity(int frameSamples)
+    {
+        if (_speakerFrame.Length == frameSamples)
+        {
+            return;
+        }
+
+        _speakerFrame = new float[frameSamples];
+        _micRawFrame = new float[frameSamples];
+        _micFrame = new float[frameSamples];
+        _pcm16Interleaved = new byte[frameSamples * 2 * sizeof(short)];
     }
 
     private static void InterleaveToPcm16(ReadOnlySpan<float> left, ReadOnlySpan<float> right, Span<byte> destination)

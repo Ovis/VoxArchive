@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoxArchive.Application\VoxArchive.Application.csproj" />
+    <ProjectReference Include="..\VoxArchive.Application.Abstractions\VoxArchive.Application.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Audio\VoxArchive.Audio.csproj" />
+    <ProjectReference Include="..\VoxArchive.Audio.Abstractions\VoxArchive.Audio.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Encoding\VoxArchive.Encoding.csproj" />
+    <ProjectReference Include="..\VoxArchive.Encoding.Abstractions\VoxArchive.Encoding.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Domain\VoxArchive.Domain.csproj" />
+    <ProjectReference Include="..\VoxArchive.Infrastructure\VoxArchive.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

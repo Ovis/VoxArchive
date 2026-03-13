@@ -8,6 +8,7 @@
 - [x] RecordingService を Audio/Encoding 実装へ接続
 - [x] 録音パイプライン（Capture -> FrameBuilder -> Encoder）の統合
 - [x] Processフォールバック通知を Application 層へ伝搬
+- [x] DI構成と起動シーケンスの実装
 
 ## Later
 - [x] RingBuffer 実装
@@ -18,6 +19,7 @@
 - [x] 可変レートリサンプラ実装
 - [x] Process Loopback 実装
 - [x] Failover Coordinator 実装
-- [ ] DI構成と起動シーケンスの実装
+- [ ] デバイス列挙サービス実装（WASAPI）
+- [ ] 実キャプチャ実装（NAudio）
 - [ ] WPF UI 実装
 - [ ] 結合テスト整備

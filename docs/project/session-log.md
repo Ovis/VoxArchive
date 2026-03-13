@@ -75,3 +75,18 @@
    - 統計更新と OutputSourceChanged 伝搬を実装。
 3. dotnet build VoxArchive.sln -m:1 成功を確認。
 
+
+## 2026-03-13 Session-06
+
+### 実施
+1. VoxArchive.Infrastructure と VoxArchive.Runtime を追加。
+2. JsonSettingsService を実装し、録音設定のJSON永続化を導入。
+3. LocalRecordingBootstrapper を実装し、ローカル構成ルートを追加。
+4. IDriftCorrector に Configure を追加し、RecordingService 開始時にパラメータ反映するよう修正。
+5. FrameBuilder を可変フレームサイズ対応に変更。
+6. dotnet build VoxArchive.sln -m:1 成功。
+
+### 次アクション
+1. WASAPIベースのデバイス列挙サービス実装。
+2. NAudio実キャプチャへ置換。
+3. WPFアプリプロジェクトを作成し Runtime を接続。

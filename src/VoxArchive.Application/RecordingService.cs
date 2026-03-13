@@ -83,6 +83,7 @@ public sealed class RecordingService : IRecordingService
             _overflowCount = 0;
             _speakerBuffer.Clear();
             _micBuffer.Clear();
+            _driftCorrector.Configure(effectiveOptions.Kp, effectiveOptions.Ki, effectiveOptions.MaxCorrectionPpm);
             _driftCorrector.Reset();
 
             await _encoder.StartAsync(new FfmpegFlacEncoderOptions(

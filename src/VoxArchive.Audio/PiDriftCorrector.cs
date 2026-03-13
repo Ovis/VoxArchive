@@ -4,12 +4,19 @@ namespace VoxArchive.Audio;
 
 public sealed class PiDriftCorrector : IDriftCorrector
 {
-    private readonly double _kp;
-    private readonly double _ki;
-    private readonly double _maxCorrection;
+    private double _kp;
+    private double _ki;
+    private double _maxCorrection;
     private double _integral;
 
     public PiDriftCorrector(double kp, double ki, double maxCorrectionPpm)
+    {
+        Configure(kp, ki, maxCorrectionPpm);
+    }
+
+    public double CurrentPpm { get; private set; }
+
+    public void Configure(double kp, double ki, double maxCorrectionPpm)
     {
         if (maxCorrectionPpm <= 0)
         {
@@ -20,8 +27,6 @@ public sealed class PiDriftCorrector : IDriftCorrector
         _ki = ki;
         _maxCorrection = maxCorrectionPpm / 1_000_000d;
     }
-
-    public double CurrentPpm { get; private set; }
 
     public void Reset()
     {
