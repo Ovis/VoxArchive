@@ -21,4 +21,15 @@ pwsh -File scripts/Analyze-RecordingMetrics.ps1 -MetricsCsv <metrics/recording-m
 ```
 
 6. `report/longrun-report.md` へ結果を転記
-7. `docs/release/spec-completion-checklist.md` の PENDING 項目を PASS 化
+7. 必要に応じて以下の証跡ファイルを作成
+   - `report/evidence-1h.md`
+   - `report/evidence-3h.md`
+   - `report/evidence-channels.md`
+   - `report/evidence-process-fallback.md`
+8. 仕様完了証跡サマリを生成
+
+```powershell
+pwsh -File scripts/release/Validate-SpecCompletionEvidence.ps1 -SessionId <session-id>
+```
+
+9. `docs/release/spec-completion-checklist.md` の PENDING 項目を PASS 化

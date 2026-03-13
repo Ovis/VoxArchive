@@ -219,3 +219,16 @@
 2. 実機 3h 録音の証跡取得。
 3. `spec-completion-checklist.md` のPENDING項目をPASSへ更新。
 
+
+## 2026-03-13 Session-20
+
+### 実施
+1. `scripts/Run-QualityGate.ps1` を改善し、`DOTNET_CLI_HOME` をリポジトリ内に固定して権限制約環境でも安定実行できるようにした。
+2. `Run-QualityGate.ps1` を実行し、build + integration test + long-run test が全通過することを確認。
+3. `scripts/release/Validate-SpecCompletionEvidence.ps1` を追加し、長時間検証セッション内の証跡ファイル有無から完了見込みを自動集計できるようにした。
+4. `docs/testing/longrun-operations.md` を更新し、証跡ファイル作成と自動判定手順を追加した。
+5. `.gitignore` を調整し、`docs/release` と `scripts/release` を追跡対象として固定した。
+
+### 次アクション
+1. 実機 1h/3h 録音を実施し、`report/evidence-*.md` を埋める。
+2. `Validate-SpecCompletionEvidence.ps1` でサマリ生成し、`spec-completion-checklist.md` の PENDING を PASS 化する。

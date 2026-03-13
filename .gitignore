@@ -407,3 +407,7 @@ FodyWeavers.xsd
 output/
 .build-verify/
 .obj-verify/
+!docs/release/
+!docs/release/**
+!scripts/release/
+!scripts/release/**
