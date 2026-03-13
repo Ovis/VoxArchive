@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Runtime;
@@ -23,6 +24,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _selectedMicDeviceId = string.Empty;
     private OutputCaptureMode _selectedOutputMode;
     private string _targetProcessIdText = string.Empty;
+    private string _elapsedText = "00:00:00";
+    private double _speakerLevelPercent;
+    private double _micLevelPercent;
+    private bool _isMiniMode;
 
     public MainViewModel(RecordingRuntimeContext context)
     {
@@ -40,14 +45,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _selectedOutputMode = _options.OutputCaptureMode;
         _targetProcessIdText = _options.TargetProcessId?.ToString() ?? string.Empty;
 
-        StartCommand = new DelegateCommand(StartAsync, () => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error);
-        PauseCommand = new DelegateCommand(PauseAsync, () => _recordingService.CurrentState == RecordingState.Recording);
-        ResumeCommand = new DelegateCommand(ResumeAsync, () => _recordingService.CurrentState == RecordingState.Paused);
-        StopCommand = new DelegateCommand(StopAsync, () => _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused);
+        StartStopCommand = new DelegateCommand(StartOrStopAsync, CanStartOrStop);
+        PauseResumeCommand = new DelegateCommand(PauseOrResumeAsync, CanPauseOrResume);
+        ToggleMiniModeCommand = new DelegateCommand(ToggleMiniModeAsync, () => IsStoppedOrError);
 
         _recordingService.StateChanged += (_, s) => RunOnUi(() =>
         {
             StateText = $"状態: {s}";
+            OnPropertyChanged(nameof(StartStopButtonText));
+            OnPropertyChanged(nameof(PauseResumeButtonText));
+            OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
+            OnPropertyChanged(nameof(IsStoppedOrError));
             RefreshCommands();
         });
 
@@ -56,7 +64,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _recordingService.StatisticsUpdated += (_, st) => RunOnUi(() =>
         {
             OutputPathText = $"出力: {st.OutputFilePath ?? "-"}";
-            MetricsText = $"経過 {st.ElapsedTime:hh\\:mm\\:ss} / Drift {st.DriftCorrectionPpm:F1} ppm / MicBuf {st.MicBufferMilliseconds:F0}ms / SpkBuf {st.SpeakerBufferMilliseconds:F0}ms";
+            ElapsedText = st.ElapsedTime.ToString(@"hh\:mm\:ss");
+            SpeakerLevelPercent = Math.Clamp(st.SpeakerLevel * 100.0, 0, 100);
+            MicLevelPercent = Math.Clamp(st.MicLevel * 100.0, 0, 100);
+            MetricsText = $"Drift {st.DriftCorrectionPpm:F1} ppm / MicBuf {st.MicBufferMilliseconds:F0}ms / SpkBuf {st.SpeakerBufferMilliseconds:F0}ms / UF {st.UnderflowCount} / OF {st.OverflowCount}";
         });
 
         _ = LoadDevicesAsync();
@@ -64,10 +75,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public DelegateCommand StartCommand { get; }
-    public DelegateCommand PauseCommand { get; }
-    public DelegateCommand ResumeCommand { get; }
-    public DelegateCommand StopCommand { get; }
+    public DelegateCommand StartStopCommand { get; }
+    public DelegateCommand PauseResumeCommand { get; }
+    public DelegateCommand ToggleMiniModeCommand { get; }
 
     public ObservableCollection<AudioDeviceInfo> SpeakerDevices { get; }
     public ObservableCollection<AudioDeviceInfo> MicDevices { get; }
@@ -77,11 +87,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string OutputPathText { get => _outputPathText; private set => SetField(ref _outputPathText, value); }
     public string MetricsText { get => _metricsText; private set => SetField(ref _metricsText, value); }
     public string LastErrorText { get => _lastErrorText; private set => SetField(ref _lastErrorText, value); }
+    public string ElapsedText { get => _elapsedText; private set => SetField(ref _elapsedText, value); }
+    public double SpeakerLevelPercent { get => _speakerLevelPercent; private set => SetField(ref _speakerLevelPercent, value); }
+    public double MicLevelPercent { get => _micLevelPercent; private set => SetField(ref _micLevelPercent, value); }
 
     public string SelectedSpeakerDeviceId { get => _selectedSpeakerDeviceId; set => SetField(ref _selectedSpeakerDeviceId, value); }
     public string SelectedMicDeviceId { get => _selectedMicDeviceId; set => SetField(ref _selectedMicDeviceId, value); }
     public OutputCaptureMode SelectedOutputMode { get => _selectedOutputMode; set => SetField(ref _selectedOutputMode, value); }
     public string TargetProcessIdText { get => _targetProcessIdText; set => SetField(ref _targetProcessIdText, value); }
+
+    public bool IsMiniMode
+    {
+        get => _isMiniMode;
+        private set
+        {
+            if (SetField(ref _isMiniMode, value))
+            {
+                OnPropertyChanged(nameof(DetailsVisibility));
+                OnPropertyChanged(nameof(WindowWidth));
+                OnPropertyChanged(nameof(WindowHeight));
+                OnPropertyChanged(nameof(MiniModeButtonText));
+            }
+        }
+    }
+
+    public Visibility DetailsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
+    public double WindowWidth => IsMiniMode ? 700 : 980;
+    public double WindowHeight => IsMiniMode ? 98 : 230;
+    public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
+    public bool IsDeviceSelectionEnabled => IsStoppedOrError;
+
+    public string StartStopButtonText => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error ? "録音開始" : "停止";
+    public string PauseResumeButtonText => _recordingService.CurrentState == RecordingState.Paused ? "再開" : "一時停止";
+    public string MiniModeButtonText => IsMiniMode ? "通常" : "ミニ";
 
     private async Task LoadDevicesAsync()
     {
@@ -121,43 +159,63 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task StartAsync()
+    private async Task StartOrStopAsync()
     {
-        LastErrorText = string.Empty;
-        _options = EnsureDefaults(_options) with
+        if (_recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error)
         {
-            SpeakerDeviceId = SelectedSpeakerDeviceId,
-            MicDeviceId = SelectedMicDeviceId,
-            OutputCaptureMode = SelectedOutputMode,
-            TargetProcessId = TryParseProcessId(TargetProcessIdText)
-        };
+            LastErrorText = string.Empty;
+            _options = EnsureDefaults(_options) with
+            {
+                SpeakerDeviceId = SelectedSpeakerDeviceId,
+                MicDeviceId = SelectedMicDeviceId,
+                OutputCaptureMode = SelectedOutputMode,
+                TargetProcessId = TryParseProcessId(TargetProcessIdText)
+            };
 
-        await _settingsService.SaveRecordingOptionsAsync(_options);
-        var path = await _recordingService.StartAsync(_options);
-        OutputPathText = $"出力: {path}";
-    }
+            await _settingsService.SaveRecordingOptionsAsync(_options);
+            var path = await _recordingService.StartAsync(_options);
+            OutputPathText = $"出力: {path}";
+            return;
+        }
 
-    private async Task PauseAsync()
-    {
-        await _recordingService.PauseAsync();
-    }
-
-    private async Task ResumeAsync()
-    {
-        await _recordingService.ResumeAsync();
-    }
-
-    private async Task StopAsync()
-    {
         await _recordingService.StopAsync();
+    }
+
+    private async Task PauseOrResumeAsync()
+    {
+        if (_recordingService.CurrentState == RecordingState.Paused)
+        {
+            await _recordingService.ResumeAsync();
+            return;
+        }
+
+        if (_recordingService.CurrentState == RecordingState.Recording)
+        {
+            await _recordingService.PauseAsync();
+        }
+    }
+
+    private Task ToggleMiniModeAsync()
+    {
+        IsMiniMode = !IsMiniMode;
+        return Task.CompletedTask;
+    }
+
+    private bool CanStartOrStop()
+    {
+        return _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error or RecordingState.Recording or RecordingState.Paused;
+    }
+
+    private bool CanPauseOrResume()
+    {
+        return _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused;
     }
 
     private void RefreshCommands()
     {
-        StartCommand.RaiseCanExecuteChanged();
-        PauseCommand.RaiseCanExecuteChanged();
-        ResumeCommand.RaiseCanExecuteChanged();
-        StopCommand.RaiseCanExecuteChanged();
+        StartStopCommand.RaiseCanExecuteChanged();
+        PauseResumeCommand.RaiseCanExecuteChanged();
+        ToggleMiniModeCommand.RaiseCanExecuteChanged();
     }
 
     private static RecordingOptions EnsureDefaults(RecordingOptions options)
@@ -190,14 +248,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         System.Windows.Application.Current.Dispatcher.Invoke(action);
     }
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

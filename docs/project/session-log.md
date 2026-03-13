@@ -127,3 +127,12 @@
 3. MainViewModel に IDeviceService 連携を実装し、起動時デバイス列挙・既定選択を反映。
 4. Start時にUI選択値を RecordingOptions に反映して保存・録音開始するよう更新。
 5. dotnet build VoxArchive.sln -m:1 成功。
+
+## 2026-03-13 Session-11
+
+### 実施
+1. UIをバー型に再構成し、Start/Stop と Pause/Resume を統合ボタン化。
+2. Speaker/Mic レベルメーター（ProgressBar）を追加。
+3. ミニモード（詳細領域の表示切替、ウィンドウサイズ縮小）を実装。
+4. 録音中はデバイス選択・モード選択を無効化。
+5. dotnet build VoxArchive.sln -m:1 成功。
