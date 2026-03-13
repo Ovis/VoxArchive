@@ -146,3 +146,15 @@
 4. RecordingService にテレメトリシンク連携を追加。
 5. Runtime から ecording.log を注入するよう更新。
 6. dotnet build VoxArchive.sln -m:1 成功。
+
+## 2026-03-13 Session-13
+
+### 実施
+1. 	ests/VoxArchive.IntegrationTests を追加。
+2. RecordingServiceIntegrationTests を作成し、以下4ケースを実装。
+   - Start/Stop の状態遷移と出力パス生成
+   - Pause/Resume の状態遷移
+   - OutputSourceChanged イベント伝搬
+   - Process mode + PID未指定時の例外
+3. フェイク実装で Audio/Encoding 依存を切り離し、ローカルで安定実行可能にした。
+4. dotnet test tests/VoxArchive.IntegrationTests/VoxArchive.IntegrationTests.csproj -m:1 で 4/4 成功。

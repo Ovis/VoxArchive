@@ -15,6 +15,7 @@
 - [x] WPF UI 詳細仕様の一部反映（デバイス選択/モード選択）
 - [x] WPF UI 詳細仕様の一部反映（常時表示バー/ミニモード/レベルメータ）
 - [x] 録音統計の1秒集計ログ化
+- [x] 結合テスト整備（RecordingService中核フロー）
 
 ## Later
 - [x] RingBuffer 実装
@@ -25,4 +26,5 @@
 - [x] 可変レートリサンプラ実装
 - [x] Process Loopback 実装
 - [x] Failover Coordinator 実装
-- [ ] 結合テスト整備
+- [ ] 実機での長時間録音テスト（1h/3h）
+- [ ] NAudio導入時のE2E確認
