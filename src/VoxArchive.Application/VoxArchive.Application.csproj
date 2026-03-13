@@ -1,8 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\VoxArchive.Domain\VoxArchive.Domain.csproj" />
     <ProjectReference Include="..\VoxArchive.Application.Abstractions\VoxArchive.Application.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Audio.Abstractions\VoxArchive.Audio.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Encoding.Abstractions\VoxArchive.Encoding.Abstractions.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

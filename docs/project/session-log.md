@@ -62,3 +62,16 @@
    - OutputCaptureFailoverCoordinator（開始時判定と切替制御）
 4. dotnet build VoxArchive.sln -m:1 成功（警告なし）。
 
+
+## 2026-03-13 Session-05
+
+### 実施
+1. VoxArchive.Application に Audio.Abstractions / Encoding.Abstractions 参照を追加。
+2. RecordingService を実装接続版へ刷新。
+   - IOutputCaptureController / IMicCaptureService / IRingBuffer / IDriftCorrector / IFrameBuilder / IFfmpegFlacEncoder を統合。
+   - Start: モード解決 -> encoder開始 -> capture開始 -> 処理ループ開始。
+   - Pause/Resume: capture停止/再開で制御。
+   - Stop: 処理停止 -> capture停止 -> encoder停止。
+   - 統計更新と OutputSourceChanged 伝搬を実装。
+3. dotnet build VoxArchive.sln -m:1 成功を確認。
+

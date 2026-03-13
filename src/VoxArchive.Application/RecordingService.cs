@@ -1,5 +1,7 @@
 using VoxArchive.Application.Abstractions;
+using VoxArchive.Audio.Abstractions;
 using VoxArchive.Domain;
+using VoxArchive.Encoding.Abstractions;
 
 namespace VoxArchive.Application;
 
@@ -7,6 +9,50 @@ public sealed class RecordingService : IRecordingService
 {
     private readonly RecordingStateMachine _stateMachine = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly IOutputCaptureController _outputCaptureController;
+    private readonly IOutputCaptureFailoverCoordinator _failoverCoordinator;
+    private readonly IMicCaptureService _micCaptureService;
+    private readonly IRingBuffer _speakerBuffer;
+    private readonly IRingBuffer _micBuffer;
+    private readonly IDriftCorrector _driftCorrector;
+    private readonly IFrameBuilder _frameBuilder;
+    private readonly IFfmpegFlacEncoder _encoder;
+
+    private CancellationTokenSource? _processingCts;
+    private Task? _processingTask;
+    private RecordingOptions? _activeOptions;
+    private string? _outputPath;
+    private DateTimeOffset _startedAt;
+    private bool _isPaused;
+    private long _underflowCount;
+    private long _overflowCount;
+    private double _lastSpeakerLevel;
+    private double _lastMicLevel;
+
+    public RecordingService(
+        IOutputCaptureController outputCaptureController,
+        IOutputCaptureFailoverCoordinator failoverCoordinator,
+        IMicCaptureService micCaptureService,
+        IRingBuffer speakerBuffer,
+        IRingBuffer micBuffer,
+        IDriftCorrector driftCorrector,
+        IFrameBuilder frameBuilder,
+        IFfmpegFlacEncoder encoder)
+    {
+        _outputCaptureController = outputCaptureController;
+        _failoverCoordinator = failoverCoordinator;
+        _micCaptureService = micCaptureService;
+        _speakerBuffer = speakerBuffer;
+        _micBuffer = micBuffer;
+        _driftCorrector = driftCorrector;
+        _frameBuilder = frameBuilder;
+        _encoder = encoder;
+
+        _outputCaptureController.ChunkCaptured += OnSpeakerChunkCaptured;
+        _outputCaptureController.SourceChanged += (_, e) => OutputSourceChanged?.Invoke(this, e);
+        _failoverCoordinator.SourceChanged += (_, e) => OutputSourceChanged?.Invoke(this, e);
+        _micCaptureService.ChunkCaptured += OnMicChunkCaptured;
+    }
 
     public RecordingState CurrentState => _stateMachine.CurrentState;
 
@@ -22,23 +68,41 @@ public sealed class RecordingService : IRecordingService
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (string.IsNullOrWhiteSpace(options.OutputDirectory))
-            {
-                throw new ArgumentException("OutputDirectory is required.", nameof(options));
-            }
-
+            ValidateOptions(options);
             TransitionTo(RecordingState.Starting);
 
-            var fileName = DateTime.Now.ToString("yyyyMMddHHmmss") + ".flac";
-            var outputPath = Path.Combine(options.OutputDirectory, fileName);
+            Directory.CreateDirectory(options.OutputDirectory);
+            var resolvedMode = await _failoverCoordinator.ResolveStartupModeAsync(options, cancellationToken);
+            var effectiveOptions = options with { OutputCaptureMode = resolvedMode };
+
+            _activeOptions = effectiveOptions;
+            _outputPath = BuildOutputFilePath(effectiveOptions.OutputDirectory);
+            _startedAt = DateTimeOffset.UtcNow;
+            _isPaused = false;
+            _underflowCount = 0;
+            _overflowCount = 0;
+            _speakerBuffer.Clear();
+            _micBuffer.Clear();
+            _driftCorrector.Reset();
+
+            await _encoder.StartAsync(new FfmpegFlacEncoderOptions(
+                OutputFilePath: _outputPath,
+                SampleRate: effectiveOptions.SampleRate,
+                Channels: effectiveOptions.ChannelCount,
+                CompressionLevel: effectiveOptions.FlacCompressionLevel), cancellationToken);
+
+            await StartCaptureAsync(effectiveOptions, cancellationToken);
+
+            _processingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _processingTask = Task.Run(() => ProcessingLoopAsync(_processingCts.Token), _processingCts.Token);
 
             TransitionTo(RecordingState.Recording);
-            RaiseOutputSourceChanged(options.OutputCaptureMode, options.OutputCaptureMode, "RecordingStarted");
-            RaiseStatistics(outputPath);
-            return outputPath;
+            RaiseStatistics();
+            return _outputPath;
         }
         catch (Exception ex)
         {
+            await TryStopInternalsAsync(CancellationToken.None);
             SafeTransitionToError(ex.Message);
             throw;
         }
@@ -54,6 +118,8 @@ public sealed class RecordingService : IRecordingService
         try
         {
             TransitionTo(RecordingState.Pausing);
+            _isPaused = true;
+            await StopCaptureAsync(cancellationToken);
             TransitionTo(RecordingState.Paused);
         }
         catch (Exception ex)
@@ -72,6 +138,13 @@ public sealed class RecordingService : IRecordingService
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            if (_activeOptions is null)
+            {
+                throw new InvalidOperationException("Active recording options are not available.");
+            }
+
+            await StartCaptureAsync(_activeOptions, cancellationToken);
+            _isPaused = false;
             TransitionTo(RecordingState.Recording);
         }
         catch (Exception ex)
@@ -91,8 +164,9 @@ public sealed class RecordingService : IRecordingService
         try
         {
             TransitionTo(RecordingState.Stopping);
+            await TryStopInternalsAsync(cancellationToken);
             TransitionTo(RecordingState.Stopped);
-            RaiseStatistics(outputFilePath: null);
+            RaiseStatistics();
         }
         catch (Exception ex)
         {
@@ -102,6 +176,105 @@ public sealed class RecordingService : IRecordingService
         finally
         {
             _gate.Release();
+        }
+    }
+
+    private async Task StartCaptureAsync(RecordingOptions options, CancellationToken cancellationToken)
+    {
+        await _outputCaptureController.StartAsync(options, cancellationToken);
+        await _micCaptureService.StartAsync(options.MicDeviceId, options.SampleRate, cancellationToken);
+    }
+
+    private async Task StopCaptureAsync(CancellationToken cancellationToken)
+    {
+        await _outputCaptureController.StopAsync(cancellationToken);
+        await _micCaptureService.StopAsync(cancellationToken);
+    }
+
+    private async Task TryStopInternalsAsync(CancellationToken cancellationToken)
+    {
+        _isPaused = true;
+
+        if (_processingCts is not null)
+        {
+            await _processingCts.CancelAsync();
+            _processingCts.Dispose();
+            _processingCts = null;
+        }
+
+        if (_processingTask is not null)
+        {
+            try
+            {
+                await _processingTask.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            _processingTask = null;
+        }
+
+        await StopCaptureAsync(cancellationToken);
+        var stopResult = await _encoder.StopAsync(cancellationToken);
+        if (!stopResult.IsSuccess)
+        {
+            throw new InvalidOperationException($"ffmpeg exited with code {stopResult.ExitCode}. {stopResult.StandardError}");
+        }
+    }
+
+    private async Task ProcessingLoopAsync(CancellationToken cancellationToken)
+    {
+        if (_activeOptions is null)
+        {
+            return;
+        }
+
+        var frameSamples = (_activeOptions.SampleRate * _activeOptions.FrameMilliseconds) / 1000;
+        var targetFillSamples = (_activeOptions.SampleRate * _activeOptions.TargetBufferMilliseconds) / 1000;
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_activeOptions.FrameMilliseconds));
+
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            if (_isPaused)
+            {
+                continue;
+            }
+
+            var ratio = _driftCorrector.ComputeRatio(_micBuffer.Count, targetFillSamples, TimeSpan.FromMilliseconds(_activeOptions.FrameMilliseconds));
+            var frame = _frameBuilder.BuildFrame(frameSamples, ratio);
+            await _encoder.WriteAsync(frame.InterleavedPcm16, cancellationToken);
+
+            _lastSpeakerLevel = frame.SpeakerLevel;
+            _lastMicLevel = frame.MicLevel;
+            _underflowCount += frame.UnderflowSamples;
+            _overflowCount += frame.OverflowSamples;
+            RaiseStatistics();
+        }
+    }
+
+    private void OnSpeakerChunkCaptured(object? sender, CaptureChunk chunk)
+    {
+        WriteSamples(_speakerBuffer, chunk.Samples.Span);
+    }
+
+    private void OnMicChunkCaptured(object? sender, CaptureChunk chunk)
+    {
+        WriteSamples(_micBuffer, chunk.Samples.Span);
+    }
+
+    private static void WriteSamples(IRingBuffer buffer, ReadOnlySpan<float> samples)
+    {
+        var offset = 0;
+        while (offset < samples.Length)
+        {
+            var written = buffer.Write(samples.Slice(offset));
+            if (written <= 0)
+            {
+                break;
+            }
+
+            offset += written;
         }
     }
 
@@ -121,17 +294,61 @@ public sealed class RecordingService : IRecordingService
         ErrorOccurred?.Invoke(this, message);
     }
 
-    private void RaiseStatistics(string? outputFilePath)
+    private void RaiseStatistics()
     {
+        var startedAt = _startedAt == default ? DateTimeOffset.UtcNow : _startedAt;
+        var elapsed = DateTimeOffset.UtcNow - startedAt;
+
         StatisticsUpdated?.Invoke(this, new RecordingStatistics
         {
-            ElapsedTime = TimeSpan.Zero,
-            OutputFilePath = outputFilePath
+            ElapsedTime = elapsed,
+            OutputFilePath = _outputPath,
+            SpeakerBufferMilliseconds = SamplesToMs(_speakerBuffer.Count),
+            MicBufferMilliseconds = SamplesToMs(_micBuffer.Count),
+            DriftCorrectionPpm = _driftCorrector.CurrentPpm,
+            UnderflowCount = _underflowCount,
+            OverflowCount = _overflowCount,
+            SpeakerLevel = _lastSpeakerLevel,
+            MicLevel = _lastMicLevel
         });
     }
 
-    private void RaiseOutputSourceChanged(OutputCaptureMode previous, OutputCaptureMode current, string reason)
+    private static void ValidateOptions(RecordingOptions options)
     {
-        OutputSourceChanged?.Invoke(this, new OutputSourceChangedEvent(previous, current, reason, DateTimeOffset.Now));
+        if (string.IsNullOrWhiteSpace(options.OutputDirectory))
+        {
+            throw new ArgumentException("OutputDirectory is required.", nameof(options));
+        }
+
+        if (options.SampleRate <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options.SampleRate));
+        }
+
+        if (options.FrameMilliseconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options.FrameMilliseconds));
+        }
+
+        if (options.OutputCaptureMode == OutputCaptureMode.ProcessLoopback && options.TargetProcessId is null)
+        {
+            throw new ArgumentException("TargetProcessId is required for process loopback mode.", nameof(options));
+        }
+    }
+
+    private static string BuildOutputFilePath(string directory)
+    {
+        var fileName = DateTime.Now.ToString("yyyyMMddHHmmss") + ".flac";
+        return Path.Combine(directory, fileName);
+    }
+
+    private double SamplesToMs(int samples)
+    {
+        if (_activeOptions is null || _activeOptions.SampleRate <= 0)
+        {
+            return 0;
+        }
+
+        return (samples * 1000d) / _activeOptions.SampleRate;
     }
 }
