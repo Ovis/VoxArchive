@@ -139,8 +139,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public Visibility DetailsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
-    public double WindowWidth => IsMiniMode ? 900 : 1280;
-    public double WindowHeight => IsMiniMode ? 86 : 180;
+    public double WindowWidth => IsMiniMode ? 980 : 1320;
+    public double WindowHeight => IsMiniMode ? 92 : 270;
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
     public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
