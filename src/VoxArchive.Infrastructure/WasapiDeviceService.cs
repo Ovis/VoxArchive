@@ -206,7 +206,7 @@ public sealed class WasapiDeviceService : IDeviceService
     }
 
     [ComImport]
-    [Guid("0BD7A1BE-7A1A-44DB-8397-C0A0F6B7A8E0")]
+    [Guid("0BD7A1BE-7A1A-44DB-8397-C0A0F6B7A857")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IMMDeviceCollection
     {
@@ -243,3 +243,4 @@ public sealed class WasapiDeviceService : IDeviceService
     {
     }
 }
+
