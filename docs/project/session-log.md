@@ -179,3 +179,11 @@
    を同時生成するように変更。
 4. E2E手順書を更新して上記ファイル確認を明記。
 5. build + integration test + long-run test 全通過を確認。
+
+## 2026-03-13 Session-16
+
+### 実施
+1. docs/testing/reports/longrun-report-template.md を追加。
+2. scripts/Analyze-RecordingMetrics.ps1 を追加し、CSVから集計Markdownを自動生成。
+3. docs/testing/local-e2e-checklist.md に集計手順を追記。
+4. サンプルCSVでスクリプト実行し、summary生成を確認。

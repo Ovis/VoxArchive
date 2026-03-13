@@ -31,3 +31,8 @@
 2. メモリ使用量を定期確認
 3. 録音停止後にFLAC再生可能であることを確認
 4. 必要に応じて3時間録音を追加実施
+
+## 集計レポート作成
+1. `pwsh -File scripts/Analyze-RecordingMetrics.ps1 -MetricsCsv <path-to-recording-metrics.csv>`
+2. `<same-dir>/recording-metrics.summary.md` が生成されることを確認
+3. `docs/testing/reports/longrun-report-template.md` に結果を転記
