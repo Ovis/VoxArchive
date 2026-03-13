@@ -12,9 +12,12 @@ public sealed record RecordingOptions
     public double Kp { get; init; } = 2e-8;
     public double Ki { get; init; } = 1e-12;
     public int FlacCompressionLevel { get; init; } = 8;
+    public int ChannelAlignmentMilliseconds { get; init; } = 0;
     public string SpeakerDeviceId { get; init; } = string.Empty;
     public string MicDeviceId { get; init; } = string.Empty;
     public OutputCaptureMode OutputCaptureMode { get; init; } = OutputCaptureMode.SpeakerLoopback;
     public int? TargetProcessId { get; init; }
 }
+
+
 

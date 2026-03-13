@@ -244,3 +244,19 @@
 ### 次アクション
 1. 実機セッションで `evidence-*.md` を PASS 化し、完了条件の残項目を解消する。
 2. 取得済み証跡を `docs/release/spec-completion-checklist.md` に反映する。
+
+## 2026-03-13 Session-22
+
+### 実施
+1. `RecordingOptions` に `ChannelAlignmentMilliseconds` を追加。
+2. `MainWindow` に `Offset(ms)` 入力欄を追加し、停止中のみ編集できるようにした。
+3. `MainViewModel` でオフセット値を整数パースして `RecordingOptions` に保存するよう実装（-500〜500msにクランプ）。
+4. `RecordingService` に固定オフセット補正を追加。
+   - 正値: Speaker を遅延
+   - 負値: Mic を遅延
+5. 既存のサンプルレート正規化＋遅延抑制と合わせ、実運用での同期調整を可能にした。
+6. WPF を別出力パスでビルドし、コンパイル成功を確認。
+
+### 次アクション
+1. 実機でオフセット値を段階調整し、最適値をプロファイル化する。
+2. 将来的にデバイス別プリセット化（自動適用）を検討する。

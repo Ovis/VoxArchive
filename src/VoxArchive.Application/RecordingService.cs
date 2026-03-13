@@ -88,6 +88,7 @@ public sealed class RecordingService : IRecordingService
             _micBuffer.Clear();
             _driftCorrector.Configure(effectiveOptions.Kp, effectiveOptions.Ki, effectiveOptions.MaxCorrectionPpm);
             _driftCorrector.Reset();
+            ApplyChannelAlignmentPrefill(effectiveOptions);
 
             await _encoder.StartAsync(new FfmpegFlacEncoderOptions(
                 OutputFilePath: _outputPath,
@@ -317,6 +318,32 @@ public sealed class RecordingService : IRecordingService
         return output;
     }
 
+
+    private void ApplyChannelAlignmentPrefill(RecordingOptions options)
+    {
+        var alignmentMs = Math.Clamp(options.ChannelAlignmentMilliseconds, -500, 500);
+        if (alignmentMs == 0)
+        {
+            return;
+        }
+
+        var samples = (int)Math.Round(options.SampleRate * (Math.Abs(alignmentMs) / 1000d));
+        if (samples <= 0)
+        {
+            return;
+        }
+
+        // +ms: speaker を遅延, -ms: mic を遅延
+        var targetBuffer = alignmentMs > 0 ? _speakerBuffer : _micBuffer;
+        var chunk = new float[Math.Min(samples, 4096)];
+        var remaining = samples;
+        while (remaining > 0)
+        {
+            var len = Math.Min(remaining, chunk.Length);
+            WriteSamples(targetBuffer, chunk.AsSpan(0, len));
+            remaining -= len;
+        }
+    }
     private static void WriteSamples(IRingBuffer buffer, ReadOnlySpan<float> samples)
     {
         var offset = 0;
@@ -412,3 +439,5 @@ public sealed class RecordingService : IRecordingService
         return (samples * 1000d) / _activeOptions.SampleRate;
     }
 }
+
+

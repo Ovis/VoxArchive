@@ -27,6 +27,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _elapsedText = "00:00:00";
     private double _speakerLevelPercent;
     private double _micLevelPercent;
+    private string _alignmentMillisecondsText = "0";
     private bool _isMiniMode;
     private ProcessListItem? _selectedProcessItem;
 
@@ -46,6 +47,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _selectedSpeakerDeviceId = _options.SpeakerDeviceId;
         _selectedMicDeviceId = _options.MicDeviceId;
         _selectedOutputMode = _options.OutputCaptureMode;
+        _alignmentMillisecondsText = _options.ChannelAlignmentMilliseconds.ToString();
 
         StartStopCommand = new DelegateCommand(StartOrStopAsync, CanStartOrStop);
         PauseResumeCommand = new DelegateCommand(PauseOrResumeAsync, CanPauseOrResume);
@@ -100,6 +102,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string SelectedSpeakerDeviceId { get => _selectedSpeakerDeviceId; set => SetField(ref _selectedSpeakerDeviceId, value); }
     public string SelectedMicDeviceId { get => _selectedMicDeviceId; set => SetField(ref _selectedMicDeviceId, value); }
+    public string AlignmentMillisecondsText { get => _alignmentMillisecondsText; set => SetField(ref _alignmentMillisecondsText, value); }
 
     public OutputCaptureMode SelectedOutputMode
     {
@@ -241,12 +244,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
 
+            if (!int.TryParse(AlignmentMillisecondsText, out var alignmentMs))
+            {
+                LastErrorText = "オフセット(ms)は整数で入力してください。";
+                return;
+            }
+
+            alignmentMs = Math.Clamp(alignmentMs, -500, 500);
+            AlignmentMillisecondsText = alignmentMs.ToString();
+
             _options = EnsureDefaults(_options) with
             {
                 SpeakerDeviceId = SelectedSpeakerDeviceId,
                 MicDeviceId = SelectedMicDeviceId,
                 OutputCaptureMode = mode,
-                TargetProcessId = targetPid
+                TargetProcessId = targetPid,
+                ChannelAlignmentMilliseconds = alignmentMs
             };
 
             await _settingsService.SaveRecordingOptionsAsync(_options);
@@ -373,3 +386,10 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
+
+
+
+
+
+
