@@ -182,12 +182,11 @@
                                 Background="{StaticResource Accent}"
                                 BorderBrush="{StaticResource Accent}"
                                 Command="{Binding StartStopCommand}">
-                            <TextBlock Text="&#xE71A;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="16"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
+                            <Border Width="14"
+                                    Height="14"
+                                    Background="White"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
                         </Button>
                     </StackPanel>
                 </Grid>
@@ -315,5 +314,6 @@
         </Border>
     </Grid>
 </Window>
+
 
 
