@@ -23,3 +23,7 @@
 1. Application層の状態遷移ガード実装。
 2. RecordingServiceスケルトン実装。
 3. 最短E2E（Start/Stop）へ進む。
+
+### 2026-03-13 Session-01 追記
+- Application 層に RecordingService の最小実装を追加（状態遷移とイベント通知を実装）。
+- backlog を更新し、状態遷移ガードとRecordingServiceスケルトンを完了扱いに変更。

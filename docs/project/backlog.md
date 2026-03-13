@@ -1,8 +1,8 @@
 # バックログ
 
 ## In Progress
-- [ ] Application層: 状態遷移ガード実装
-- [ ] RecordingService の最小実装スケルトン作成
+- [x] Application層: 状態遷移ガード実装
+- [x] RecordingService の最小実装スケルトン作成
 
 ## Next
 - [ ] RingBuffer 実装
