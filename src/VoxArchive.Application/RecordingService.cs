@@ -17,6 +17,7 @@ public sealed class RecordingService : IRecordingService
     private readonly IDriftCorrector _driftCorrector;
     private readonly IFrameBuilder _frameBuilder;
     private readonly IFfmpegFlacEncoder _encoder;
+    private readonly IRecordingTelemetrySink? _telemetrySink;
 
     private CancellationTokenSource? _processingCts;
     private Task? _processingTask;
@@ -37,7 +38,8 @@ public sealed class RecordingService : IRecordingService
         IRingBuffer micBuffer,
         IDriftCorrector driftCorrector,
         IFrameBuilder frameBuilder,
-        IFfmpegFlacEncoder encoder)
+        IFfmpegFlacEncoder encoder,
+        IRecordingTelemetrySink? telemetrySink = null)
     {
         _outputCaptureController = outputCaptureController;
         _failoverCoordinator = failoverCoordinator;
@@ -47,6 +49,7 @@ public sealed class RecordingService : IRecordingService
         _driftCorrector = driftCorrector;
         _frameBuilder = frameBuilder;
         _encoder = encoder;
+        _telemetrySink = telemetrySink;
 
         _outputCaptureController.ChunkCaptured += OnSpeakerChunkCaptured;
         _outputCaptureController.SourceChanged += (_, e) => OutputSourceChanged?.Invoke(this, e);
@@ -282,6 +285,7 @@ public sealed class RecordingService : IRecordingService
     private void TransitionTo(RecordingState next)
     {
         _stateMachine.Transition(next);
+        _telemetrySink?.OnStateChanged(next);
         StateChanged?.Invoke(this, next);
     }
 
@@ -289,9 +293,11 @@ public sealed class RecordingService : IRecordingService
     {
         if (_stateMachine.TryTransition(RecordingState.Error, out _))
         {
+            _telemetrySink?.OnStateChanged(RecordingState.Error);
             StateChanged?.Invoke(this, RecordingState.Error);
         }
 
+        _telemetrySink?.OnError(message);
         ErrorOccurred?.Invoke(this, message);
     }
 
@@ -300,7 +306,7 @@ public sealed class RecordingService : IRecordingService
         var startedAt = _startedAt == default ? DateTimeOffset.UtcNow : _startedAt;
         var elapsed = DateTimeOffset.UtcNow - startedAt;
 
-        StatisticsUpdated?.Invoke(this, new RecordingStatistics
+        var statistics = new RecordingStatistics
         {
             ElapsedTime = elapsed,
             OutputFilePath = _outputPath,
@@ -311,7 +317,10 @@ public sealed class RecordingService : IRecordingService
             OverflowCount = _overflowCount,
             SpeakerLevel = _lastSpeakerLevel,
             MicLevel = _lastMicLevel
-        });
+        };
+
+        _telemetrySink?.OnStatistics(statistics);
+        StatisticsUpdated?.Invoke(this, statistics);
     }
 
     private static void ValidateOptions(RecordingOptions options)

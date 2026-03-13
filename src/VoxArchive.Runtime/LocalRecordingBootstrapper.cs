@@ -50,6 +50,9 @@ public sealed class LocalRecordingBootstrapper
         IFrameBuilder frameBuilder = new FrameBuilder(speakerBuffer, micBuffer, resampler);
         IFfmpegFlacEncoder encoder = new FfmpegFlacEncoder();
 
+        var logPath = Path.Combine(Path.GetDirectoryName(_settingsPath) ?? ".", "recording.log");
+        IRecordingTelemetrySink telemetrySink = new FileRecordingTelemetrySink(logPath);
+
         IRecordingService recordingService = new RecordingService(
             outputCaptureController,
             failoverCoordinator,
@@ -58,7 +61,8 @@ public sealed class LocalRecordingBootstrapper
             micBuffer,
             driftCorrector,
             frameBuilder,
-            encoder);
+            encoder,
+            telemetrySink);
 
         return new RecordingRuntimeContext(
             RecordingService: recordingService,

@@ -136,3 +136,13 @@
 3. ミニモード（詳細領域の表示切替、ウィンドウサイズ縮小）を実装。
 4. 録音中はデバイス選択・モード選択を無効化。
 5. dotnet build VoxArchive.sln -m:1 成功。
+
+## 2026-03-13 Session-12
+
+### 実施
+1. IRecordingTelemetrySink を Application Abstractions に追加。
+2. FileRecordingTelemetrySink を追加し、状態・エラー・統計をローカルファイルに記録。
+3. 統計ログは1秒間隔でサンプリング出力する実装にした。
+4. RecordingService にテレメトリシンク連携を追加。
+5. Runtime から ecording.log を注入するよう更新。
+6. dotnet build VoxArchive.sln -m:1 成功。
