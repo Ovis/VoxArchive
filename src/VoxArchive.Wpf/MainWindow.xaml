@@ -155,27 +155,37 @@
                     <Button Style="{StaticResource RoundIconButtonStyle}"
                             Command="{Binding StartStopCommand}"
                             Visibility="{Binding RecordButtonVisibility}"
-                            Content="REC" />
-
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
+                            Content="REC" />                    <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
                         <Button Style="{StaticResource CircleIconButtonStyle}" Command="{Binding PauseResumeCommand}">
                             <Grid>
-                                <Grid Visibility="{Binding PauseGlyphVisibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Width="7" Height="20" Background="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    <Border Grid.Column="1" Width="7" Height="20" Background="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Grid>
-                                <Path Visibility="{Binding ResumeGlyphVisibility}" Fill="{StaticResource TextPrimary}" Data="M 0 0 L 0 20 L 18 10 Z" Stretch="Uniform" Width="18" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Visibility="{Binding PauseGlyphVisibility}"
+                                           Text="&#xE769;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="18"
+                                           Foreground="{StaticResource TextPrimary}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Visibility="{Binding ResumeGlyphVisibility}"
+                                           Text="&#xE768;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="18"
+                                           Foreground="{StaticResource TextPrimary}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
                             </Grid>
                         </Button>
 
                         <Button Style="{StaticResource CircleIconButtonStyle}"
                                 Margin="0"
+                                Background="{StaticResource Accent}"
+                                BorderBrush="{StaticResource Accent}"
                                 Command="{Binding StartStopCommand}">
-                            <Border Width="16" Height="16" Background="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE71A;"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="16"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
                         </Button>
                     </StackPanel>
                 </Grid>
@@ -303,3 +313,4 @@
         </Border>
     </Grid>
 </Window>
+
