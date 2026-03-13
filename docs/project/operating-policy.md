@@ -16,7 +16,7 @@
 ## Git運用
 1. 作業ブランチは `zissou` を使用する。
 2. 変更は機能単位で小さくコミットする。
-3. コミットメッセージは `type(scope): summary` を推奨する。
+3. コミットタイトルは日本語で記述する。`種別(対象): 要約` 形式を推奨する。
 
 ## セッション運用
 1. セッション開始時に `docs/project/session-log.md` と `docs/project/backlog.md` を確認する。
