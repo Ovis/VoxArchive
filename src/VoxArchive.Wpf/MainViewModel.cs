@@ -43,6 +43,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const double MeterFloorDb = -60d;
     private const double MeterCeilingDb = 0d;
     private const double MeterDisplayGainDb = 6d;
+    private const string SystemDefaultDeviceId = "__system_default__";
 
     public MainViewModel(RecordingRuntimeContext context)
     {
@@ -230,25 +231,49 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsSpeakerDevicePopupOpenNormal
     {
         get => _isSpeakerDevicePopupOpenNormal;
-        set => SetField(ref _isSpeakerDevicePopupOpenNormal, value);
+        set
+        {
+            if (SetField(ref _isSpeakerDevicePopupOpenNormal, value) && value)
+            {
+                _ = LoadDevicesAsync();
+            }
+        }
     }
 
     public bool IsSpeakerDevicePopupOpenMini
     {
         get => _isSpeakerDevicePopupOpenMini;
-        set => SetField(ref _isSpeakerDevicePopupOpenMini, value);
+        set
+        {
+            if (SetField(ref _isSpeakerDevicePopupOpenMini, value) && value)
+            {
+                _ = LoadDevicesAsync();
+            }
+        }
     }
 
     public bool IsMicDevicePopupOpenNormal
     {
         get => _isMicDevicePopupOpenNormal;
-        set => SetField(ref _isMicDevicePopupOpenNormal, value);
+        set
+        {
+            if (SetField(ref _isMicDevicePopupOpenNormal, value) && value)
+            {
+                _ = LoadDevicesAsync();
+            }
+        }
     }
 
     public bool IsMicDevicePopupOpenMini
     {
         get => _isMicDevicePopupOpenMini;
-        set => SetField(ref _isMicDevicePopupOpenMini, value);
+        set
+        {
+            if (SetField(ref _isMicDevicePopupOpenMini, value) && value)
+            {
+                _ = LoadDevicesAsync();
+            }
+        }
     }
 
     public bool IsProcessPopupOpenNormal
@@ -358,29 +383,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var speakers = await _deviceService.GetSpeakerDevicesAsync();
             var mics = await _deviceService.GetMicrophoneDevicesAsync();
+            var speakerOptions = BuildDeviceOptions(speakers, DeviceKind.Speaker);
+            var micOptions = BuildDeviceOptions(mics, DeviceKind.Microphone);
 
             RunOnUi(() =>
             {
                 SpeakerDevices.Clear();
-                foreach (var d in speakers)
+                foreach (var d in speakerOptions)
                 {
                     SpeakerDevices.Add(d);
                 }
 
                 MicDevices.Clear();
-                foreach (var d in mics)
+                foreach (var d in micOptions)
                 {
                     MicDevices.Add(d);
                 }
 
-                if (string.IsNullOrWhiteSpace(SelectedSpeakerDeviceId))
+                if (string.IsNullOrWhiteSpace(SelectedSpeakerDeviceId) || !SpeakerDevices.Any(x => x.DeviceId == SelectedSpeakerDeviceId))
                 {
-                    SelectedSpeakerDeviceId = speakers.FirstOrDefault(x => x.IsDefault)?.DeviceId ?? speakers.FirstOrDefault()?.DeviceId ?? string.Empty;
+                    SelectedSpeakerDeviceId = SystemDefaultDeviceId;
                 }
 
-                if (string.IsNullOrWhiteSpace(SelectedMicDeviceId))
+                if (string.IsNullOrWhiteSpace(SelectedMicDeviceId) || !MicDevices.Any(x => x.DeviceId == SelectedMicDeviceId))
                 {
-                    SelectedMicDeviceId = mics.FirstOrDefault(x => x.IsDefault)?.DeviceId ?? mics.FirstOrDefault()?.DeviceId ?? string.Empty;
+                    SelectedMicDeviceId = SystemDefaultDeviceId;
                 }
 
                 OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
@@ -469,8 +496,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ChannelAlignmentMilliseconds = alignmentMs
             };
 
+            var resolvedSpeakerDeviceId = await ResolveDeviceIdAsync(_options.SpeakerDeviceId, DeviceKind.Speaker);
+            var resolvedMicDeviceId = await ResolveDeviceIdAsync(_options.MicDeviceId, DeviceKind.Microphone);
+            if (string.IsNullOrWhiteSpace(resolvedSpeakerDeviceId) || string.IsNullOrWhiteSpace(resolvedMicDeviceId))
+            {
+                LastErrorText = "システム既定のデバイス解決に失敗しました。デバイス設定を確認してください。";
+                return;
+            }
+
+            var startOptions = _options with
+            {
+                SpeakerDeviceId = resolvedSpeakerDeviceId,
+                MicDeviceId = resolvedMicDeviceId
+            };
+
             await _settingsService.SaveRecordingOptionsAsync(_options);
-            var path = await _recordingService.StartAsync(_options);
+            var path = await _recordingService.StartAsync(startOptions);
             _recordingService.SetSpeakerCaptureEnabled(IsSpeakerCaptureEnabled);
             _recordingService.SetMicCaptureEnabled(IsMicCaptureEnabled);
             OutputPathText = $"出力: {path}";
@@ -548,6 +589,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused;
     }
 
+    private static IReadOnlyList<AudioDeviceInfo> BuildDeviceOptions(IReadOnlyList<AudioDeviceInfo> devices, DeviceKind kind)
+    {
+        var defaultName = devices.FirstOrDefault(x => x.IsDefault)?.FriendlyName ?? "デバイス未検出";
+        var options = new List<AudioDeviceInfo>(devices.Count + 1)
+        {
+            new(SystemDefaultDeviceId, $"システム既定 ({defaultName})", true, kind)
+        };
+        options.AddRange(devices);
+        return options;
+    }
+
+    private async Task<string> ResolveDeviceIdAsync(string selectedDeviceId, DeviceKind kind)
+    {
+        if (selectedDeviceId != SystemDefaultDeviceId)
+        {
+            return selectedDeviceId;
+        }
+
+        var defaultDevice = kind == DeviceKind.Speaker
+            ? await _deviceService.GetDefaultSpeakerDeviceAsync()
+            : await _deviceService.GetDefaultMicrophoneDeviceAsync();
+
+        return defaultDevice?.DeviceId ?? string.Empty;
+    }
     private void RefreshCommands()
     {
         StartStopCommand.RaiseCanExecuteChanged();
