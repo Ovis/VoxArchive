@@ -37,6 +37,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isMicDevicePopupOpenNormal;
     private bool _isSpeakerDevicePopupOpenMini;
     private bool _isMicDevicePopupOpenMini;
+    private bool _isModePopupOpenNormal;
+    private bool _isModePopupOpenMini;
+    private bool _isProcessPopupOpenNormal;
+    private bool _isProcessPopupOpenMini;
 
     private const double MeterFloorDb = -60d;
     private const double MeterCeilingDb = 0d;
@@ -220,6 +224,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility MicMuteSlashVisibility => IsMicCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
     public string SelectedSpeakerDeviceName => SpeakerDevices.FirstOrDefault(x => x.DeviceId == SelectedSpeakerDeviceId)?.FriendlyName ?? "スピーカーデバイス未選択";
     public string SelectedMicDeviceName => MicDevices.FirstOrDefault(x => x.DeviceId == SelectedMicDeviceId)?.FriendlyName ?? "マイクデバイス未選択";
+    public string SelectedOutputModeName => SelectedOutputMode.ToString();
+    public string SelectedProcessDisplayName => SelectedProcessItem?.DisplayText ?? "プロセス未選択";
 
     public bool IsSpeakerDevicePopupOpenNormal
     {
@@ -245,6 +251,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetField(ref _isMicDevicePopupOpenMini, value);
     }
 
+    public bool IsModePopupOpenNormal
+    {
+        get => _isModePopupOpenNormal;
+        set => SetField(ref _isModePopupOpenNormal, value);
+    }
+
+    public bool IsModePopupOpenMini
+    {
+        get => _isModePopupOpenMini;
+        set => SetField(ref _isModePopupOpenMini, value);
+    }
+
+    public bool IsProcessPopupOpenNormal
+    {
+        get => _isProcessPopupOpenNormal;
+        set => SetField(ref _isProcessPopupOpenNormal, value);
+    }
+
+    public bool IsProcessPopupOpenMini
+    {
+        get => _isProcessPopupOpenMini;
+        set => SetField(ref _isProcessPopupOpenMini, value);
+    }
+
     public OutputCaptureMode SelectedOutputMode
     {
         get => _selectedOutputMode;
@@ -253,6 +283,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedOutputMode, value))
             {
                 OnPropertyChanged(nameof(IsProcessSelectionEnabled));
+                OnPropertyChanged(nameof(SelectedOutputModeName));
+                if (value != OutputCaptureMode.ProcessLoopback)
+                {
+                    IsProcessPopupOpenNormal = false;
+                    IsProcessPopupOpenMini = false;
+                }
+                IsModePopupOpenNormal = false;
+                IsModePopupOpenMini = false;
                 RefreshCommands();
             }
         }
@@ -261,7 +299,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ProcessListItem? SelectedProcessItem
     {
         get => _selectedProcessItem;
-        set => SetField(ref _selectedProcessItem, value);
+        set
+        {
+            if (SetField(ref _selectedProcessItem, value))
+            {
+                OnPropertyChanged(nameof(SelectedProcessDisplayName));
+                IsProcessPopupOpenNormal = false;
+                IsProcessPopupOpenMini = false;
+            }
+        }
     }
 
     public bool IsMiniMode
@@ -364,6 +410,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     SelectedProcessItem = ProcessItems.FirstOrDefault(x => x.ProcessId == pid);
                 }
+                OnPropertyChanged(nameof(SelectedProcessDisplayName));
             });
         }
         catch (Exception ex)
@@ -466,6 +513,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsSpeakerDevicePopupOpenMini = false;
         IsMicDevicePopupOpenNormal = false;
         IsMicDevicePopupOpenMini = false;
+        IsModePopupOpenNormal = false;
+        IsModePopupOpenMini = false;
+        IsProcessPopupOpenNormal = false;
+        IsProcessPopupOpenMini = false;
         IsMiniMode = !IsMiniMode;
         return Task.CompletedTask;
     }
