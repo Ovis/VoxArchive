@@ -72,6 +72,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _recordingService.StateChanged += (_, s) => RunOnUi(() =>
         {
             StateText = $"状態: {s}";
+            if (s is RecordingState.Stopped or RecordingState.Error)
+            {
+                ResetLevelMeters();
+            }
             OnPropertyChanged(nameof(StartStopButtonText));
             OnPropertyChanged(nameof(PauseResumeButtonText));
             OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
@@ -427,6 +431,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         await _recordingService.StopAsync();
+        ResetLevelMeters();
     }
 
     private async Task PauseOrResumeAsync()
@@ -519,6 +524,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var normalized = (db - MeterFloorDb) / (MeterCeilingDb - MeterFloorDb);
         return Math.Clamp(normalized * 100d, 0d, 100d);
     }
+    private void ResetLevelMeters()
+    {
+        SpeakerLevelPercent = 0d;
+        MicLevelPercent = 0d;
+    }
+
     private static Brush BuildIconBrush(bool isEnabled, double levelPercent, Color accent)
     {
         _ = levelPercent;
