@@ -260,8 +260,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility DetailsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
     public Visibility NormalHeaderVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
     public Visibility MiniHeaderVisibility => IsMiniMode ? Visibility.Visible : Visibility.Collapsed;
-    public double WindowWidth => IsMiniMode ? 680 : 1320;
-    public double WindowHeight => IsMiniMode ? 92 : 270;
+    public double WindowWidth => IsMiniMode ? 540 : 720;
+    public double WindowHeight => IsMiniMode ? 145 : 275;
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
     public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
@@ -549,4 +549,5 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
 
