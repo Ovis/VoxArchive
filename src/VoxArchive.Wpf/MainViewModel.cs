@@ -33,8 +33,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private ProcessListItem? _selectedProcessItem;
     private bool _isSpeakerCaptureEnabled = true;
     private bool _isMicCaptureEnabled = true;
-    private bool _isSpeakerDevicePopupOpen;
-    private bool _isMicDevicePopupOpen;
+    private bool _isSpeakerDevicePopupOpenNormal;
+    private bool _isMicDevicePopupOpenNormal;
+    private bool _isSpeakerDevicePopupOpenMini;
+    private bool _isMicDevicePopupOpenMini;
 
     public MainViewModel(RecordingRuntimeContext context)
     {
@@ -144,7 +146,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedSpeakerDeviceId, value))
             {
                 OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
-                IsSpeakerDevicePopupOpen = false;
+                IsSpeakerDevicePopupOpenNormal = false;
+                IsSpeakerDevicePopupOpenMini = false;
             }
         }
     }
@@ -157,7 +160,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedMicDeviceId, value))
             {
                 OnPropertyChanged(nameof(SelectedMicDeviceName));
-                IsMicDevicePopupOpen = false;
+                IsMicDevicePopupOpenNormal = false;
+                IsMicDevicePopupOpenMini = false;
             }
         }
     }
@@ -209,16 +213,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SelectedSpeakerDeviceName => SpeakerDevices.FirstOrDefault(x => x.DeviceId == SelectedSpeakerDeviceId)?.FriendlyName ?? "スピーカーデバイス未選択";
     public string SelectedMicDeviceName => MicDevices.FirstOrDefault(x => x.DeviceId == SelectedMicDeviceId)?.FriendlyName ?? "マイクデバイス未選択";
 
-    public bool IsSpeakerDevicePopupOpen
+    public bool IsSpeakerDevicePopupOpenNormal
     {
-        get => _isSpeakerDevicePopupOpen;
-        set => SetField(ref _isSpeakerDevicePopupOpen, value);
+        get => _isSpeakerDevicePopupOpenNormal;
+        set => SetField(ref _isSpeakerDevicePopupOpenNormal, value);
     }
 
-    public bool IsMicDevicePopupOpen
+    public bool IsSpeakerDevicePopupOpenMini
     {
-        get => _isMicDevicePopupOpen;
-        set => SetField(ref _isMicDevicePopupOpen, value);
+        get => _isSpeakerDevicePopupOpenMini;
+        set => SetField(ref _isSpeakerDevicePopupOpenMini, value);
+    }
+
+    public bool IsMicDevicePopupOpenNormal
+    {
+        get => _isMicDevicePopupOpenNormal;
+        set => SetField(ref _isMicDevicePopupOpenNormal, value);
+    }
+
+    public bool IsMicDevicePopupOpenMini
+    {
+        get => _isMicDevicePopupOpenMini;
+        set => SetField(ref _isMicDevicePopupOpenMini, value);
     }
 
     public OutputCaptureMode SelectedOutputMode
@@ -435,6 +451,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private Task ToggleMiniModeAsync()
     {
+        IsSpeakerDevicePopupOpenNormal = false;
+        IsSpeakerDevicePopupOpenMini = false;
+        IsMicDevicePopupOpenNormal = false;
+        IsMicDevicePopupOpenMini = false;
         IsMiniMode = !IsMiniMode;
         return Task.CompletedTask;
     }
@@ -549,5 +569,4 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
 

@@ -230,8 +230,8 @@
                             <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
                         </Grid>
                     </Button>
-                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" />
-                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" />
+                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
                             <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
                         </Border>
@@ -249,8 +249,8 @@
                             <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
                         </Grid>
                     </Button>
-                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" />
-                    <Popup IsOpen="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" />
+                    <Popup IsOpen="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
                             <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
                         </Border>
@@ -311,8 +311,8 @@
                             <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
                         </Grid>
                     </Button>
-                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" />
-                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" />
+                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
                             <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
                         </Border>
@@ -330,8 +330,8 @@
                             <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
                         </Grid>
                     </Button>
-                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" />
-                    <Popup IsOpen="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" />
+                    <Popup IsOpen="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
                             <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
                         </Border>
@@ -407,5 +407,4 @@
         </Border>
     </Grid>
 </Window>
-
 
