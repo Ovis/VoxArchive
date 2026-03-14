@@ -154,6 +154,12 @@
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Base" Property="Background" Value="#2A3A50" />
                             </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Base" Property="Background" Value="#161E2A" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#2A3445" />
+                                <Setter Property="Foreground" Value="#5F6D82" />
+                                <Setter TargetName="Base" Property="Opacity" Value="0.65" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
