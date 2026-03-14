@@ -40,13 +40,13 @@ public partial class SettingsWindow : Window
     {
         if (!int.TryParse(OffsetTextBox.Text, out var offsetMs))
         {
-            MessageBox.Show(this, "オフセットは整数で入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "マイク遅延補正は整数で入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         if (offsetMs < -1000 || offsetMs > 1000)
         {
-            MessageBox.Show(this, "オフセットは -1000 ～ 1000 の範囲で指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "マイク遅延補正は -1000 ～ 1000 の範囲で指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -59,3 +59,4 @@ public partial class SettingsWindow : Window
         DialogResult = true;
     }
 }
+
