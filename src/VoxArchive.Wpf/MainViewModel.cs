@@ -269,6 +269,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(WindowWidth));
                 OnPropertyChanged(nameof(WindowHeight));
                 OnPropertyChanged(nameof(MiniModeButtonText));
+                OnPropertyChanged(nameof(MiniModeGlyph));
             }
         }
     }
@@ -294,7 +295,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string StartStopButtonText => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error ? "録音開始" : "停止";
     public string PauseResumeButtonText => _recordingService.CurrentState == RecordingState.Paused ? "再開" : "一時停止";
-    public string MiniModeButtonText => IsMiniMode ? "通常" : "ミニ";
+    public string MiniModeButtonText => IsMiniMode ? "通常表示に切替" : "ミニ表示に切替";
+    public string MiniModeGlyph => IsMiniMode ? "\uE73F" : "\uE740";
 
     private async Task LoadDevicesAsync()
     {

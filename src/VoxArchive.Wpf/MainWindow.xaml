@@ -117,6 +117,14 @@
             <Setter Property="Margin" Value="0,0,4,0" />
         </Style>
 
+        <Style x:Key="MiniModeSwitchButtonStyle" TargetType="Button" BasedOn="{StaticResource CircleIconButtonStyle}">
+            <Setter Property="Width" Value="42" />
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="Background" Value="#223042" />
+            <Setter Property="BorderBrush" Value="#3A4E69" />
+        </Style>
+
         <Style x:Key="DeviceArrowToggleStyle" TargetType="ToggleButton">
             <Setter Property="Width" Value="22" />
             <Setter Property="Height" Value="42" />
@@ -257,7 +265,7 @@
                     </Popup>
                 </Grid>
 
-                <Button Grid.Column="8" Padding="10,6" Margin="10,0,0,0" Content="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}" />
+                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>
 
@@ -338,7 +346,7 @@
                     </Popup>
                 </Grid>
 
-                <Button Grid.Column="8" Padding="10,6" Margin="0" MinWidth="58" Content="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}" />
+                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" Margin="0" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>
 
