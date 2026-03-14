@@ -307,30 +307,24 @@
                     </Popup>
                 </Grid>
 
-                <StackPanel Grid.Column="7" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Style="{StaticResource DeviceIconButtonStyle}" Margin="0,0,8,0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
+                <Grid Grid.Column="7" x:Name="ModeProcessAnchorNormal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="22" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
                         <TextBlock Text="{Binding ModeIconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Button>
-
-                    <Grid x:Name="ProcessAnchorNormal" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="22" />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedProcessDisplayName}" IsEnabled="{Binding IsProcessSelectionEnabled}">
-                            <TextBlock Text="&#xE71D;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Button>
-                        <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenNormal, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
-                        <Popup IsOpen="{Binding IsProcessPopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ProcessAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                            <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
-                                <StackPanel>
-                                    <Button Margin="0,0,0,4" Padding="8,3" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" Foreground="#111827" Background="#E5E7EB" BorderBrush="#CBD5E1" />
-                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" MaxHeight="260" />
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                </StackPanel>
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenNormal, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
+                    <Popup IsOpen="{Binding IsProcessPopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ModeProcessAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
+                            <StackPanel>
+                                <Button Margin="0,0,0,4" Padding="8,3" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" Foreground="#111827" Background="#E5E7EB" BorderBrush="#CBD5E1" />
+                                <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" MaxHeight="260" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
                 <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>
@@ -442,30 +436,24 @@
                     </Popup>
                 </Grid>
 
-                <StackPanel Grid.Column="7" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Style="{StaticResource DeviceIconButtonStyle}" Margin="0,0,8,0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
+                <Grid Grid.Column="7" x:Name="ModeProcessAnchorMini" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="22" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
                         <TextBlock Text="{Binding ModeIconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Button>
-
-                    <Grid x:Name="ProcessAnchorMini" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="22" />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedProcessDisplayName}" IsEnabled="{Binding IsProcessSelectionEnabled}">
-                            <TextBlock Text="&#xE71D;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Button>
-                        <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
-                        <Popup IsOpen="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ProcessAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                            <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
-                                <StackPanel>
-                                    <Button Margin="0,0,0,4" Padding="8,3" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" Foreground="#111827" Background="#E5E7EB" BorderBrush="#CBD5E1" />
-                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" MaxHeight="260" />
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                </StackPanel>
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
+                    <Popup IsOpen="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ModeProcessAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
+                            <StackPanel>
+                                <Button Margin="0,0,0,4" Padding="8,3" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" Foreground="#111827" Background="#E5E7EB" BorderBrush="#CBD5E1" />
+                                <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" MaxHeight="260" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
                 <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" Margin="0" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>

@@ -223,7 +223,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SelectedSpeakerDeviceName => SpeakerDevices.FirstOrDefault(x => x.DeviceId == SelectedSpeakerDeviceId)?.FriendlyName ?? "スピーカーデバイス未選択";
     public string SelectedMicDeviceName => MicDevices.FirstOrDefault(x => x.DeviceId == SelectedMicDeviceId)?.FriendlyName ?? "マイクデバイス未選択";
     public string SelectedOutputModeName => SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? "プログラムモード" : "スピーカーモード";
-    public string ModeIconGlyph => SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? "\uE71D" : "\uE992";
+    public string ModeIconGlyph => SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? "\uE8A7" : "\uE992";
     public string SelectedProcessDisplayName => SelectedProcessItem?.DisplayText ?? "プロセス未選択";
 
     public bool IsSpeakerDevicePopupOpenNormal
