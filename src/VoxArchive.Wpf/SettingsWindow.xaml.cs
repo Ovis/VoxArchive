@@ -44,9 +44,9 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        if (offsetMs < -500 || offsetMs > 500)
+        if (offsetMs < -1000 || offsetMs > 1000)
         {
-            MessageBox.Show(this, "オフセットは -500 ～ 500 の範囲で指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "オフセットは -1000 ～ 1000 の範囲で指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

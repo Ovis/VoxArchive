@@ -501,7 +501,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
-            alignmentMs = Math.Clamp(alignmentMs, -500, 500);
+            alignmentMs = Math.Clamp(alignmentMs, -1000, 1000);
             AlignmentMillisecondsText = alignmentMs.ToString();
 
             _options = EnsureDefaults(_options) with
@@ -588,7 +588,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var normalizedOffset = Math.Clamp(dialog.AlignmentMilliseconds, -500, 500);
+        var normalizedOffset = Math.Clamp(dialog.AlignmentMilliseconds, -1000, 1000);
         var normalizedOutput = string.IsNullOrWhiteSpace(dialog.OutputDirectory)
             ? EnsureDefaults(_options).OutputDirectory
             : dialog.OutputDirectory;
@@ -766,4 +766,3 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-

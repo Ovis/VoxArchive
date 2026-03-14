@@ -375,7 +375,7 @@ public sealed class RecordingService : IRecordingService
 
     private void ApplyChannelAlignmentPrefill(RecordingOptions options)
     {
-        var alignmentMs = Math.Clamp(options.ChannelAlignmentMilliseconds, -500, 500);
+        var alignmentMs = Math.Clamp(options.ChannelAlignmentMilliseconds, -1000, 1000);
         if (alignmentMs == 0)
         {
             return;
@@ -493,7 +493,3 @@ public sealed class RecordingService : IRecordingService
         return (samples * 1000d) / _activeOptions.SampleRate;
     }
 }
-
-
-
-
