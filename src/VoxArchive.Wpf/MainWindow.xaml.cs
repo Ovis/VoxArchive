@@ -1,5 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace VoxArchive.Wpf;
 
@@ -36,6 +39,43 @@ public partial class MainWindow : Window
         {
             ApplyWindowSize();
         }
+    }
+
+    private void OnDeviceListBoxPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var origin = e.OriginalSource as DependencyObject;
+        var listBoxItem = FindAncestor<ListBoxItem>(origin);
+        if (listBoxItem is null)
+        {
+            return;
+        }
+
+        _viewModel.IsSpeakerDevicePopupOpenNormal = false;
+        _viewModel.IsSpeakerDevicePopupOpenMini = false;
+        _viewModel.IsMicDevicePopupOpenNormal = false;
+        _viewModel.IsMicDevicePopupOpenMini = false;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? start)
+        where T : DependencyObject
+    {
+        var current = start;
+        while (current is not null)
+        {
+            if (current is T result)
+            {
+                return result;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     private void ApplyWindowSize()

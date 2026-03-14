@@ -275,7 +275,7 @@
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" />
                     <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" />
+                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
                         </Border>
                     </Popup>
                 </Grid>
@@ -309,7 +309,7 @@
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" />
                     <Popup IsOpen="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" />
+                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
                         </Border>
                     </Popup>
                 </Grid>
@@ -407,7 +407,7 @@
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" />
                     <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" />
+                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
                         </Border>
                     </Popup>
                 </Grid>
@@ -441,7 +441,7 @@
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" />
                     <Popup IsOpen="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" />
+                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
                         </Border>
                     </Popup>
                 </Grid>
