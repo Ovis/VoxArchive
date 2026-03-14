@@ -235,7 +235,7 @@
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}">
                         <Grid>
                             <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
+                            <Line X1="6" Y1="33" X2="30" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" />
@@ -254,7 +254,7 @@
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}">
                         <Grid>
                             <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
+                            <Line X1="6" Y1="33" X2="30" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" />
@@ -316,7 +316,7 @@
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}">
                         <Grid>
                             <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
+                            <Line X1="6" Y1="33" X2="30" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" />
@@ -335,7 +335,7 @@
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}">
                         <Grid>
                             <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
+                            <Line X1="6" Y1="33" X2="30" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" />
