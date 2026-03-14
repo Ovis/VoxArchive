@@ -33,6 +33,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private ProcessListItem? _selectedProcessItem;
     private bool _isSpeakerCaptureEnabled = true;
     private bool _isMicCaptureEnabled = true;
+    private bool _isSpeakerDevicePopupOpen;
+    private bool _isMicDevicePopupOpen;
 
     public MainViewModel(RecordingRuntimeContext context)
     {
@@ -142,6 +144,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedSpeakerDeviceId, value))
             {
                 OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
+                IsSpeakerDevicePopupOpen = false;
             }
         }
     }
@@ -154,6 +157,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedMicDeviceId, value))
             {
                 OnPropertyChanged(nameof(SelectedMicDeviceName));
+                IsMicDevicePopupOpen = false;
             }
         }
     }
@@ -204,6 +208,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility MicMuteSlashVisibility => IsMicCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
     public string SelectedSpeakerDeviceName => SpeakerDevices.FirstOrDefault(x => x.DeviceId == SelectedSpeakerDeviceId)?.FriendlyName ?? "スピーカーデバイス未選択";
     public string SelectedMicDeviceName => MicDevices.FirstOrDefault(x => x.DeviceId == SelectedMicDeviceId)?.FriendlyName ?? "マイクデバイス未選択";
+
+    public bool IsSpeakerDevicePopupOpen
+    {
+        get => _isSpeakerDevicePopupOpen;
+        set => SetField(ref _isSpeakerDevicePopupOpen, value);
+    }
+
+    public bool IsMicDevicePopupOpen
+    {
+        get => _isMicDevicePopupOpen;
+        set => SetField(ref _isMicDevicePopupOpen, value);
+    }
 
     public OutputCaptureMode SelectedOutputMode
     {

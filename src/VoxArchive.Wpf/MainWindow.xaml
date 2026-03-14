@@ -114,18 +114,39 @@
         <Style x:Key="DeviceIconButtonStyle" TargetType="Button" BasedOn="{StaticResource CircleIconButtonStyle}">
             <Setter Property="Width" Value="42" />
             <Setter Property="Height" Value="42" />
-            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Margin" Value="0,0,4,0" />
         </Style>
 
-        <Style x:Key="DeviceArrowComboStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-            <Setter Property="Width" Value="26" />
+        <Style x:Key="DeviceArrowToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="22" />
             <Setter Property="Height" Value="42" />
-            <Setter Property="Margin" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="Background" Value="#1A2330" />
+            <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#D6DCE7" />
+            <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Base"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#223042" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#2A3A50" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="ComboBox">
@@ -159,12 +180,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0"
-                Background="{StaticResource PanelBg}"
-                BorderBrush="{StaticResource PanelBorder}"
-                BorderThickness="1"
-                CornerRadius="10"
-                Padding="12,10">
+        <Border Grid.Row="0" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="12,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -179,11 +195,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Grid Grid.Column="0" VerticalAlignment="Center">
-                    <Button Style="{StaticResource RoundIconButtonStyle}"
-                            Command="{Binding StartStopCommand}"
-                            Visibility="{Binding RecordButtonVisibility}"
-                            Content="REC" />
-
+                    <Button Style="{StaticResource RoundIconButtonStyle}" Command="{Binding StartStopCommand}" Visibility="{Binding RecordButtonVisibility}" Content="REC" />
                     <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
                         <Button Style="{StaticResource CircleIconButtonStyle}" Command="{Binding PauseResumeCommand}">
                             <Grid>
@@ -196,123 +208,72 @@
                                     <Border Grid.Column="0" Background="{StaticResource TextPrimary}" CornerRadius="1" />
                                     <Border Grid.Column="2" Background="{StaticResource TextPrimary}" CornerRadius="1" />
                                 </Grid>
-                                <TextBlock Visibility="{Binding ResumeGlyphVisibility}"
-                                           Text="&#xE768;"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="18"
-                                           Foreground="{StaticResource TextPrimary}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
+                                <TextBlock Visibility="{Binding ResumeGlyphVisibility}" Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
                         </Button>
-
-                        <Button Style="{StaticResource CircleIconButtonStyle}"
-                                Margin="0"
-                                Background="{StaticResource Accent}"
-                                BorderBrush="{StaticResource Accent}"
-                                Command="{Binding StartStopCommand}">
-                            <Border Width="14"
-                                    Height="14"
-                                    Background="White"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center" />
+                        <Button Style="{StaticResource CircleIconButtonStyle}" Margin="0" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Command="{Binding StartStopCommand}">
+                            <Border Width="14" Height="14" Background="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Button>
                     </StackPanel>
                 </Grid>
 
-                <TextBlock Grid.Column="2"
-                           Text="{Binding ElapsedText}"
-                           FontFamily="Consolas"
-                           FontSize="34"
-                           FontWeight="Bold"
-                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{Binding ElapsedText}" FontFamily="Consolas" FontSize="34" FontWeight="Bold" VerticalAlignment="Center" />
 
-                <Border Grid.Column="4" Background="#1B2431" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="8" Padding="2">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="26" />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0"
-                                Style="{StaticResource DeviceIconButtonStyle}"
-                                Margin="0"
-                                ToolTip="{Binding SelectedSpeakerDeviceName}"
-                                Command="{Binding ToggleSpeakerCaptureCommand}">
-                            <Grid>
-                                <TextBlock Text="&#xE767;"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="18"
-                                           Foreground="{Binding SpeakerIconBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
-                                <Line X1="9" Y1="33" X2="33" Y2="9"
-                                      Stroke="#FFDA5D5D"
-                                      StrokeThickness="2.8"
-                                      Visibility="{Binding SpeakerMuteSlashVisibility}" />
-                            </Grid>
-                        </Button>
-                        <ComboBox Grid.Column="1"
-                                  Style="{StaticResource DeviceArrowComboStyle}"
-                                  ToolTip="{Binding SelectedSpeakerDeviceName}"
-                                  IsEnabled="{Binding IsDeviceSelectionEnabled}"
-                                  ItemsSource="{Binding SpeakerDevices}"
-                                  SelectedValuePath="DeviceId"
-                                  SelectedValue="{Binding SelectedSpeakerDeviceId, UpdateSourceTrigger=PropertyChanged}"
-                                  DisplayMemberPath="FriendlyName" />
-                    </Grid>
-                </Border>
+                <Grid Grid.Column="4" x:Name="SpeakerDeviceAnchor" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="22" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}">
+                        <Grid>
+                            <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
+                        </Grid>
+                    </Button>
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" />
+                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchor}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
+                            <ListBox ItemsSource="{Binding SpeakerDevices}"
+                                     DisplayMemberPath="FriendlyName"
+                                     SelectedValuePath="DeviceId"
+                                     SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="White"
+                                     Foreground="#111827"
+                                     BorderThickness="0" />
+                        </Border>
+                    </Popup>
+                </Grid>
 
-                <Border Grid.Column="6" Background="#1B2431" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="8" Padding="2">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="26" />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0"
-                                Style="{StaticResource DeviceIconButtonStyle}"
-                                Margin="0"
-                                ToolTip="{Binding SelectedMicDeviceName}"
-                                Command="{Binding ToggleMicCaptureCommand}">
-                            <Grid>
-                                <TextBlock Text="&#xE720;"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="18"
-                                           Foreground="{Binding MicIconBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
-                                <Line X1="9" Y1="33" X2="33" Y2="9"
-                                      Stroke="#FFDA5D5D"
-                                      StrokeThickness="2.8"
-                                      Visibility="{Binding MicMuteSlashVisibility}" />
-                            </Grid>
-                        </Button>
-                        <ComboBox Grid.Column="1"
-                                  Style="{StaticResource DeviceArrowComboStyle}"
-                                  ToolTip="{Binding SelectedMicDeviceName}"
-                                  IsEnabled="{Binding IsDeviceSelectionEnabled}"
-                                  ItemsSource="{Binding MicDevices}"
-                                  SelectedValuePath="DeviceId"
-                                  SelectedValue="{Binding SelectedMicDeviceId, UpdateSourceTrigger=PropertyChanged}"
-                                  DisplayMemberPath="FriendlyName" />
-                    </Grid>
-                </Border>
+                <Grid Grid.Column="6" x:Name="MicDeviceAnchor" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="22" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}">
+                        <Grid>
+                            <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
+                        </Grid>
+                    </Button>
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" />
+                    <Popup IsOpen="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchor}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
+                            <ListBox ItemsSource="{Binding MicDevices}"
+                                     DisplayMemberPath="FriendlyName"
+                                     SelectedValuePath="DeviceId"
+                                     SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="White"
+                                     Foreground="#111827"
+                                     BorderThickness="0" />
+                        </Border>
+                    </Popup>
+                </Grid>
 
-                <Button Grid.Column="8"
-                        Padding="10,6"
-                        Margin="10,0,0,0"
-                        Content="{Binding MiniModeButtonText}"
-                        Command="{Binding ToggleMiniModeCommand}" />
+                <Button Grid.Column="8" Padding="10,6" Margin="10,0,0,0" Content="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}" />
             </Grid>
         </Border>
 
-        <Border Grid.Row="1"
-                Margin="0,10,0,0"
-                Padding="12,10"
-                Visibility="{Binding DetailsVisibility}"
-                Background="{StaticResource PanelBg}"
-                BorderBrush="{StaticResource PanelBorder}"
-                BorderThickness="1"
-                CornerRadius="10">
+        <Border Grid.Row="1" Margin="0,10,0,0" Padding="12,10" Visibility="{Binding DetailsVisibility}" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -330,46 +291,24 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Mode" />
-                <ComboBox Grid.Row="0" Grid.Column="1"
-                          Foreground="#111827"
-                          Margin="6,0,12,0"
-                          IsEnabled="{Binding IsDeviceSelectionEnabled}"
-                          ItemsSource="{Binding OutputModes}"
-                          SelectedItem="{Binding SelectedOutputMode, UpdateSourceTrigger=PropertyChanged}">
+                <ComboBox Grid.Row="0" Grid.Column="1" Foreground="#111827" Margin="6,0,12,0" IsEnabled="{Binding IsDeviceSelectionEnabled}" ItemsSource="{Binding OutputModes}" SelectedItem="{Binding SelectedOutputMode, UpdateSourceTrigger=PropertyChanged}">
                     <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Foreground="#111827" Text="{Binding}" />
-                        </DataTemplate>
+                        <DataTemplate><TextBlock Foreground="#111827" Text="{Binding}" /></DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
                 <TextBlock Grid.Row="0" Grid.Column="2" Text="Offset" />
-                <TextBox Grid.Row="0" Grid.Column="3"
-                         Margin="6,0,0,0"
-                         IsEnabled="{Binding IsDeviceSelectionEnabled}"
-                         Text="{Binding AlignmentMillisecondsText, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox Grid.Row="0" Grid.Column="3" Margin="6,0,0,0" IsEnabled="{Binding IsDeviceSelectionEnabled}" Text="{Binding AlignmentMillisecondsText, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock Grid.Row="0" Grid.Column="4" Text="ms" Foreground="{StaticResource TextMuted}" />
                 <TextBlock Grid.Row="0" Grid.Column="5" Margin="12,0,0,0" Text="{Binding OutputPathText}" Foreground="{StaticResource TextMuted}" TextTrimming="CharacterEllipsis" />
 
                 <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,10,0,0" Text="Process" />
-                <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5"
-                          Foreground="#111827"
-                          Margin="6,10,8,0"
-                          IsEnabled="{Binding IsProcessSelectionEnabled}"
-                          ItemsSource="{Binding ProcessItems}"
-                          SelectedItem="{Binding SelectedProcessItem, UpdateSourceTrigger=PropertyChanged}">
+                <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5" Foreground="#111827" Margin="6,10,8,0" IsEnabled="{Binding IsProcessSelectionEnabled}" ItemsSource="{Binding ProcessItems}" SelectedItem="{Binding SelectedProcessItem, UpdateSourceTrigger=PropertyChanged}">
                     <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Foreground="#111827" Text="{Binding DisplayText}" />
-                        </DataTemplate>
+                        <DataTemplate><TextBlock Foreground="#111827" Text="{Binding DisplayText}" /></DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Button Grid.Row="1" Grid.Column="6"
-                        Margin="0,10,0,0"
-                        Padding="10,4"
-                        Content="更新"
-                        IsEnabled="{Binding IsProcessSelectionEnabled}"
-                        Command="{Binding RefreshProcessesCommand}" />
+                <Button Grid.Row="1" Grid.Column="6" Margin="0,10,0,0" Padding="10,4" Content="更新" IsEnabled="{Binding IsProcessSelectionEnabled}" Command="{Binding RefreshProcessesCommand}" />
 
                 <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="7" Margin="0,12,0,0">
                     <Grid.ColumnDefinitions>
@@ -387,14 +326,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="2"
-                Margin="0,8,0,0"
-                Padding="8,6"
-                Visibility="{Binding DetailsVisibility}"
-                Background="#10161F"
-                BorderBrush="{StaticResource PanelBorder}"
-                BorderThickness="1"
-                CornerRadius="8">
+        <Border Grid.Row="2" Margin="0,8,0,0" Padding="8,6" Visibility="{Binding DetailsVisibility}" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
