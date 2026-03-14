@@ -23,6 +23,14 @@ public sealed class LevelClipRectConverter : IMultiValueConverter
         }
 
         var ratio = Math.Clamp(levelPercent / 100.0, 0.0, 1.0);
+        var isVertical = string.Equals(parameter?.ToString(), "Vertical", StringComparison.OrdinalIgnoreCase);
+
+        if (isVertical)
+        {
+            var clipHeight = height * ratio;
+            return new Rect(0, height - clipHeight, width, clipHeight);
+        }
+
         return new Rect(0, 0, width * ratio, height);
     }
 
@@ -43,3 +51,4 @@ public sealed class LevelClipRectConverter : IMultiValueConverter
         };
     }
 }
+

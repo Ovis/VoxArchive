@@ -276,7 +276,7 @@
                                     <TextBlock.Clip>
                                         <RectangleGeometry>
                                             <RectangleGeometry.Rect>
-                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}">
+                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}" ConverterParameter="Vertical">
                                                     <Binding Path="MicLevelPercent" />
                                                     <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualWidth" />
                                                     <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualHeight" />
@@ -387,7 +387,7 @@
                                     <TextBlock.Clip>
                                         <RectangleGeometry>
                                             <RectangleGeometry.Rect>
-                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}">
+                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}" ConverterParameter="Vertical">
                                                     <Binding Path="MicLevelPercent" />
                                                     <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualWidth" />
                                                     <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualHeight" />
