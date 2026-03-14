@@ -315,7 +315,7 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
                         <Grid Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Path Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Fill="{StaticResource TextPrimary}" Data="M2,8 L7,8 L12,3 L12,17 L7,12 L2,12 Z" Stretch="Fill" />
+                            <Path Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Fill="{StaticResource TextPrimary}" Data="M3,7 H7 L13,3 V17 L7,13 H3 Z" Stretch="Fill" />
                             <Path Visibility="{Binding IsProgramMode, Converter={StaticResource BoolToVisibilityConverter}}" Stroke="{StaticResource TextPrimary}" StrokeThickness="1.8" Data="M2,3 H18 V17 H2 Z M2,6 H18" Stretch="Fill" />
                         </Grid>
                     </Button>
@@ -447,7 +447,7 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
                         <Grid Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Path Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Fill="{StaticResource TextPrimary}" Data="M2,8 L7,8 L12,3 L12,17 L7,12 L2,12 Z" Stretch="Fill" />
+                            <Path Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Fill="{StaticResource TextPrimary}" Data="M3,7 H7 L13,3 V17 L7,13 H3 Z" Stretch="Fill" />
                             <Path Visibility="{Binding IsProgramMode, Converter={StaticResource BoolToVisibilityConverter}}" Stroke="{StaticResource TextPrimary}" StrokeThickness="1.8" Data="M2,3 H18 V17 H2 Z M2,6 H18" Stretch="Fill" />
                         </Grid>
                     </Button>
