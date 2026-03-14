@@ -1,6 +1,7 @@
 <Window x:Class="VoxArchive.Wpf.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:VoxArchive.Wpf"
         Title="VoxArchive"
         Width="{Binding WindowWidth, Mode=OneWay}"
         Height="{Binding WindowHeight, Mode=OneWay}"
@@ -18,6 +19,7 @@
         <SolidColorBrush x:Key="TextPrimary" Color="#F3F6FA" />
         <SolidColorBrush x:Key="TextMuted" Color="#99A7BD" />
         <SolidColorBrush x:Key="Accent" Color="#E94545" />
+        <local:LevelClipRectConverter x:Key="LevelClipRectConverter" />
 
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
@@ -234,8 +236,23 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}">
                         <Grid>
-                            <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Line X1="6" Y1="31" X2="30" Y2="7" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#00BFFF" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock.Clip>
+                                        <RectangleGeometry>
+                                            <RectangleGeometry.Rect>
+                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}">
+                                                    <Binding Path="SpeakerLevelPercent" />
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualWidth" />
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualHeight" />
+                                                </MultiBinding>
+                                            </RectangleGeometry.Rect>
+                                        </RectangleGeometry>
+                                    </TextBlock.Clip>
+                                </TextBlock>
+                            </Grid>
+                            <Line X1="3" Y1="22" X2="21" Y2="4" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" />
@@ -253,8 +270,23 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}">
                         <Grid>
-                            <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Line X1="6" Y1="31" X2="30" Y2="7" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#36E062" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock.Clip>
+                                        <RectangleGeometry>
+                                            <RectangleGeometry.Rect>
+                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}">
+                                                    <Binding Path="MicLevelPercent" />
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualWidth" />
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualHeight" />
+                                                </MultiBinding>
+                                            </RectangleGeometry.Rect>
+                                        </RectangleGeometry>
+                                    </TextBlock.Clip>
+                                </TextBlock>
+                            </Grid>
+                            <Line X1="3" Y1="22" X2="21" Y2="4" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" />
@@ -315,8 +347,23 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}">
                         <Grid>
-                            <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Line X1="6" Y1="31" X2="30" Y2="7" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#00BFFF" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock.Clip>
+                                        <RectangleGeometry>
+                                            <RectangleGeometry.Rect>
+                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}">
+                                                    <Binding Path="SpeakerLevelPercent" />
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualWidth" />
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualHeight" />
+                                                </MultiBinding>
+                                            </RectangleGeometry.Rect>
+                                        </RectangleGeometry>
+                                    </TextBlock.Clip>
+                                </TextBlock>
+                            </Grid>
+                            <Line X1="3" Y1="22" X2="21" Y2="4" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" />
@@ -334,8 +381,23 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}">
                         <Grid>
-                            <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Line X1="6" Y1="31" X2="30" Y2="7" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#36E062" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock.Clip>
+                                        <RectangleGeometry>
+                                            <RectangleGeometry.Rect>
+                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}">
+                                                    <Binding Path="MicLevelPercent" />
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualWidth" />
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualHeight" />
+                                                </MultiBinding>
+                                            </RectangleGeometry.Rect>
+                                        </RectangleGeometry>
+                                    </TextBlock.Clip>
+                                </TextBlock>
+                            </Grid>
+                            <Line X1="3" Y1="22" X2="21" Y2="4" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" />

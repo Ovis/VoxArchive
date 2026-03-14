@@ -502,41 +502,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OutputDirectory = output
         };
     }
-
     private static Brush BuildIconBrush(bool isEnabled, double levelPercent, Color accent)
     {
-        var baseColor = Color.FromRgb(210, 216, 225);
+        _ = levelPercent;
+        _ = accent;
+
         if (!isEnabled)
         {
             return new SolidColorBrush(Color.FromRgb(122, 134, 149));
         }
 
-        var level = Math.Clamp(levelPercent / 100.0, 0.0, 1.0);
-        if (level <= 0.0)
-        {
-            return new SolidColorBrush(baseColor);
-        }
-
-        if (level >= 1.0)
-        {
-            return new SolidColorBrush(accent);
-        }
-
-        // 左側をアクセント色、右側を基準色にすることで、レベルに応じて左から塗り進む見た目にする。
-        var boundaryLeft = Math.Max(0.0, level - 0.001);
-        var brush = new LinearGradientBrush
-        {
-            StartPoint = new Point(0, 0.5),
-            EndPoint = new Point(1, 0.5)
-        };
-
-        brush.GradientStops.Add(new GradientStop(accent, 0.0));
-        brush.GradientStops.Add(new GradientStop(accent, boundaryLeft));
-        brush.GradientStops.Add(new GradientStop(baseColor, level));
-        brush.GradientStops.Add(new GradientStop(baseColor, 1.0));
-        return brush;
+        return new SolidColorBrush(Color.FromRgb(210, 216, 225));
     }
-
     private static void RunOnUi(Action action)
     {
         if (System.Windows.Application.Current.Dispatcher.CheckAccess())
