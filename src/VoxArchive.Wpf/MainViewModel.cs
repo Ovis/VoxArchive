@@ -39,6 +39,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isMicDevicePopupOpenMini;
     private bool _isProcessPopupOpenNormal;
     private bool _isProcessPopupOpenMini;
+    private bool _isRefreshingDeviceList;
 
     private const double MeterFloorDb = -60d;
     private const double MeterCeilingDb = 0d;
@@ -157,8 +158,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedSpeakerDeviceId, value))
             {
                 OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
-                IsSpeakerDevicePopupOpenNormal = false;
-                IsSpeakerDevicePopupOpenMini = false;
+                if (!_isRefreshingDeviceList)
+                {
+                    IsSpeakerDevicePopupOpenNormal = false;
+                    IsSpeakerDevicePopupOpenMini = false;
+                }
             }
         }
     }
@@ -171,8 +175,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedMicDeviceId, value))
             {
                 OnPropertyChanged(nameof(SelectedMicDeviceName));
-                IsMicDevicePopupOpenNormal = false;
-                IsMicDevicePopupOpenMini = false;
+                if (!_isRefreshingDeviceList)
+                {
+                    IsMicDevicePopupOpenNormal = false;
+                    IsMicDevicePopupOpenMini = false;
+                }
             }
         }
     }
@@ -388,30 +395,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             RunOnUi(() =>
             {
-                SpeakerDevices.Clear();
-                foreach (var d in speakerOptions)
+                _isRefreshingDeviceList = true;
+                try
                 {
-                    SpeakerDevices.Add(d);
-                }
+                    SpeakerDevices.Clear();
+                    foreach (var d in speakerOptions)
+                    {
+                        SpeakerDevices.Add(d);
+                    }
 
-                MicDevices.Clear();
-                foreach (var d in micOptions)
+                    MicDevices.Clear();
+                    foreach (var d in micOptions)
+                    {
+                        MicDevices.Add(d);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(SelectedSpeakerDeviceId) || !SpeakerDevices.Any(x => x.DeviceId == SelectedSpeakerDeviceId))
+                    {
+                        SelectedSpeakerDeviceId = SystemDefaultDeviceId;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(SelectedMicDeviceId) || !MicDevices.Any(x => x.DeviceId == SelectedMicDeviceId))
+                    {
+                        SelectedMicDeviceId = SystemDefaultDeviceId;
+                    }
+
+                    OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
+                    OnPropertyChanged(nameof(SelectedMicDeviceName));
+                }
+                finally
                 {
-                    MicDevices.Add(d);
+                    _isRefreshingDeviceList = false;
                 }
-
-                if (string.IsNullOrWhiteSpace(SelectedSpeakerDeviceId) || !SpeakerDevices.Any(x => x.DeviceId == SelectedSpeakerDeviceId))
-                {
-                    SelectedSpeakerDeviceId = SystemDefaultDeviceId;
-                }
-
-                if (string.IsNullOrWhiteSpace(SelectedMicDeviceId) || !MicDevices.Any(x => x.DeviceId == SelectedMicDeviceId))
-                {
-                    SelectedMicDeviceId = SystemDefaultDeviceId;
-                }
-
-                OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
-                OnPropertyChanged(nameof(SelectedMicDeviceName));
             });
         }
         catch (Exception ex)
