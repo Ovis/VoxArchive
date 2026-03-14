@@ -16,6 +16,12 @@ public partial class SettingsWindow : Window
         set => OffsetTextBox.Text = value.ToString();
     }
 
+    public string StartStopHotkeyText
+    {
+        get => StartStopHotkeyTextBox.Text.Trim();
+        set => StartStopHotkeyTextBox.Text = value;
+    }
+
     public string OutputDirectory
     {
         get => OutputDirectoryTextBox.Text.Trim();
@@ -50,6 +56,14 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (!KeyboardShortcutHelper.TryParseAndNormalize(StartStopHotkeyText, out _, out var normalizedHotkey))
+        {
+            MessageBox.Show(this, "ショートカットは Ctrl+F12 のように修飾キー付きで入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        StartStopHotkeyText = normalizedHotkey;
+
         if (string.IsNullOrWhiteSpace(OutputDirectory))
         {
             MessageBox.Show(this, "保存先を指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -59,4 +73,3 @@ public partial class SettingsWindow : Window
         DialogResult = true;
     }
 }
-

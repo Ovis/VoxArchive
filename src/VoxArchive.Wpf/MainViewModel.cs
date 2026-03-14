@@ -29,6 +29,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _speakerLevelPercent;
     private double _micLevelPercent;
     private string _alignmentMillisecondsText = "0";
+    private string _startStopHotkeyText = KeyboardShortcutHelper.DefaultStartStopHotkey;
     private bool _isMiniMode;
     private ProcessListItem? _selectedProcessItem;
     private bool _isSpeakerCaptureEnabled = true;
@@ -62,6 +63,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _selectedMicDeviceId = _options.MicDeviceId;
         _selectedOutputMode = _options.OutputCaptureMode;
         _alignmentMillisecondsText = _options.ChannelAlignmentMilliseconds.ToString();
+        _startStopHotkeyText = _options.StartStopHotkey;
         _isSpeakerCaptureEnabled = _recordingService.IsSpeakerCaptureEnabled;
         _isMicCaptureEnabled = _recordingService.IsMicCaptureEnabled;
 
@@ -187,6 +189,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public string AlignmentMillisecondsText { get => _alignmentMillisecondsText; set => SetField(ref _alignmentMillisecondsText, value); }
+    public string StartStopHotkeyText { get => _startStopHotkeyText; private set => SetField(ref _startStopHotkeyText, value); }
 
     public bool IsSpeakerCaptureEnabled
     {
@@ -580,6 +583,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             Owner = System.Windows.Application.Current?.MainWindow,
             AlignmentMilliseconds = _options.ChannelAlignmentMilliseconds,
+            StartStopHotkeyText = _options.StartStopHotkey,
             OutputDirectory = _options.OutputDirectory
         };
 
@@ -592,14 +596,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var normalizedOutput = string.IsNullOrWhiteSpace(dialog.OutputDirectory)
             ? EnsureDefaults(_options).OutputDirectory
             : dialog.OutputDirectory;
+        if (!KeyboardShortcutHelper.TryParseAndNormalize(dialog.StartStopHotkeyText, out _, out var normalizedHotkey))
+        {
+            normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
+        }
 
         _options = EnsureDefaults(_options) with
         {
             ChannelAlignmentMilliseconds = normalizedOffset,
-            OutputDirectory = normalizedOutput
+            OutputDirectory = normalizedOutput,
+            StartStopHotkey = normalizedHotkey
         };
 
         AlignmentMillisecondsText = normalizedOffset.ToString();
+        StartStopHotkeyText = normalizedHotkey;
         await _settingsService.SaveRecordingOptionsAsync(_options);
         LastErrorText = string.Empty;
     }
@@ -677,9 +687,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             output = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "VoxArchive");
         }
 
+        var hotkey = options.StartStopHotkey;
+        if (!KeyboardShortcutHelper.TryParseAndNormalize(hotkey, out _, out var normalizedHotkey))
+        {
+            normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
+        }
+
         return options with
         {
-            OutputDirectory = output
+            OutputDirectory = output,
+            StartStopHotkey = normalizedHotkey
         };
     }
 

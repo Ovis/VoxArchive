@@ -17,7 +17,5 @@ public sealed record RecordingOptions
     public string MicDeviceId { get; init; } = string.Empty;
     public OutputCaptureMode OutputCaptureMode { get; init; } = OutputCaptureMode.SpeakerLoopback;
     public int? TargetProcessId { get; init; }
+    public string StartStopHotkey { get; init; } = "Ctrl+F12";
 }
-
-
-

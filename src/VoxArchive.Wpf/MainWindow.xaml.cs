@@ -9,6 +9,7 @@ namespace VoxArchive.Wpf;
 public partial class MainWindow : Window
 {
     private MainViewModel? _viewModel;
+    private KeyBinding? _startStopKeyBinding;
 
     public MainWindow()
     {
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         ApplyWindowSize();
+        ApplyStartStopHotkeyBinding();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -38,6 +40,11 @@ public partial class MainWindow : Window
         if (e.PropertyName is nameof(MainViewModel.WindowWidth) or nameof(MainViewModel.WindowHeight))
         {
             ApplyWindowSize();
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.StartStopHotkeyText))
+        {
+            ApplyStartStopHotkeyBinding();
         }
     }
 
@@ -91,5 +98,28 @@ public partial class MainWindow : Window
         MinHeight = _viewModel.WindowHeight;
         MaxWidth = _viewModel.WindowWidth;
         MaxHeight = _viewModel.WindowHeight;
+    }
+
+    private void ApplyStartStopHotkeyBinding()
+    {
+        if (_startStopKeyBinding is not null)
+        {
+            InputBindings.Remove(_startStopKeyBinding);
+            _startStopKeyBinding = null;
+        }
+
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        if (!KeyboardShortcutHelper.TryParseAndNormalize(_viewModel.StartStopHotkeyText, out var gesture, out _)
+            || gesture is null)
+        {
+            return;
+        }
+
+        _startStopKeyBinding = new KeyBinding(_viewModel.StartStopCommand, gesture);
+        InputBindings.Add(_startStopKeyBinding);
     }
 }

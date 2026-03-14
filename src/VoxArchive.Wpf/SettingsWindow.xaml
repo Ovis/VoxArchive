@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="設定"
         Width="700"
-        Height="320"
+        Height="380"
         MinWidth="700"
-        MinHeight="320"
+        MinHeight="380"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#0A0D12"
@@ -65,6 +65,8 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="12" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -83,18 +85,18 @@
 
                     <StackPanel Grid.Column="0">
                         <TextBlock Style="{StaticResource FieldLabelStyle}" Text="マイク遅延補正" />
-                        <TextBox x:Name="OffsetTextBox"
-                                 ToolTip="マイク音声を前後にずらしてスピーカー音声とタイミングを合わせます" />
+                        <TextBox x:Name="OffsetTextBox" ToolTip="マイク音声を前後にずらしてスピーカー音声とタイミングを合わせます" />
                     </StackPanel>
 
-                    <TextBlock Grid.Column="2"
-                               Text="ms"
-                               Foreground="{StaticResource TextMuted}"
-                               VerticalAlignment="Bottom"
-                               Margin="10,0,0,8" />
+                    <TextBlock Grid.Column="2" Text="ms" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="10,0,0,8" />
                 </Grid>
 
-                <Grid Grid.Row="4">
+                <StackPanel Grid.Row="4">
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="録音開始/停止ショートカット" />
+                    <TextBox x:Name="StartStopHotkeyTextBox" ToolTip="例: Ctrl+F12, Ctrl+Shift+R" />
+                </StackPanel>
+
+                <Grid Grid.Row="6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="92" />
@@ -105,29 +107,21 @@
                         <TextBox x:Name="OutputDirectoryTextBox" />
                     </StackPanel>
 
-                    <Button Grid.Column="1"
-                            Margin="0,23,0,0"
-                            Height="36"
-                            Content="参照"
-                            Click="OnBrowseOutputDirectoryClick" />
+                    <Button Grid.Column="1" Margin="0,23,0,0" Height="36" Content="参照" Click="OnBrowseOutputDirectoryClick" />
                 </Grid>
 
-                <StackPanel Grid.Row="5" Margin="0,12,0,0">
+                <StackPanel Grid.Row="7" Margin="0,12,0,0">
                     <Border Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="歌や会話の重なりが遅れて聞こえる場合に調整します。+で遅らせ、-で早めます。" />
                             <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="補正値は -1000ms ～ 1000ms の範囲で指定してください。" />
+                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="ショートカットは Ctrl などの修飾キーを含めて指定してください。" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
 
-                <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                    <Button Width="100"
-                            Margin="0,0,8,0"
-                            Content="保存"
-                            Style="{StaticResource AccentButtonStyle}"
-                            IsDefault="True"
-                            Click="OnSaveClick" />
+                <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <Button Width="100" Margin="0,0,8,0" Content="保存" Style="{StaticResource AccentButtonStyle}" IsDefault="True" Click="OnSaveClick" />
                     <Button Width="100" Content="キャンセル" IsCancel="True" />
                 </StackPanel>
             </Grid>
