@@ -117,8 +117,7 @@
             <Setter Property="Margin" Value="0,0,6,0" />
         </Style>
 
-        <Style TargetType="ComboBox">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Style TargetType="ComboBox">`r`n            <Setter Property="Foreground" Value="#111827" />
             <Setter Property="Background" Value="{StaticResource ControlBg}" />
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -126,6 +125,10 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="Background" Value="White" />
+        </Style>
         <Style TargetType="TextBox">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
             <Setter Property="Background" Value="{StaticResource ControlBg}" />
@@ -369,4 +372,7 @@
         </Border>
     </Grid>
 </Window>
+
+
+
 
