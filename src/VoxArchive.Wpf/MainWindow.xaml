@@ -141,7 +141,9 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>        <Border Grid.Row="0"
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
                 Background="{StaticResource PanelBg}"
                 BorderBrush="{StaticResource PanelBorder}"
                 BorderThickness="1"
@@ -367,5 +369,4 @@
         </Border>
     </Grid>
 </Window>
-
 
