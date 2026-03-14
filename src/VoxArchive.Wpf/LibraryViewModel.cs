@@ -1,0 +1,405 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Windows.Threading;
+
+namespace VoxArchive.Wpf;
+
+public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
+{
+    private readonly RecordingCatalogService _catalogService;
+    private readonly RecordingPlaybackService _playbackService;
+    private readonly DispatcherTimer _positionTimer;
+    private readonly string _outputDirectory;
+
+    private LibraryRecordingItem? _selectedItem;
+    private string _editableTitle = string.Empty;
+    private string _editableFileName = string.Empty;
+    private bool _includeHidden;
+    private bool _isPlaying;
+    private string _playbackButtonText = "再生";
+    private double _speakerGainDb;
+    private double _micGainDb;
+    private double _seekSeconds;
+    private double _durationSeconds;
+    private string _positionText = "00:00 / 00:00";
+    private string _statusText = "準備完了";
+    private bool _isSeekingByUser;
+
+    public LibraryViewModel(RecordingCatalogService catalogService, string outputDirectory)
+    {
+        _catalogService = catalogService;
+        _outputDirectory = outputDirectory;
+        _playbackService = new RecordingPlaybackService();
+        _playbackService.PlaybackStopped += (_, _) =>
+        {
+            IsPlaying = false;
+            PlaybackButtonText = "再生";
+        };
+
+        _positionTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
+        _positionTimer.Tick += (_, _) => UpdatePositionFromPlayer();
+
+        Items = new ObservableCollection<LibraryRecordingItem>();
+
+        RefreshCommand = new DelegateCommand(RefreshAsync);
+        TogglePlaybackCommand = new DelegateCommand(TogglePlaybackAsync, () => SelectedItem is not null && _playbackService.IsLoaded);
+        StopCommand = new DelegateCommand(StopAsync, () => _playbackService.IsLoaded);
+        SaveTitleCommand = new DelegateCommand(SaveTitleAsync, () => SelectedItem is not null);
+        RenameCommand = new DelegateCommand(RenameAsync, () => SelectedItem is not null);
+        DeleteFileCommand = new DelegateCommand(DeleteFileAsync, () => SelectedItem is not null);
+        ToggleHiddenCommand = new DelegateCommand(ToggleHiddenAsync, () => SelectedItem is not null);
+
+        _ = RefreshAsync();
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public ObservableCollection<LibraryRecordingItem> Items { get; }
+
+    public DelegateCommand RefreshCommand { get; }
+    public DelegateCommand TogglePlaybackCommand { get; }
+    public DelegateCommand StopCommand { get; }
+    public DelegateCommand SaveTitleCommand { get; }
+    public DelegateCommand RenameCommand { get; }
+    public DelegateCommand DeleteFileCommand { get; }
+    public DelegateCommand ToggleHiddenCommand { get; }
+
+    public LibraryRecordingItem? SelectedItem
+    {
+        get => _selectedItem;
+        set
+        {
+            if (!SetField(ref _selectedItem, value))
+            {
+                return;
+            }
+
+            EditableTitle = value?.Title ?? string.Empty;
+            EditableFileName = value?.FileName ?? string.Empty;
+            LoadSelectedForPlayback();
+            RaiseCommands();
+        }
+    }
+
+    public bool IncludeHidden
+    {
+        get => _includeHidden;
+        set
+        {
+            if (SetField(ref _includeHidden, value))
+            {
+                _ = RefreshAsync();
+            }
+        }
+    }
+
+    public string EditableTitle { get => _editableTitle; set => SetField(ref _editableTitle, value); }
+    public string EditableFileName { get => _editableFileName; set => SetField(ref _editableFileName, value); }
+
+    public bool IsPlaying
+    {
+        get => _isPlaying;
+        private set => SetField(ref _isPlaying, value);
+    }
+
+    public string PlaybackButtonText
+    {
+        get => _playbackButtonText;
+        private set => SetField(ref _playbackButtonText, value);
+    }
+
+    public double SpeakerGainDb
+    {
+        get => _speakerGainDb;
+        set
+        {
+            if (SetField(ref _speakerGainDb, value))
+            {
+                _playbackService.SetGains(_speakerGainDb, _micGainDb);
+            }
+        }
+    }
+
+    public double MicGainDb
+    {
+        get => _micGainDb;
+        set
+        {
+            if (SetField(ref _micGainDb, value))
+            {
+                _playbackService.SetGains(_speakerGainDb, _micGainDb);
+            }
+        }
+    }
+
+    public double SeekSeconds
+    {
+        get => _seekSeconds;
+        set
+        {
+            if (SetField(ref _seekSeconds, value) && _isSeekingByUser)
+            {
+                _playbackService.Seek(TimeSpan.FromSeconds(value));
+                UpdatePositionText();
+            }
+        }
+    }
+
+    public double DurationSeconds { get => _durationSeconds; private set => SetField(ref _durationSeconds, value); }
+    public string PositionText { get => _positionText; private set => SetField(ref _positionText, value); }
+    public string StatusText { get => _statusText; private set => SetField(ref _statusText, value); }
+
+    public string ToggleHiddenButtonText => SelectedItem?.IsHidden == true ? "一覧へ戻す" : "一覧から除外";
+
+    public void BeginSeek() => _isSeekingByUser = true;
+    public void EndSeek() => _isSeekingByUser = false;
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            var list = await _catalogService.SyncAndGetAsync(_outputDirectory, IncludeHidden);
+            Items.Clear();
+            foreach (var item in list)
+            {
+                Items.Add(item);
+            }
+
+            if (SelectedItem is not null)
+            {
+                SelectedItem = Items.FirstOrDefault(x => x.FilePath == SelectedItem.FilePath);
+            }
+
+            StatusText = $"{Items.Count} 件";
+            OnPropertyChanged(nameof(ToggleHiddenButtonText));
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"読み込み失敗: {ex.Message}";
+        }
+    }
+
+    private void LoadSelectedForPlayback()
+    {
+        StopPlaybackState();
+
+        if (SelectedItem is null || !File.Exists(SelectedItem.FilePath))
+        {
+            DurationSeconds = 0;
+            SeekSeconds = 0;
+            PositionText = "00:00 / 00:00";
+            return;
+        }
+
+        try
+        {
+            _playbackService.Load(SelectedItem.FilePath);
+            _playbackService.SetGains(SpeakerGainDb, MicGainDb);
+            DurationSeconds = Math.Max(0, _playbackService.Duration.TotalSeconds);
+            SeekSeconds = 0;
+            UpdatePositionText();
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"再生準備失敗: {ex.Message}";
+        }
+
+        RaiseCommands();
+    }
+
+    private Task TogglePlaybackAsync()
+    {
+        if (!_playbackService.IsLoaded)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_playbackService.IsPlaying)
+        {
+            _playbackService.Pause();
+            _positionTimer.Stop();
+            IsPlaying = false;
+            PlaybackButtonText = "再生";
+        }
+        else
+        {
+            _playbackService.Play();
+            _positionTimer.Start();
+            IsPlaying = true;
+            PlaybackButtonText = "一時停止";
+        }
+
+        RaiseCommands();
+        return Task.CompletedTask;
+    }
+
+    private Task StopAsync()
+    {
+        _playbackService.Stop();
+        StopPlaybackState();
+        SeekSeconds = 0;
+        UpdatePositionText();
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveTitleAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        var title = EditableTitle.Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            StatusText = "タイトルが空です。";
+            return;
+        }
+
+        try
+        {
+            await _catalogService.UpdateTitleAsync(SelectedItem.FilePath, title);
+            await RefreshAsync();
+            StatusText = "タイトルを更新しました。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"タイトル更新失敗: {ex.Message}";
+        }
+    }
+
+    private async Task RenameAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var newPath = await _catalogService.RenameAsync(SelectedItem.FilePath, EditableFileName);
+            await RefreshAsync();
+            SelectedItem = Items.FirstOrDefault(x => x.FilePath == newPath);
+            StatusText = "ファイル名を変更しました。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"リネーム失敗: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteFileAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        var result = System.Windows.MessageBox.Show(
+            $"ファイルを削除します。\n{SelectedItem.FileName}",
+            "削除確認",
+            System.Windows.MessageBoxButton.OKCancel,
+            System.Windows.MessageBoxImage.Warning,
+            System.Windows.MessageBoxResult.Cancel);
+
+        if (result != System.Windows.MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            await _catalogService.DeleteFileAsync(SelectedItem.FilePath);
+            await RefreshAsync();
+            StatusText = "ファイルを削除しました。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"削除失敗: {ex.Message}";
+        }
+    }
+
+    private async Task ToggleHiddenAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var willHide = !SelectedItem.IsHidden;
+            await _catalogService.SetHiddenAsync(SelectedItem.FilePath, willHide);
+            await RefreshAsync();
+            StatusText = willHide ? "一覧から除外しました。" : "一覧へ戻しました。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"更新失敗: {ex.Message}";
+        }
+    }
+
+    private void UpdatePositionFromPlayer()
+    {
+        if (_isSeekingByUser)
+        {
+            return;
+        }
+
+        SeekSeconds = _playbackService.Position.TotalSeconds;
+        UpdatePositionText();
+    }
+
+    private void UpdatePositionText()
+    {
+        var pos = TimeSpan.FromSeconds(SeekSeconds);
+        var dur = TimeSpan.FromSeconds(DurationSeconds);
+        PositionText = $"{pos:mm\\:ss} / {dur:mm\\:ss}";
+    }
+
+    private void StopPlaybackState()
+    {
+        _positionTimer.Stop();
+        IsPlaying = false;
+        PlaybackButtonText = "再生";
+    }
+
+    private void RaiseCommands()
+    {
+        TogglePlaybackCommand.RaiseCanExecuteChanged();
+        StopCommand.RaiseCanExecuteChanged();
+        SaveTitleCommand.RaiseCanExecuteChanged();
+        RenameCommand.RaiseCanExecuteChanged();
+        DeleteFileCommand.RaiseCanExecuteChanged();
+        ToggleHiddenCommand.RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(ToggleHiddenButtonText));
+    }
+
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return false;
+        }
+
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    public void Dispose()
+    {
+        _positionTimer.Stop();
+        _playbackService.Dispose();
+    }
+}

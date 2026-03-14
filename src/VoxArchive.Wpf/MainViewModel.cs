@@ -41,6 +41,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isProcessPopupOpenNormal;
     private bool _isProcessPopupOpenMini;
     private bool _isRefreshingDeviceList;
+    private LibraryWindow? _libraryWindow;
 
     private const double MeterFloorDb = -60d;
     private const double MeterCeilingDb = 0d;
@@ -75,6 +76,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ToggleMicCaptureCommand = new DelegateCommand(ToggleMicCaptureAsync);
         ToggleOutputModeCommand = new DelegateCommand(ToggleOutputModeAsync, () => IsDeviceSelectionEnabled);
         OpenSettingsCommand = new DelegateCommand(OpenSettingsAsync, () => IsDeviceSelectionEnabled);
+        OpenLibraryCommand = new DelegateCommand(OpenLibraryAsync);
 
         _recordingService.StateChanged += (_, s) => RunOnUi(() =>
         {
@@ -120,6 +122,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public DelegateCommand ToggleMicCaptureCommand { get; }
     public DelegateCommand ToggleOutputModeCommand { get; }
     public DelegateCommand OpenSettingsCommand { get; }
+    public DelegateCommand OpenLibraryCommand { get; }
 
     public ObservableCollection<AudioDeviceInfo> SpeakerDevices { get; }
     public ObservableCollection<AudioDeviceInfo> MicDevices { get; }
@@ -368,7 +371,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility DetailsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
     public Visibility NormalHeaderVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
     public Visibility MiniHeaderVisibility => IsMiniMode ? Visibility.Visible : Visibility.Collapsed;
-    public double WindowWidth => IsMiniMode ? 580 : 720;
+    public double WindowWidth => IsMiniMode ? 640 : 760;
     public double WindowHeight => IsMiniMode ? 145 : 145;
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
@@ -577,6 +580,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
 
+    private async Task OpenLibraryAsync()
+    {
+        try
+        {
+            if (_libraryWindow is not null)
+            {
+                _libraryWindow.Activate();
+                return;
+            }
+
+            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
+            var dbPath = Path.Combine(appDir, "library.db");
+            var vm = new LibraryViewModel(new RecordingCatalogService(dbPath), EnsureDefaults(_options).OutputDirectory);
+            _libraryWindow = new LibraryWindow(vm)
+            {
+                Owner = System.Windows.Application.Current?.MainWindow
+            };
+            _libraryWindow.Closed += (_, _) => _libraryWindow = null;
+            _libraryWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            LastErrorText = $"ライブラリ起動失敗: {ex.Message}";
+        }
+
+        await Task.CompletedTask;
+    }
+
     private async Task OpenSettingsAsync()
     {
         var dialog = new SettingsWindow
@@ -676,6 +707,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ToggleMiniModeCommand.RaiseCanExecuteChanged();
         ToggleOutputModeCommand.RaiseCanExecuteChanged();
         OpenSettingsCommand.RaiseCanExecuteChanged();
+        OpenLibraryCommand.RaiseCanExecuteChanged();
         RefreshProcessesCommand.RaiseCanExecuteChanged();
     }
 

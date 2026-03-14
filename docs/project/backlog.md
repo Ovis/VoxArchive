@@ -5,6 +5,10 @@
 - [x] RecordingService の最小実装スケルトン作成
 
 ## Next
+- [x] ライブラリ画面の雛形と一覧表示
+- [x] 録音ファイル管理（タイトル更新/リネーム/削除/除外）
+- [x] 再生機能（再生/停止/シーク/チャンネル別dBゲイン）
+- [ ] ライブラリ機能の実機E2E確認
 - [x] RecordingService を Audio/Encoding 実装へ接続
 - [x] 録音パイプライン（Capture -> FrameBuilder -> Encoder）の統合
 - [x] Processフォールバック通知を Application 層へ伝搬
@@ -40,5 +44,6 @@
 - [x] Failover Coordinator 実装
 - [ ] 実機での長時間録音テスト（1h/3h）
 - [ ] NAudio導入時のE2E確認
+
 
 

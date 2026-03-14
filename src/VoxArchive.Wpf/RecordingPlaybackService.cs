@@ -1,0 +1,112 @@
+using NAudio.CoreAudioApi;
+using NAudio.Wave;
+
+namespace VoxArchive.Wpf;
+
+public sealed class RecordingPlaybackService : IDisposable
+{
+    private WasapiOut? _output;
+    private AudioFileReader? _reader;
+    private StereoGainSampleProvider? _gainProvider;
+
+    public event EventHandler? PlaybackStopped;
+
+    public bool IsLoaded => _reader is not null;
+    public bool IsPlaying => _output?.PlaybackState == PlaybackState.Playing;
+    public TimeSpan Position => _reader?.CurrentTime ?? TimeSpan.Zero;
+    public TimeSpan Duration => _reader?.TotalTime ?? TimeSpan.Zero;
+
+    public void Load(string filePath)
+    {
+        Stop();
+        DisposeCore();
+
+        _reader = new AudioFileReader(filePath);
+        _gainProvider = new StereoGainSampleProvider(_reader);
+
+        _output = new WasapiOut(AudioClientShareMode.Shared, 100);
+        _output.PlaybackStopped += OnPlaybackStopped;
+        _output.Init(_gainProvider);
+    }
+
+    public void Play()
+    {
+        _output?.Play();
+    }
+
+    public void Pause()
+    {
+        _output?.Pause();
+    }
+
+    public void Stop()
+    {
+        _output?.Stop();
+        if (_reader is not null)
+        {
+            _reader.CurrentTime = TimeSpan.Zero;
+        }
+    }
+
+    public void Seek(TimeSpan position)
+    {
+        if (_reader is null)
+        {
+            return;
+        }
+
+        var p = position;
+        if (p < TimeSpan.Zero)
+        {
+            p = TimeSpan.Zero;
+        }
+
+        if (p > _reader.TotalTime)
+        {
+            p = _reader.TotalTime;
+        }
+
+        _reader.CurrentTime = p;
+    }
+
+    public void SetGains(double leftDb, double rightDb)
+    {
+        if (_gainProvider is null)
+        {
+            return;
+        }
+
+        _gainProvider.LeftGain = DbToLinear(leftDb);
+        _gainProvider.RightGain = DbToLinear(rightDb);
+    }
+
+    private static float DbToLinear(double db)
+    {
+        var linear = Math.Pow(10d, db / 20d);
+        return (float)linear;
+    }
+
+    private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
+    {
+        PlaybackStopped?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void DisposeCore()
+    {
+        if (_output is not null)
+        {
+            _output.PlaybackStopped -= OnPlaybackStopped;
+            _output.Dispose();
+            _output = null;
+        }
+
+        _reader?.Dispose();
+        _reader = null;
+        _gainProvider = null;
+    }
+
+    public void Dispose()
+    {
+        DisposeCore();
+    }
+}

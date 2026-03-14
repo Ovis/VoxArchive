@@ -218,6 +218,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <Grid Grid.Column="0" VerticalAlignment="Center">
@@ -334,8 +335,9 @@
                         </Border>
                     </Popup>
                 </Grid>
-                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
-                <Button Grid.Column="9" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="ライブラリ" Command="{Binding OpenLibraryCommand}"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="9" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="10" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>
 
@@ -350,6 +352,7 @@
                     <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -468,8 +471,9 @@
                         </Border>
                     </Popup>
                 </Grid>
-                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
-                <Button Grid.Column="9" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="ライブラリ" Command="{Binding OpenLibraryCommand}"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="9" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="10" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>
     </Grid>
