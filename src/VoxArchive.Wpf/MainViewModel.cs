@@ -38,6 +38,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isSpeakerDevicePopupOpenMini;
     private bool _isMicDevicePopupOpenMini;
 
+    private const double MeterFloorDb = -60d;
+    private const double MeterCeilingDb = 0d;
+    private const double MeterDisplayGainDb = 6d;
+
     public MainViewModel(RecordingRuntimeContext context)
     {
         _recordingService = context.RecordingService;
@@ -86,8 +90,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             OutputPathText = $"出力: {st.OutputFilePath ?? "-"}";
             ElapsedText = st.ElapsedTime.ToString(@"hh\:mm\:ss");
-            SpeakerLevelPercent = IsSpeakerCaptureEnabled ? Math.Clamp(st.SpeakerLevel * 100.0, 0, 100) : 0;
-            MicLevelPercent = IsMicCaptureEnabled ? Math.Clamp(st.MicLevel * 100.0, 0, 100) : 0;
+            SpeakerLevelPercent = IsSpeakerCaptureEnabled ? ConvertLevelToPercent(st.SpeakerLevel) : 0;
+            MicLevelPercent = IsMicCaptureEnabled ? ConvertLevelToPercent(st.MicLevel) : 0;
             MetricsText = $"Drift {st.DriftCorrectionPpm:F1} ppm / MicBuf {st.MicBufferMilliseconds:F0}ms / SpkBuf {st.SpeakerBufferMilliseconds:F0}ms / UF {st.UnderflowCount} / OF {st.OverflowCount}";
         });
 
@@ -501,6 +505,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             OutputDirectory = output
         };
+    }
+
+    private static double ConvertLevelToPercent(double linearLevel)
+    {
+        var clamped = Math.Clamp(linearLevel, 0d, 1d);
+        if (clamped <= 0d)
+        {
+            return 0d;
+        }
+
+        var db = (20d * Math.Log10(Math.Max(clamped, 1e-6d))) + MeterDisplayGainDb;
+        var normalized = (db - MeterFloorDb) / (MeterCeilingDb - MeterFloorDb);
+        return Math.Clamp(normalized * 100d, 0d, 100d);
     }
     private static Brush BuildIconBrush(bool isEnabled, double levelPercent, Color accent)
     {

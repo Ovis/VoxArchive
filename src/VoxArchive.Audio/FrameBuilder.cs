@@ -52,8 +52,8 @@ public sealed class FrameBuilder : IFrameBuilder
             UnderflowSamples: (frameSamples - speakerRead) + (frameSamples - micRead),
             OverflowSamples: 0,
             AppliedPpm: (micRatio - 1d) * 1_000_000d,
-            SpeakerLevel: Peak(_speakerFrame),
-            MicLevel: Peak(_micFrame));
+            SpeakerLevel: Rms(_speakerFrame),
+            MicLevel: Rms(_micFrame));
     }
 
     private void EnsureCapacity(int frameSamples)
@@ -90,18 +90,20 @@ public sealed class FrameBuilder : IFrameBuilder
         return (short)Math.Round(clamped * short.MaxValue);
     }
 
-    private static double Peak(ReadOnlySpan<float> samples)
+    private static double Rms(ReadOnlySpan<float> samples)
     {
-        var peak = 0f;
-        for (var i = 0; i < samples.Length; i++)
+        if (samples.IsEmpty)
         {
-            var v = Math.Abs(samples[i]);
-            if (v > peak)
-            {
-                peak = v;
-            }
+            return 0d;
         }
 
-        return peak;
+        double sum = 0d;
+        for (var i = 0; i < samples.Length; i++)
+        {
+            var s = samples[i];
+            sum += s * s;
+        }
+
+        return Math.Sqrt(sum / samples.Length);
     }
 }
