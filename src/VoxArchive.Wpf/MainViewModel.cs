@@ -223,7 +223,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SelectedSpeakerDeviceName => SpeakerDevices.FirstOrDefault(x => x.DeviceId == SelectedSpeakerDeviceId)?.FriendlyName ?? "スピーカーデバイス未選択";
     public string SelectedMicDeviceName => MicDevices.FirstOrDefault(x => x.DeviceId == SelectedMicDeviceId)?.FriendlyName ?? "マイクデバイス未選択";
     public string SelectedOutputModeName => SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? "プログラムモード" : "スピーカーモード";
-    public string ModeIconGlyph => SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? "\uE8A7" : "\uE992";
+    public bool IsProgramMode => SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
+    public bool IsSpeakerMode => !IsProgramMode;
     public string SelectedProcessDisplayName => SelectedProcessItem?.DisplayText ?? "プロセス未選択";
 
     public bool IsSpeakerDevicePopupOpenNormal
@@ -271,7 +272,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(IsProcessSelectionEnabled));
                 OnPropertyChanged(nameof(SelectedOutputModeName));
-                OnPropertyChanged(nameof(ModeIconGlyph));
+                OnPropertyChanged(nameof(IsProgramMode));
+                OnPropertyChanged(nameof(IsSpeakerMode));
                 if (value != OutputCaptureMode.ProcessLoopback)
                 {
                     IsProcessPopupOpenNormal = false;

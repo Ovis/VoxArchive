@@ -20,6 +20,7 @@
         <SolidColorBrush x:Key="TextMuted" Color="#99A7BD" />
         <SolidColorBrush x:Key="Accent" Color="#E94545" />
         <local:LevelClipRectConverter x:Key="LevelClipRectConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
@@ -313,7 +314,10 @@
                         <ColumnDefinition Width="22" />
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
-                        <TextBlock Text="{Binding ModeIconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Grid Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Fill="{StaticResource TextPrimary}" Data="M2,8 L7,8 L12,3 L12,17 L7,12 L2,12 Z" Stretch="Fill" />
+                            <Path Visibility="{Binding IsProgramMode, Converter={StaticResource BoolToVisibilityConverter}}" Stroke="{StaticResource TextPrimary}" StrokeThickness="1.8" Data="M2,3 H18 V17 H2 Z M2,6 H18" Stretch="Fill" />
+                        </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenNormal, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
                     <Popup IsOpen="{Binding IsProcessPopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ModeProcessAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
@@ -442,7 +446,10 @@
                         <ColumnDefinition Width="22" />
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
-                        <TextBlock Text="{Binding ModeIconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Grid Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Fill="{StaticResource TextPrimary}" Data="M2,8 L7,8 L12,3 L12,17 L7,12 L2,12 Z" Stretch="Fill" />
+                            <Path Visibility="{Binding IsProgramMode, Converter={StaticResource BoolToVisibilityConverter}}" Stroke="{StaticResource TextPrimary}" StrokeThickness="1.8" Data="M2,3 H18 V17 H2 Z M2,6 H18" Stretch="Fill" />
+                        </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
                     <Popup IsOpen="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ModeProcessAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
