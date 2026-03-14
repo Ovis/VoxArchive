@@ -72,6 +72,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ToggleSpeakerCaptureCommand = new DelegateCommand(ToggleSpeakerCaptureAsync);
         ToggleMicCaptureCommand = new DelegateCommand(ToggleMicCaptureAsync);
         ToggleOutputModeCommand = new DelegateCommand(ToggleOutputModeAsync, () => IsDeviceSelectionEnabled);
+        OpenSettingsCommand = new DelegateCommand(OpenSettingsAsync, () => IsDeviceSelectionEnabled);
 
         _recordingService.StateChanged += (_, s) => RunOnUi(() =>
         {
@@ -116,6 +117,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public DelegateCommand ToggleSpeakerCaptureCommand { get; }
     public DelegateCommand ToggleMicCaptureCommand { get; }
     public DelegateCommand ToggleOutputModeCommand { get; }
+    public DelegateCommand OpenSettingsCommand { get; }
 
     public ObservableCollection<AudioDeviceInfo> SpeakerDevices { get; }
     public ObservableCollection<AudioDeviceInfo> MicDevices { get; }
@@ -572,6 +574,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
 
+    private async Task OpenSettingsAsync()
+    {
+        var dialog = new SettingsWindow
+        {
+            Owner = System.Windows.Application.Current?.MainWindow,
+            AlignmentMilliseconds = _options.ChannelAlignmentMilliseconds,
+            OutputDirectory = _options.OutputDirectory
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var normalizedOffset = Math.Clamp(dialog.AlignmentMilliseconds, -500, 500);
+        var normalizedOutput = string.IsNullOrWhiteSpace(dialog.OutputDirectory)
+            ? EnsureDefaults(_options).OutputDirectory
+            : dialog.OutputDirectory;
+
+        _options = EnsureDefaults(_options) with
+        {
+            ChannelAlignmentMilliseconds = normalizedOffset,
+            OutputDirectory = normalizedOutput
+        };
+
+        AlignmentMillisecondsText = normalizedOffset.ToString();
+        await _settingsService.SaveRecordingOptionsAsync(_options);
+        LastErrorText = string.Empty;
+    }
     private Task ToggleMiniModeAsync()
     {
         IsSpeakerDevicePopupOpenNormal = false;
@@ -634,6 +665,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         PauseResumeCommand.RaiseCanExecuteChanged();
         ToggleMiniModeCommand.RaiseCanExecuteChanged();
         ToggleOutputModeCommand.RaiseCanExecuteChanged();
+        OpenSettingsCommand.RaiseCanExecuteChanged();
         RefreshProcessesCommand.RaiseCanExecuteChanged();
     }
 

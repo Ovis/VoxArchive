@@ -219,6 +219,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <Grid Grid.Column="0" VerticalAlignment="Center">
@@ -335,7 +336,8 @@
                         </Border>
                     </Popup>
                 </Grid>
-                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="9" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>
 
@@ -350,6 +352,7 @@
                     <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
@@ -467,23 +470,14 @@
                         </Border>
                     </Popup>
                 </Grid>
-                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="9" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>
 
         <Border Grid.Row="1" Margin="0,10,0,0" Padding="12,10" Visibility="{Binding DetailsVisibility}" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="72" />
-                    <ColumnDefinition Width="90" />
-                    <ColumnDefinition Width="34" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Grid.Column="0" Text="Offset" />
-                <TextBox Grid.Column="1" Margin="6,0,0,0" IsEnabled="{Binding IsDeviceSelectionEnabled}" Text="{Binding AlignmentMillisecondsText, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBlock Grid.Column="2" Text="ms" Foreground="{StaticResource TextMuted}" />
-                <TextBlock Grid.Column="3" Margin="12,0,0,0" Text="{Binding OutputPathText}" Foreground="{StaticResource TextMuted}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding OutputPathText}" Foreground="{StaticResource TextMuted}" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>
 

@@ -1,0 +1,41 @@
+<Window x:Class="VoxArchive.Wpf.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="設定"
+        Width="560"
+        Height="230"
+        MinWidth="560"
+        MinHeight="230"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#0A0D12"
+        FontFamily="Yu Gothic UI">
+    <Grid Margin="16,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="90" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Foreground="#F3F6FA" Text="オフセット" />
+        <TextBox x:Name="OffsetTextBox" Grid.Row="0" Grid.Column="1" Height="30" Margin="8,0,0,0" VerticalContentAlignment="Center" />
+        <TextBlock Grid.Row="0" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="#99A7BD" Text="ms" />
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,12,0,0" VerticalAlignment="Center" Foreground="#F3F6FA" Text="保存先" />
+        <TextBox x:Name="OutputDirectoryTextBox" Grid.Row="1" Grid.Column="1" Margin="8,12,0,0" Height="30" VerticalContentAlignment="Center" />
+        <Button Grid.Row="1" Grid.Column="2" Margin="8,12,0,0" Padding="10,4" Content="参照" Click="OnBrowseOutputDirectoryClick" />
+
+        <TextBlock Grid.Row="2" Grid.ColumnSpan="3" Margin="0,10,0,0" Foreground="#99A7BD" Text="オフセットは -500ms ～ 500ms の範囲で指定してください。" />
+
+        <StackPanel Grid.Row="3" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="90" Margin="0,0,8,0" Content="キャンセル" IsCancel="True" />
+            <Button Width="90" Content="保存" IsDefault="True" Click="OnSaveClick" />
+        </StackPanel>
+    </Grid>
+</Window>
