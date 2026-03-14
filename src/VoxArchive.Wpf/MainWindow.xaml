@@ -117,7 +117,8 @@
             <Setter Property="Margin" Value="0,0,6,0" />
         </Style>
 
-        <Style TargetType="ComboBox">`r`n            <Setter Property="Foreground" Value="#111827" />
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="#111827" />
             <Setter Property="Background" Value="{StaticResource ControlBg}" />
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -372,7 +373,4 @@
         </Border>
     </Grid>
 </Window>
-
-
-
 
