@@ -310,7 +310,7 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Mode" />
-                <ComboBox Grid.Row="0" Grid.Column="1"
+                <ComboBox Grid.Row="0" Grid.Column="1"`r`n                          Foreground="#111827"
                           Margin="6,0,12,0"
                           IsEnabled="{Binding IsDeviceSelectionEnabled}"
                           ItemsSource="{Binding OutputModes}"
@@ -325,7 +325,7 @@
                 <TextBlock Grid.Row="0" Grid.Column="5" Margin="12,0,0,0" Text="{Binding OutputPathText}" Foreground="{StaticResource TextMuted}" TextTrimming="CharacterEllipsis" />
 
                 <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,10,0,0" Text="Process" />
-                <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5"
+                <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5"`r`n                          Foreground="#111827"
                           Margin="6,10,8,0"
                           DisplayMemberPath="DisplayText"
                           IsEnabled="{Binding IsProcessSelectionEnabled}"
@@ -373,4 +373,5 @@
         </Border>
     </Grid>
 </Window>
+
 
