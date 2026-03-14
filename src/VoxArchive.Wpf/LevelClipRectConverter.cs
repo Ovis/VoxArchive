@@ -38,6 +38,7 @@ public sealed class LevelClipRectConverter : IMultiValueConverter
             double d => d,
             float f => f,
             int i => i,
+            string s when double.TryParse(s, out var parsed) => parsed,
             _ => 0.0
         };
     }
