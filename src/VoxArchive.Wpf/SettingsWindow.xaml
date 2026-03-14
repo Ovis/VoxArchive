@@ -98,7 +98,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,10,0">
                         <TextBlock Style="{StaticResource FieldLabelStyle}" Text="録音開始/停止ショートカット" />
-                        <TextBox x:Name="StartStopHotkeyTextBox" IsReadOnly="True" ToolTip="右のキー設定を押してから、登録したいキーの組み合わせを押してください" />
+                        <TextBox x:Name="StartStopHotkeyTextBox" IsReadOnly="True" ToolTip="右のキー設定を押してから、登録したいキーを押してください（単体キー可）" />
                     </StackPanel>
                     <Button x:Name="HotkeyCaptureButton" Grid.Column="1" Margin="0,23,0,0" Height="36" Content="キー設定" Click="OnToggleHotkeyCaptureClick" />
                 </Grid>
@@ -122,7 +122,7 @@
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="歌や会話の重なりが遅れて聞こえる場合に調整します。+で遅らせ、-で早めます。" />
                             <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="補正値は -1000ms ～ 1000ms の範囲で指定してください。" />
-                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="ショートカットは キー設定 を押してからキー入力し、もう一度 キー設定 を押して確定します。" />
+                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="ショートカットは キー設定 を押してからキー入力し、もう一度 キー設定 を押して確定します（F12 単体や Ctrl+F12 の複合に対応）。" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -135,3 +135,4 @@
         </Border>
     </Grid>
 </Window>
+

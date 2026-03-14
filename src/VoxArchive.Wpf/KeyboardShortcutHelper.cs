@@ -25,7 +25,7 @@ internal static class KeyboardShortcutHelper
                 return false;
             }
 
-            if (parsed.Key == Key.None || parsed.Modifiers == ModifierKeys.None || IsModifierKey(parsed.Key))
+            if (parsed.Key == Key.None || IsModifierKey(parsed.Key))
             {
                 return false;
             }
@@ -43,7 +43,7 @@ internal static class KeyboardShortcutHelper
     public static bool TryBuildFromInput(ModifierKeys modifiers, Key key, out string normalized)
     {
         normalized = string.Empty;
-        if (modifiers == ModifierKeys.None || key == Key.None || IsModifierKey(key))
+        if (key == Key.None || IsModifierKey(key))
         {
             return false;
         }
@@ -91,3 +91,4 @@ internal static class KeyboardShortcutHelper
         return string.Join("+", parts);
     }
 }
+

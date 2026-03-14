@@ -65,7 +65,7 @@ public partial class SettingsWindow : Window
 
         if (!KeyboardShortcutHelper.TryParseAndNormalize(_capturedHotkeyText, out _, out var normalizedHotkey))
         {
-            MessageBox.Show(this, "修飾キー付きの組み合わせを押してから確定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "キーを押してから確定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -128,7 +128,7 @@ public partial class SettingsWindow : Window
 
         if (!KeyboardShortcutHelper.TryParseAndNormalize(StartStopHotkeyText, out _, out var normalizedHotkey))
         {
-            MessageBox.Show(this, "ショートカットは Ctrl+F12 のように修飾キー付きで指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "ショートカットは F12 や Ctrl+F12 のように指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -143,3 +143,4 @@ public partial class SettingsWindow : Window
         DialogResult = true;
     }
 }
+
