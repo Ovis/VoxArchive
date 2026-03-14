@@ -65,7 +65,7 @@ public partial class SettingsWindow : Window
 
         if (!KeyboardShortcutHelper.TryParseAndNormalize(_capturedHotkeyText, out _, out var normalizedHotkey))
         {
-            MessageBox.Show(this, "キーを押してから確定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "その組み合わせはショートカットとして利用できません。別のキーを指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -101,6 +101,10 @@ public partial class SettingsWindow : Window
         {
             _capturedHotkeyText = normalizedHotkey;
             StartStopHotkeyTextBox.Text = normalizedHotkey;
+        }
+        else
+        {
+            StartStopHotkeyTextBox.Text = "未対応の組み合わせです";
         }
 
         e.Handled = true;
@@ -143,4 +147,5 @@ public partial class SettingsWindow : Window
         DialogResult = true;
     }
 }
+
 

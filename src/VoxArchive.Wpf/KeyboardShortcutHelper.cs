@@ -48,9 +48,16 @@ internal static class KeyboardShortcutHelper
             return false;
         }
 
-        var gesture = new KeyGesture(key, modifiers);
-        normalized = ToConfigText(gesture);
-        return true;
+        try
+        {
+            var gesture = new KeyGesture(key, modifiers);
+            normalized = ToConfigText(gesture);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static bool IsModifierKey(Key key)
@@ -91,4 +98,5 @@ internal static class KeyboardShortcutHelper
         return string.Join("+", parts);
     }
 }
+
 
