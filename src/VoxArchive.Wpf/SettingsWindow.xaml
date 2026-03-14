@@ -37,8 +37,8 @@
         </StackPanel>
 
         <StackPanel Grid.Row="3" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Width="90" Margin="0,0,8,0" Content="キャンセル" IsCancel="True" />
-            <Button Width="90" Content="保存" IsDefault="True" Click="OnSaveClick" />
+            <Button Width="90" Margin="0,0,8,0" Content="保存" IsDefault="True" Click="OnSaveClick" />
+            <Button Width="90" Content="キャンセル" IsCancel="True" />
         </StackPanel>
     </Grid>
 </Window>
