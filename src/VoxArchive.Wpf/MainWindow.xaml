@@ -417,7 +417,6 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="72" />
@@ -448,20 +447,6 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
                 <Button Grid.Row="1" Grid.Column="6" Margin="0,10,0,0" Padding="10,4" Content="更新" IsEnabled="{Binding IsProcessSelectionEnabled}" Command="{Binding RefreshProcessesCommand}" />
-
-                <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="7" Margin="0,12,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="64" />
-                        <ColumnDefinition Width="240" />
-                        <ColumnDefinition Width="60" />
-                        <ColumnDefinition Width="240" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Spk" />
-                    <ProgressBar Grid.Column="1" Height="10" Maximum="100" Value="{Binding SpeakerLevelPercent, Mode=OneWay}" />
-                    <TextBlock Grid.Column="2" Margin="12,0,0,0" Text="Mic" />
-                    <ProgressBar Grid.Column="3" Height="10" Maximum="100" Value="{Binding MicLevelPercent, Mode=OneWay}" />
-                </Grid>
             </Grid>
         </Border>
 
