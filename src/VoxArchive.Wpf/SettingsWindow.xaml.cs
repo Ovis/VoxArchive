@@ -1,13 +1,18 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 
 namespace VoxArchive.Wpf;
 
 public partial class SettingsWindow : Window
 {
+    private bool _isCapturingHotkey;
+    private string _capturedHotkeyText = string.Empty;
+
     public SettingsWindow()
     {
         InitializeComponent();
+        PreviewKeyDown += OnWindowPreviewKeyDown;
     }
 
     public int AlignmentMilliseconds
@@ -19,7 +24,11 @@ public partial class SettingsWindow : Window
     public string StartStopHotkeyText
     {
         get => StartStopHotkeyTextBox.Text.Trim();
-        set => StartStopHotkeyTextBox.Text = value;
+        set
+        {
+            StartStopHotkeyTextBox.Text = value;
+            _capturedHotkeyText = value;
+        }
     }
 
     public string OutputDirectory
@@ -42,6 +51,61 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void OnToggleHotkeyCaptureClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isCapturingHotkey)
+        {
+            _isCapturingHotkey = true;
+            _capturedHotkeyText = StartStopHotkeyText;
+            HotkeyCaptureButton.Content = "確定";
+            StartStopHotkeyTextBox.Text = "キー入力待ち...";
+            Keyboard.Focus(this);
+            return;
+        }
+
+        if (!KeyboardShortcutHelper.TryParseAndNormalize(_capturedHotkeyText, out _, out var normalizedHotkey))
+        {
+            MessageBox.Show(this, "修飾キー付きの組み合わせを押してから確定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _isCapturingHotkey = false;
+        HotkeyCaptureButton.Content = "キー設定";
+        StartStopHotkeyText = normalizedHotkey;
+    }
+
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!_isCapturingHotkey)
+        {
+            return;
+        }
+
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.Escape)
+        {
+            _isCapturingHotkey = false;
+            HotkeyCaptureButton.Content = "キー設定";
+            StartStopHotkeyTextBox.Text = _capturedHotkeyText;
+            e.Handled = true;
+            return;
+        }
+
+        if (KeyboardShortcutHelper.IsModifierKey(key))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (KeyboardShortcutHelper.TryBuildFromInput(Keyboard.Modifiers, key, out var normalizedHotkey))
+        {
+            _capturedHotkeyText = normalizedHotkey;
+            StartStopHotkeyTextBox.Text = normalizedHotkey;
+        }
+
+        e.Handled = true;
+    }
+
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(OffsetTextBox.Text, out var offsetMs))
@@ -56,9 +120,15 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (_isCapturingHotkey)
+        {
+            MessageBox.Show(this, "ショートカット設定中です。キー設定ボタンをもう一度押して確定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         if (!KeyboardShortcutHelper.TryParseAndNormalize(StartStopHotkeyText, out _, out var normalizedHotkey))
         {
-            MessageBox.Show(this, "ショートカットは Ctrl+F12 のように修飾キー付きで入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "ショートカットは Ctrl+F12 のように修飾キー付きで指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

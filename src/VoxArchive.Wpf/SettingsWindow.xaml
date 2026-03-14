@@ -91,10 +91,17 @@
                     <TextBlock Grid.Column="2" Text="ms" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="10,0,0,8" />
                 </Grid>
 
-                <StackPanel Grid.Row="4">
-                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="録音開始/停止ショートカット" />
-                    <TextBox x:Name="StartStopHotkeyTextBox" ToolTip="例: Ctrl+F12, Ctrl+Shift+R" />
-                </StackPanel>
+                <Grid Grid.Row="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="92" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="録音開始/停止ショートカット" />
+                        <TextBox x:Name="StartStopHotkeyTextBox" IsReadOnly="True" ToolTip="右のキー設定を押してから、登録したいキーの組み合わせを押してください" />
+                    </StackPanel>
+                    <Button x:Name="HotkeyCaptureButton" Grid.Column="1" Margin="0,23,0,0" Height="36" Content="キー設定" Click="OnToggleHotkeyCaptureClick" />
+                </Grid>
 
                 <Grid Grid.Row="6">
                     <Grid.ColumnDefinitions>
@@ -115,7 +122,7 @@
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="歌や会話の重なりが遅れて聞こえる場合に調整します。+で遅らせ、-で早めます。" />
                             <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="補正値は -1000ms ～ 1000ms の範囲で指定してください。" />
-                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="ショートカットは Ctrl などの修飾キーを含めて指定してください。" />
+                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="ショートカットは キー設定 を押してからキー入力し、もう一度 キー設定 を押して確定します。" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

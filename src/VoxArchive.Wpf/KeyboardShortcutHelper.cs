@@ -25,7 +25,7 @@ internal static class KeyboardShortcutHelper
                 return false;
             }
 
-            if (parsed.Key == Key.None || parsed.Modifiers == ModifierKeys.None)
+            if (parsed.Key == Key.None || parsed.Modifiers == ModifierKeys.None || IsModifierKey(parsed.Key))
             {
                 return false;
             }
@@ -38,6 +38,27 @@ internal static class KeyboardShortcutHelper
         {
             return false;
         }
+    }
+
+    public static bool TryBuildFromInput(ModifierKeys modifiers, Key key, out string normalized)
+    {
+        normalized = string.Empty;
+        if (modifiers == ModifierKeys.None || key == Key.None || IsModifierKey(key))
+        {
+            return false;
+        }
+
+        var gesture = new KeyGesture(key, modifiers);
+        normalized = ToConfigText(gesture);
+        return true;
+    }
+
+    public static bool IsModifierKey(Key key)
+    {
+        return key is Key.LeftCtrl or Key.RightCtrl
+            or Key.LeftShift or Key.RightShift
+            or Key.LeftAlt or Key.RightAlt
+            or Key.LWin or Key.RWin;
     }
 
     private static string ToConfigText(KeyGesture gesture)
