@@ -248,6 +248,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _isMiniMode, value))
             {
                 OnPropertyChanged(nameof(DetailsVisibility));
+                OnPropertyChanged(nameof(NormalHeaderVisibility));
+                OnPropertyChanged(nameof(MiniHeaderVisibility));
                 OnPropertyChanged(nameof(WindowWidth));
                 OnPropertyChanged(nameof(WindowHeight));
                 OnPropertyChanged(nameof(MiniModeButtonText));
@@ -256,7 +258,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public Visibility DetailsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
-    public double WindowWidth => IsMiniMode ? 980 : 1320;
+    public Visibility NormalHeaderVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility MiniHeaderVisibility => IsMiniMode ? Visibility.Visible : Visibility.Collapsed;
+    public double WindowWidth => IsMiniMode ? 680 : 1320;
     public double WindowHeight => IsMiniMode ? 92 : 270;
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
@@ -545,5 +549,4 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
 

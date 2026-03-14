@@ -180,7 +180,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="12,10">
+        <Border Grid.Row="0" Visibility="{Binding NormalHeaderVisibility}" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="12,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -219,7 +219,7 @@
 
                 <TextBlock Grid.Column="2" Text="{Binding ElapsedText}" FontFamily="Consolas" FontSize="34" FontWeight="Bold" VerticalAlignment="Center" />
 
-                <Grid Grid.Column="4" x:Name="SpeakerDeviceAnchor" VerticalAlignment="Center">
+                <Grid Grid.Column="4" x:Name="SpeakerDeviceAnchorNormal" VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="22" />
@@ -231,20 +231,14 @@
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" />
-                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchor}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding SpeakerDevices}"
-                                     DisplayMemberPath="FriendlyName"
-                                     SelectedValuePath="DeviceId"
-                                     SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="White"
-                                     Foreground="#111827"
-                                     BorderThickness="0" />
+                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
                         </Border>
                     </Popup>
                 </Grid>
 
-                <Grid Grid.Column="6" x:Name="MicDeviceAnchor" VerticalAlignment="Center">
+                <Grid Grid.Column="6" x:Name="MicDeviceAnchorNormal" VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="22" />
@@ -256,20 +250,95 @@
                         </Grid>
                     </Button>
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" />
-                    <Popup IsOpen="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchor}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <Popup IsOpen="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding MicDevices}"
-                                     DisplayMemberPath="FriendlyName"
-                                     SelectedValuePath="DeviceId"
-                                     SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="White"
-                                     Foreground="#111827"
-                                     BorderThickness="0" />
+                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
                         </Border>
                     </Popup>
                 </Grid>
 
                 <Button Grid.Column="8" Padding="10,6" Margin="10,0,0,0" Content="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="0" Visibility="{Binding MiniHeaderVisibility}" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="12,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid Grid.Column="0" VerticalAlignment="Center">
+                    <Button Style="{StaticResource RoundIconButtonStyle}" Command="{Binding StartStopCommand}" Visibility="{Binding RecordButtonVisibility}" Content="REC" />
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
+                        <Button Style="{StaticResource CircleIconButtonStyle}" Command="{Binding PauseResumeCommand}">
+                            <Grid>
+                                <Grid Visibility="{Binding PauseGlyphVisibility}" Width="24" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="9" />
+                                        <ColumnDefinition Width="6" />
+                                        <ColumnDefinition Width="9" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Background="{StaticResource TextPrimary}" CornerRadius="1" />
+                                    <Border Grid.Column="2" Background="{StaticResource TextPrimary}" CornerRadius="1" />
+                                </Grid>
+                                <TextBlock Visibility="{Binding ResumeGlyphVisibility}" Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource CircleIconButtonStyle}" Margin="0" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Command="{Binding StartStopCommand}">
+                            <Border Width="14" Height="14" Background="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Grid.Column="2" Text="{Binding ElapsedText}" FontFamily="Consolas" FontSize="30" FontWeight="Bold" VerticalAlignment="Center" />
+
+                <Grid Grid.Column="4" x:Name="SpeakerDeviceAnchorMini" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="22" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}">
+                        <Grid>
+                            <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
+                        </Grid>
+                    </Button>
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" />
+                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
+                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
+                        </Border>
+                    </Popup>
+                </Grid>
+
+                <Grid Grid.Column="6" x:Name="MicDeviceAnchorMini" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="22" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}">
+                        <Grid>
+                            <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Line X1="9" Y1="33" X2="33" Y2="9" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
+                        </Grid>
+                    </Button>
+                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" />
+                    <Popup IsOpen="{Binding IsMicDevicePopupOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
+                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
+                        </Border>
+                    </Popup>
+                </Grid>
+
+                <Button Grid.Column="8" Padding="10,6" Margin="0" MinWidth="58" Content="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}" />
             </Grid>
         </Border>
 
@@ -338,3 +407,5 @@
         </Border>
     </Grid>
 </Window>
+
+
