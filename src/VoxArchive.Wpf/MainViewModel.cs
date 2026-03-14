@@ -134,8 +134,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public string SelectedSpeakerDeviceId { get => _selectedSpeakerDeviceId; set => SetField(ref _selectedSpeakerDeviceId, value); }
-    public string SelectedMicDeviceId { get => _selectedMicDeviceId; set => SetField(ref _selectedMicDeviceId, value); }
+    public string SelectedSpeakerDeviceId
+    {
+        get => _selectedSpeakerDeviceId;
+        set
+        {
+            if (SetField(ref _selectedSpeakerDeviceId, value))
+            {
+                OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
+            }
+        }
+    }
+
+    public string SelectedMicDeviceId
+    {
+        get => _selectedMicDeviceId;
+        set
+        {
+            if (SetField(ref _selectedMicDeviceId, value))
+            {
+                OnPropertyChanged(nameof(SelectedMicDeviceName));
+            }
+        }
+    }
+
     public string AlignmentMillisecondsText { get => _alignmentMillisecondsText; set => SetField(ref _alignmentMillisecondsText, value); }
 
     public bool IsSpeakerCaptureEnabled
@@ -180,6 +202,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Brush MicIconBrush => BuildIconBrush(IsMicCaptureEnabled, MicLevelPercent, Color.FromRgb(54, 224, 98));
     public Visibility SpeakerMuteSlashVisibility => IsSpeakerCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
     public Visibility MicMuteSlashVisibility => IsMicCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
+    public string SelectedSpeakerDeviceName => SpeakerDevices.FirstOrDefault(x => x.DeviceId == SelectedSpeakerDeviceId)?.FriendlyName ?? "スピーカーデバイス未選択";
+    public string SelectedMicDeviceName => MicDevices.FirstOrDefault(x => x.DeviceId == SelectedMicDeviceId)?.FriendlyName ?? "マイクデバイス未選択";
 
     public OutputCaptureMode SelectedOutputMode
     {
@@ -266,6 +290,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     SelectedMicDeviceId = mics.FirstOrDefault(x => x.IsDefault)?.DeviceId ?? mics.FirstOrDefault()?.DeviceId ?? string.Empty;
                 }
+
+                OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
+                OnPropertyChanged(nameof(SelectedMicDeviceName));
             });
         }
         catch (Exception ex)
@@ -502,3 +529,5 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
+
