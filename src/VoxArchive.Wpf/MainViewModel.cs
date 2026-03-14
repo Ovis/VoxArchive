@@ -505,17 +505,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private static Brush BuildIconBrush(bool isEnabled, double levelPercent, Color accent)
     {
+        var baseColor = Color.FromRgb(210, 216, 225);
         if (!isEnabled)
         {
             return new SolidColorBrush(Color.FromRgb(122, 134, 149));
         }
 
-        var t = Math.Clamp(levelPercent / 100.0, 0.0, 1.0);
-        var baseColor = Color.FromRgb(210, 216, 225);
-        var r = (byte)Math.Round(baseColor.R + ((accent.R - baseColor.R) * t));
-        var g = (byte)Math.Round(baseColor.G + ((accent.G - baseColor.G) * t));
-        var b = (byte)Math.Round(baseColor.B + ((accent.B - baseColor.B) * t));
-        return new SolidColorBrush(Color.FromRgb(r, g, b));
+        var level = Math.Clamp(levelPercent / 100.0, 0.0, 1.0);
+        if (level <= 0.0)
+        {
+            return new SolidColorBrush(baseColor);
+        }
+
+        if (level >= 1.0)
+        {
+            return new SolidColorBrush(accent);
+        }
+
+        // 左側をアクセント色、右側を基準色にすることで、レベルに応じて左から塗り進む見た目にする。
+        var boundaryLeft = Math.Max(0.0, level - 0.001);
+        var brush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0.5),
+            EndPoint = new Point(1, 0.5)
+        };
+
+        brush.GradientStops.Add(new GradientStop(accent, 0.0));
+        brush.GradientStops.Add(new GradientStop(accent, boundaryLeft));
+        brush.GradientStops.Add(new GradientStop(baseColor, level));
+        brush.GradientStops.Add(new GradientStop(baseColor, 1.0));
+        return brush;
     }
 
     private static void RunOnUi(Action action)
