@@ -141,9 +141,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-
-        <Border Grid.Row="0"
+        </Grid.RowDefinitions>        <Border Grid.Row="0"
                 Background="{StaticResource PanelBg}"
                 BorderBrush="{StaticResource PanelBorder}"
                 BorderThickness="1"
@@ -152,79 +150,17 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="20" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="20" />
                     <ColumnDefinition Width="170" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <Grid Grid.Column="0" VerticalAlignment="Center">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="150" />
-                    </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0"
-                            Style="{StaticResource DeviceIconButtonStyle}"
-                            Command="{Binding ToggleSpeakerCaptureCommand}">
-                        <Grid>
-                            <TextBlock Text="&#xE767;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="18"
-                                       Foreground="{Binding SpeakerIconBrush}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                            <Line X1="9" Y1="33" X2="33" Y2="9"
-                                  Stroke="#FFDA5D5D"
-                                  StrokeThickness="2.8"
-                                  Visibility="{Binding SpeakerMuteSlashVisibility}" />
-                        </Grid>
-                    </Button>
-                    <ComboBox Grid.Column="1"
-                              Width="150"
-                              Margin="0"
-                              DisplayMemberPath="FriendlyName"
-                              IsEnabled="{Binding IsDeviceSelectionEnabled}"
-                              ItemsSource="{Binding SpeakerDevices}"
-                              SelectedValuePath="DeviceId"
-                              SelectedValue="{Binding SelectedSpeakerDeviceId, UpdateSourceTrigger=PropertyChanged}" />
-                </Grid>
-
-                <Grid Grid.Column="2" VerticalAlignment="Center">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="150" />
-                    </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0"
-                            Style="{StaticResource DeviceIconButtonStyle}"
-                            Command="{Binding ToggleMicCaptureCommand}">
-                        <Grid>
-                            <TextBlock Text="&#xE720;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="18"
-                                       Foreground="{Binding MicIconBrush}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                            <Line X1="9" Y1="33" X2="33" Y2="9"
-                                  Stroke="#FFDA5D5D"
-                                  StrokeThickness="2.8"
-                                  Visibility="{Binding MicMuteSlashVisibility}" />
-                        </Grid>
-                    </Button>
-                    <ComboBox Grid.Column="1"
-                              Width="150"
-                              Margin="0"
-                              DisplayMemberPath="FriendlyName"
-                              IsEnabled="{Binding IsDeviceSelectionEnabled}"
-                              ItemsSource="{Binding MicDevices}"
-                              SelectedValuePath="DeviceId"
-                              SelectedValue="{Binding SelectedMicDeviceId, UpdateSourceTrigger=PropertyChanged}" />
-                </Grid>
-
-                <Grid Grid.Column="4" VerticalAlignment="Center">
                     <Button Style="{StaticResource RoundIconButtonStyle}"
                             Command="{Binding StartStopCommand}"
                             Visibility="{Binding RecordButtonVisibility}"
@@ -266,12 +202,74 @@
                     </StackPanel>
                 </Grid>
 
-                <TextBlock Grid.Column="6"
+                <TextBlock Grid.Column="2"
                            Text="{Binding ElapsedText}"
                            FontFamily="Consolas"
                            FontSize="34"
                            FontWeight="Bold"
                            VerticalAlignment="Center" />
+
+                <Grid Grid.Column="4" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0"
+                            Style="{StaticResource DeviceIconButtonStyle}"
+                            Command="{Binding ToggleSpeakerCaptureCommand}">
+                        <Grid>
+                            <TextBlock Text="&#xE767;"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="18"
+                                       Foreground="{Binding SpeakerIconBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                            <Line X1="9" Y1="33" X2="33" Y2="9"
+                                  Stroke="#FFDA5D5D"
+                                  StrokeThickness="2.8"
+                                  Visibility="{Binding SpeakerMuteSlashVisibility}" />
+                        </Grid>
+                    </Button>
+                    <ComboBox Grid.Column="1"
+                              Width="150"
+                              Margin="0"
+                              DisplayMemberPath="FriendlyName"
+                              IsEnabled="{Binding IsDeviceSelectionEnabled}"
+                              ItemsSource="{Binding SpeakerDevices}"
+                              SelectedValuePath="DeviceId"
+                              SelectedValue="{Binding SelectedSpeakerDeviceId, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+
+                <Grid Grid.Column="6" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0"
+                            Style="{StaticResource DeviceIconButtonStyle}"
+                            Command="{Binding ToggleMicCaptureCommand}">
+                        <Grid>
+                            <TextBlock Text="&#xE720;"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="18"
+                                       Foreground="{Binding MicIconBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                            <Line X1="9" Y1="33" X2="33" Y2="9"
+                                  Stroke="#FFDA5D5D"
+                                  StrokeThickness="2.8"
+                                  Visibility="{Binding MicMuteSlashVisibility}" />
+                        </Grid>
+                    </Button>
+                    <ComboBox Grid.Column="1"
+                              Width="150"
+                              Margin="0"
+                              DisplayMemberPath="FriendlyName"
+                              IsEnabled="{Binding IsDeviceSelectionEnabled}"
+                              ItemsSource="{Binding MicDevices}"
+                              SelectedValuePath="DeviceId"
+                              SelectedValue="{Binding SelectedMicDeviceId, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
 
                 <Button Grid.Column="8"
                         Padding="10,6"
@@ -369,3 +367,5 @@
         </Border>
     </Grid>
 </Window>
+
+
