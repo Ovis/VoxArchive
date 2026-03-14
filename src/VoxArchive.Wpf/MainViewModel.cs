@@ -254,13 +254,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsProcessPopupOpenNormal
     {
         get => _isProcessPopupOpenNormal;
-        set => SetField(ref _isProcessPopupOpenNormal, value);
+        set
+        {
+            if (SetField(ref _isProcessPopupOpenNormal, value) && value && IsProcessSelectionEnabled)
+            {
+                _ = LoadProcessesAsync();
+            }
+        }
     }
 
     public bool IsProcessPopupOpenMini
     {
         get => _isProcessPopupOpenMini;
-        set => SetField(ref _isProcessPopupOpenMini, value);
+        set
+        {
+            if (SetField(ref _isProcessPopupOpenMini, value) && value && IsProcessSelectionEnabled)
+            {
+                _ = LoadProcessesAsync();
+            }
+        }
     }
 
     public OutputCaptureMode SelectedOutputMode
@@ -495,16 +507,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
 
-    private async Task ToggleOutputModeAsync()
+    private Task ToggleOutputModeAsync()
     {
         SelectedOutputMode = SelectedOutputMode == OutputCaptureMode.ProcessLoopback
             ? OutputCaptureMode.SpeakerLoopback
             : OutputCaptureMode.ProcessLoopback;
 
-        if (SelectedOutputMode == OutputCaptureMode.ProcessLoopback)
-        {
-            await LoadProcessesAsync();
-        }
+        return Task.CompletedTask;
     }
 
     private Task ToggleMiniModeAsync()
