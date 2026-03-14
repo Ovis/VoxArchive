@@ -37,8 +37,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isMicDevicePopupOpenNormal;
     private bool _isSpeakerDevicePopupOpenMini;
     private bool _isMicDevicePopupOpenMini;
-    private bool _isModePopupOpenNormal;
-    private bool _isModePopupOpenMini;
     private bool _isProcessPopupOpenNormal;
     private bool _isProcessPopupOpenMini;
 
@@ -57,7 +55,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         SpeakerDevices = new ObservableCollection<AudioDeviceInfo>();
         MicDevices = new ObservableCollection<AudioDeviceInfo>();
         ProcessItems = new ObservableCollection<ProcessListItem>();
-        OutputModes = new[] { OutputCaptureMode.SpeakerLoopback, OutputCaptureMode.ProcessLoopback };
 
         _selectedSpeakerDeviceId = _options.SpeakerDeviceId;
         _selectedMicDeviceId = _options.MicDeviceId;
@@ -72,6 +69,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         RefreshProcessesCommand = new DelegateCommand(LoadProcessesAsync, () => IsProcessSelectionEnabled);
         ToggleSpeakerCaptureCommand = new DelegateCommand(ToggleSpeakerCaptureAsync);
         ToggleMicCaptureCommand = new DelegateCommand(ToggleMicCaptureAsync);
+        ToggleOutputModeCommand = new DelegateCommand(ToggleOutputModeAsync, () => IsDeviceSelectionEnabled);
 
         _recordingService.StateChanged += (_, s) => RunOnUi(() =>
         {
@@ -115,11 +113,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public DelegateCommand RefreshProcessesCommand { get; }
     public DelegateCommand ToggleSpeakerCaptureCommand { get; }
     public DelegateCommand ToggleMicCaptureCommand { get; }
+    public DelegateCommand ToggleOutputModeCommand { get; }
 
     public ObservableCollection<AudioDeviceInfo> SpeakerDevices { get; }
     public ObservableCollection<AudioDeviceInfo> MicDevices { get; }
     public ObservableCollection<ProcessListItem> ProcessItems { get; }
-    public IReadOnlyList<OutputCaptureMode> OutputModes { get; }
 
     public string StateText { get => _stateText; private set => SetField(ref _stateText, value); }
     public string OutputPathText { get => _outputPathText; private set => SetField(ref _outputPathText, value); }
@@ -224,7 +222,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility MicMuteSlashVisibility => IsMicCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
     public string SelectedSpeakerDeviceName => SpeakerDevices.FirstOrDefault(x => x.DeviceId == SelectedSpeakerDeviceId)?.FriendlyName ?? "スピーカーデバイス未選択";
     public string SelectedMicDeviceName => MicDevices.FirstOrDefault(x => x.DeviceId == SelectedMicDeviceId)?.FriendlyName ?? "マイクデバイス未選択";
-    public string SelectedOutputModeName => SelectedOutputMode.ToString();
+    public string SelectedOutputModeName => SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? "プログラムモード" : "スピーカーモード";
+    public string ModeIconGlyph => SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? "\uE71D" : "\uE992";
     public string SelectedProcessDisplayName => SelectedProcessItem?.DisplayText ?? "プロセス未選択";
 
     public bool IsSpeakerDevicePopupOpenNormal
@@ -251,18 +250,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetField(ref _isMicDevicePopupOpenMini, value);
     }
 
-    public bool IsModePopupOpenNormal
-    {
-        get => _isModePopupOpenNormal;
-        set => SetField(ref _isModePopupOpenNormal, value);
-    }
-
-    public bool IsModePopupOpenMini
-    {
-        get => _isModePopupOpenMini;
-        set => SetField(ref _isModePopupOpenMini, value);
-    }
-
     public bool IsProcessPopupOpenNormal
     {
         get => _isProcessPopupOpenNormal;
@@ -284,13 +271,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(IsProcessSelectionEnabled));
                 OnPropertyChanged(nameof(SelectedOutputModeName));
+                OnPropertyChanged(nameof(ModeIconGlyph));
                 if (value != OutputCaptureMode.ProcessLoopback)
                 {
                     IsProcessPopupOpenNormal = false;
                     IsProcessPopupOpenMini = false;
                 }
-                IsModePopupOpenNormal = false;
-                IsModePopupOpenMini = false;
                 RefreshCommands();
             }
         }
@@ -507,14 +493,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
 
+    private async Task ToggleOutputModeAsync()
+    {
+        SelectedOutputMode = SelectedOutputMode == OutputCaptureMode.ProcessLoopback
+            ? OutputCaptureMode.SpeakerLoopback
+            : OutputCaptureMode.ProcessLoopback;
+
+        if (SelectedOutputMode == OutputCaptureMode.ProcessLoopback)
+        {
+            await LoadProcessesAsync();
+        }
+    }
+
     private Task ToggleMiniModeAsync()
     {
         IsSpeakerDevicePopupOpenNormal = false;
         IsSpeakerDevicePopupOpenMini = false;
         IsMicDevicePopupOpenNormal = false;
         IsMicDevicePopupOpenMini = false;
-        IsModePopupOpenNormal = false;
-        IsModePopupOpenMini = false;
         IsProcessPopupOpenNormal = false;
         IsProcessPopupOpenMini = false;
         IsMiniMode = !IsMiniMode;
@@ -546,6 +542,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StartStopCommand.RaiseCanExecuteChanged();
         PauseResumeCommand.RaiseCanExecuteChanged();
         ToggleMiniModeCommand.RaiseCanExecuteChanged();
+        ToggleOutputModeCommand.RaiseCanExecuteChanged();
         RefreshProcessesCommand.RaiseCanExecuteChanged();
     }
 

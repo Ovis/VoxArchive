@@ -159,6 +159,16 @@
             </Setter>
         </Style>
 
+        <Style x:Key="PopupListBoxStyle" TargetType="ListBox">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+
+        <Style x:Key="PopupListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="Background" Value="White" />
+        </Style>
         <Style TargetType="ComboBox">
             <Setter Property="Foreground" Value="#111827" />
             <Setter Property="Background" Value="{StaticResource ControlBg}" />
@@ -258,7 +268,7 @@
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" />
                     <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
+                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" />
                         </Border>
                     </Popup>
                 </Grid>
@@ -292,27 +302,15 @@
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" />
                     <Popup IsOpen="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
+                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" />
                         </Border>
                     </Popup>
                 </Grid>
 
                 <StackPanel Grid.Column="7" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Grid x:Name="ModeAnchorNormal" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="22" />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
-                            <TextBlock Text="M" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Button>
-                        <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedOutputModeName}" IsChecked="{Binding IsModePopupOpenNormal, Mode=TwoWay}" IsEnabled="{Binding IsDeviceSelectionEnabled}" />
-                        <Popup IsOpen="{Binding IsModePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ModeAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                            <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="220" Padding="4">
-                                <ListBox ItemsSource="{Binding OutputModes}" SelectedItem="{Binding SelectedOutputMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
-                            </Border>
-                        </Popup>
-                    </Grid>
+                    <Button Style="{StaticResource DeviceIconButtonStyle}" Margin="0,0,8,0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
+                        <TextBlock Text="{Binding ModeIconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
 
                     <Grid x:Name="ProcessAnchorNormal" VerticalAlignment="Center">
                         <Grid.ColumnDefinitions>
@@ -320,14 +318,14 @@
                             <ColumnDefinition Width="22" />
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedProcessDisplayName}" IsEnabled="{Binding IsProcessSelectionEnabled}">
-                            <TextBlock Text="P" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE71D;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Button>
                         <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenNormal, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
                         <Popup IsOpen="{Binding IsProcessPopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ProcessAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                             <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
                                 <StackPanel>
                                     <Button Margin="0,0,0,4" Padding="8,3" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" Foreground="#111827" Background="#E5E7EB" BorderBrush="#CBD5E1" />
-                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" MaxHeight="260" />
+                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" MaxHeight="260" />
                                 </StackPanel>
                             </Border>
                         </Popup>
@@ -405,7 +403,7 @@
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" />
                     <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
+                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" />
                         </Border>
                     </Popup>
                 </Grid>
@@ -439,27 +437,15 @@
                     <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" />
                     <Popup IsOpen="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
+                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" />
                         </Border>
                     </Popup>
                 </Grid>
 
                 <StackPanel Grid.Column="7" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Grid x:Name="ModeAnchorMini" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="22" />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
-                            <TextBlock Text="M" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Button>
-                        <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedOutputModeName}" IsChecked="{Binding IsModePopupOpenMini, Mode=TwoWay}" IsEnabled="{Binding IsDeviceSelectionEnabled}" />
-                        <Popup IsOpen="{Binding IsModePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ModeAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                            <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="220" Padding="4">
-                                <ListBox ItemsSource="{Binding OutputModes}" SelectedItem="{Binding SelectedOutputMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" />
-                            </Border>
-                        </Popup>
-                    </Grid>
+                    <Button Style="{StaticResource DeviceIconButtonStyle}" Margin="0,0,8,0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
+                        <TextBlock Text="{Binding ModeIconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
 
                     <Grid x:Name="ProcessAnchorMini" VerticalAlignment="Center">
                         <Grid.ColumnDefinitions>
@@ -467,14 +453,14 @@
                             <ColumnDefinition Width="22" />
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedProcessDisplayName}" IsEnabled="{Binding IsProcessSelectionEnabled}">
-                            <TextBlock Text="P" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE71D;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Button>
                         <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
                         <Popup IsOpen="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ProcessAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                             <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
                                 <StackPanel>
                                     <Button Margin="0,0,0,4" Padding="8,3" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" Foreground="#111827" Background="#E5E7EB" BorderBrush="#CBD5E1" />
-                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="White" Foreground="#111827" BorderThickness="0" MaxHeight="260" />
+                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" MaxHeight="260" />
                                 </StackPanel>
                             </Border>
                         </Popup>
