@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
@@ -46,7 +47,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         RefreshCommand = new DelegateCommand(RefreshAsync);
         AddFileCommand = new DelegateCommand(AddFileAsync);
-        TogglePlaybackCommand = new DelegateCommand(TogglePlaybackAsync, () => SelectedItem is not null && _playbackService.IsLoaded);
+        TogglePlaybackCommand = new DelegateCommand(TogglePlaybackAsync, () => SelectedItem is not null);
         StopCommand = new DelegateCommand(StopAsync, () => _playbackService.IsLoaded);
         SaveTitleCommand = new DelegateCommand(SaveTitleAsync, () => SelectedItem is not null);
         RenameCommand = new DelegateCommand(RenameAsync, () => SelectedItem is not null);
@@ -250,11 +251,26 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         RaiseCommands();
     }
 
-    private Task TogglePlaybackAsync()
+    private async Task TogglePlaybackAsync()
     {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        if (!await EnsureFileExistsOrPromptRemoveAsync("再生", SelectedItem.FilePath))
+        {
+            return;
+        }
+
         if (!_playbackService.IsLoaded)
         {
-            return Task.CompletedTask;
+            LoadSelectedForPlayback();
+        }
+
+        if (!_playbackService.IsLoaded)
+        {
+            return;
         }
 
         if (_playbackService.IsPlaying)
@@ -273,7 +289,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
 
         RaiseCommands();
-        return Task.CompletedTask;
     }
 
     private Task StopAsync()
@@ -288,6 +303,11 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private async Task SaveTitleAsync()
     {
         if (SelectedItem is null)
+        {
+            return;
+        }
+
+        if (!await EnsureFileExistsOrPromptRemoveAsync("タイトル保存", SelectedItem.FilePath))
         {
             return;
         }
@@ -318,6 +338,11 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        if (!await EnsureFileExistsOrPromptRemoveAsync("リネーム", SelectedItem.FilePath))
+        {
+            return;
+        }
+
         try
         {
             var newPath = await _catalogService.RenameAsync(SelectedItem.FilePath, EditableFileName);
@@ -338,14 +363,19 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        var result = System.Windows.MessageBox.Show(
+        if (!await EnsureFileExistsOrPromptRemoveAsync("ファイル削除", SelectedItem.FilePath))
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
             $"ファイルを削除します。\n{SelectedItem.FileName}",
             "削除確認",
-            System.Windows.MessageBoxButton.OKCancel,
-            System.Windows.MessageBoxImage.Warning,
-            System.Windows.MessageBoxResult.Cancel);
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
 
-        if (result != System.Windows.MessageBoxResult.OK)
+        if (result != MessageBoxResult.OK)
         {
             return;
         }
@@ -372,6 +402,44 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             await _catalogService.RemoveFromListAsync(SelectedItem.FilePath);
+            await RefreshAsync();
+            StatusText = "一覧から削除しました（ファイルは残ります）。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"一覧削除失敗: {ex.Message}";
+        }
+    }
+
+    private async Task<bool> EnsureFileExistsOrPromptRemoveAsync(string actionName, string filePath)
+    {
+        if (File.Exists(filePath))
+        {
+            return true;
+        }
+
+        await HandleMissingFileAsync(actionName, filePath);
+        return false;
+    }
+
+    private async Task HandleMissingFileAsync(string actionName, string filePath)
+    {
+        var result = MessageBox.Show(
+            $"{actionName}の対象ファイルが見つかりません。\n{filePath}\n\n一覧から削除しますか？",
+            "ファイル未検出",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            StatusText = "ファイルが見つかりません。";
+            return;
+        }
+
+        try
+        {
+            await _catalogService.RemoveFromListAsync(filePath);
             await RefreshAsync();
             StatusText = "一覧から削除しました（ファイルは残ります）。";
         }
