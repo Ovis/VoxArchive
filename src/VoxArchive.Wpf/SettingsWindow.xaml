@@ -149,17 +149,23 @@
 
                     <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="264" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="44" />
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
                             <TextBlock Style="{StaticResource FieldLabelStyle}" Text="マイク遅延補正" />
-                            <TextBox x:Name="OffsetTextBox" ToolTip="マイク音声を前後にずらしてスピーカー音声とタイミングを合わせます" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="44" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="OffsetTextBox" Grid.Column="0" ToolTip="マイク音声を前後にずらしてスピーカー音声とタイミングを合わせます" Margin="0,0,6,0" />
+                                <Border Grid.Column="1" Height="36" Background="{StaticResource ControlBg}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1">
+                                    <TextBlock Text="ms" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
                         </StackPanel>
-
-                        <TextBlock Grid.Column="2" Text="ms" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="10,0,0,8" />
                     </Grid>
 
                     <Grid Grid.Row="4">
