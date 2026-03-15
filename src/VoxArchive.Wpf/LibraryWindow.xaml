@@ -338,6 +338,18 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="LibraryMenuSeparatorStyle" TargetType="Separator">
+            <Setter Property="Margin" Value="2,4,2,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1"
+                                HorizontalAlignment="Stretch"
+                                Background="#2F4664" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="TitleBarGlyphButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0" />
@@ -459,7 +471,7 @@
                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Style="{StaticResource LibraryContextMenuStyle}">
                                 <MenuItem Header="Explorerで表示" Command="{Binding OpenInExplorerCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
                                 <MenuItem Header="文字起こし" Command="{Binding TranscribeCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
-                                <Separator />
+                                <Separator Style="{StaticResource LibraryMenuSeparatorStyle}" />
                                 <MenuItem Header="一覧から削除" Command="{Binding RemoveFromListCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
                                 <MenuItem Header="ファイル削除" Command="{Binding DeleteFileCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
                             </ContextMenu>
@@ -598,6 +610,7 @@
         </Grid>
     </Grid>
 </Window>
+
 
 
 
