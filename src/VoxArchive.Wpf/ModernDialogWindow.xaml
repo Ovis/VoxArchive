@@ -1,0 +1,66 @@
+<Window x:Class="VoxArchive.Wpf.ModernDialogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="460"
+        MinWidth="420"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="Transparent"
+        AllowsTransparency="True"
+        ShowInTaskbar="False">
+    <Border Margin="10" CornerRadius="12" Background="#121821" BorderBrush="#2B394D" BorderThickness="1" Padding="18,16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,10">
+                <TextBlock x:Name="TitleTextBlock" FontSize="16" FontWeight="SemiBold" Foreground="#F3F6FA" />
+            </DockPanel>
+
+            <Grid Grid.Row="1" Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Width="30" Height="30" CornerRadius="15" Background="#223248" VerticalAlignment="Top">
+                    <TextBlock x:Name="IconTextBlock" Text="i" FontSize="16" FontWeight="Bold" Foreground="#AFC6E9" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+
+                <TextBlock Grid.Column="2"
+                           x:Name="MessageTextBlock"
+                           Foreground="#D8E0ED"
+                           FontSize="13"
+                           TextWrapping="Wrap"
+                           LineHeight="20" />
+            </Grid>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="SecondaryButton"
+                        MinWidth="96"
+                        Margin="0,0,8,0"
+                        Padding="14,7"
+                        Background="#1A2330"
+                        BorderBrush="#33465F"
+                        BorderThickness="1"
+                        Foreground="#D8E0ED"
+                        Click="OnSecondaryClick" />
+                <Button x:Name="PrimaryButton"
+                        MinWidth="96"
+                        Padding="14,7"
+                        Background="#2A5EBD"
+                        BorderBrush="#2A5EBD"
+                        BorderThickness="1"
+                        Foreground="White"
+                        FontWeight="SemiBold"
+                        Click="OnPrimaryClick" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

@@ -497,7 +497,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 if (targetPid is null || !await _processCatalogService.ExistsAsync(targetPid.Value))
                 {
-                    var result = MessageBox.Show(
+                    var result = ModernDialog.Show(
                         "選択したアプリは現在起動していません。\nスピーカー録音に切り替えて開始しますか？",
                         "録音開始確認",
                         MessageBoxButton.OKCancel,
@@ -623,7 +623,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             LastErrorText = $"ライブラリ起動失敗: {ex.Message}";
-            MessageBox.Show(
+            ModernDialog.Show(
                 $"ライブラリウィンドウの表示に失敗しました。\n{ex.Message}",
                 "ライブラリ起動失敗",
                 MessageBoxButton.OK,

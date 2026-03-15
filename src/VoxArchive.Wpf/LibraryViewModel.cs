@@ -368,7 +368,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        var result = MessageBox.Show(
+        var result = ModernDialog.Show(
             $"ファイルを削除します。\n{SelectedItem.FileName}",
             "削除確認",
             MessageBoxButton.OKCancel,
@@ -424,7 +424,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     private async Task HandleMissingFileAsync(string actionName, string filePath)
     {
-        var result = MessageBox.Show(
+        var result = ModernDialog.Show(
             $"{actionName}の対象ファイルが見つかりません。\n{filePath}\n\n一覧から削除しますか？",
             "ファイル未検出",
             MessageBoxButton.YesNo,

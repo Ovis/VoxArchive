@@ -155,7 +155,7 @@ public partial class MainWindow : Window
 
         if (!RegisterHotKey(_hwndSource.Handle, StartStopHotkeyId, modifiers, virtualKey))
         {
-            MessageBox.Show(
+            ModernDialog.Show(
                 this,
                 $"ショートカット '{normalized}' を登録できませんでした。\n他アプリで使用中の可能性があります。",
                 "ホットキー登録失敗",
