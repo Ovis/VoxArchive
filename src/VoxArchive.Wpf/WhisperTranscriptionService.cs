@@ -88,7 +88,7 @@ public sealed class WhisperTranscriptionService
         try
         {
             var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cancellationToken);
-            var generated = await WriteOutputsAsync(request.AudioFilePath, request.Options.TranscriptionOutputFormats, segments, cancellationToken);
+            var generated = await WriteOutputsAsync(request.AudioFilePath, request.Options.TranscriptionModel, request.Options.TranscriptionOutputFormats, segments, cancellationToken);
 
             Log($"Transcribe success: segments={segments.Count}, outputs={string.Join(",", generated.Select(Path.GetFileName))}");
             return new TranscriptionJobResult(
@@ -105,11 +105,9 @@ public sealed class WhisperTranscriptionService
         }
     }
 
-    public IReadOnlyList<string> BuildOutputPaths(string audioFilePath, TranscriptionOutputFormats formats)
+    public IReadOnlyList<string> BuildOutputPaths(string audioFilePath, TranscriptionModel model, TranscriptionOutputFormats formats)
     {
-        var basePath = Path.Combine(
-            Path.GetDirectoryName(audioFilePath) ?? string.Empty,
-            Path.GetFileNameWithoutExtension(audioFilePath));
+        var basePath = BuildOutputBasePath(audioFilePath, model);
 
         var list = new List<string>(4);
         if (formats.HasFlag(TranscriptionOutputFormats.Txt))
@@ -585,11 +583,12 @@ public sealed class WhisperTranscriptionService
 
     private static async Task<IReadOnlyList<string>> WriteOutputsAsync(
         string audioFilePath,
+        TranscriptionModel model,
         TranscriptionOutputFormats formats,
         IReadOnlyList<TranscribedSegment> segments,
         CancellationToken cancellationToken)
     {
-        var basePath = Path.Combine(Path.GetDirectoryName(audioFilePath) ?? string.Empty, Path.GetFileNameWithoutExtension(audioFilePath));
+        var basePath = BuildOutputBasePath(audioFilePath, model);
         var generated = new List<string>(4);
 
         if (formats.HasFlag(TranscriptionOutputFormats.Txt))
@@ -655,6 +654,27 @@ public sealed class WhisperTranscriptionService
         return generated;
     }
 
+
+    private static string BuildOutputBasePath(string audioFilePath, TranscriptionModel model)
+    {
+        var directory = Path.GetDirectoryName(audioFilePath) ?? string.Empty;
+        var fileName = Path.GetFileNameWithoutExtension(audioFilePath);
+        var modelName = GetModelDisplayName(model);
+        return Path.Combine(directory, $"{fileName}-{modelName}");
+    }
+
+    private static string GetModelDisplayName(TranscriptionModel model)
+    {
+        return model switch
+        {
+            TranscriptionModel.Tiny => "tiny",
+            TranscriptionModel.Base => "base",
+            TranscriptionModel.Small => "small",
+            TranscriptionModel.Medium => "medium",
+            TranscriptionModel.LargeV3 => "large-v3",
+            _ => model.ToString().ToLowerInvariant()
+        };
+    }
     private static string FormatSrt(TimeSpan time)
     {
         return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00},{time.Milliseconds:000}";
@@ -735,3 +755,6 @@ public sealed class WhisperTranscriptionService
 
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);
 }
+
+
+
