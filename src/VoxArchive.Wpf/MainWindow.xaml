@@ -128,6 +128,42 @@
             <Setter Property="Background" Value="#223042" />
             <Setter Property="BorderBrush" Value="#3A4E69" />
         </Style>
+        <Style x:Key="TitleBarGlyphButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#3A4A60" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#D9E2F0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Base"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#1D2A3A" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#16202D" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Base" Property="Background" Value="#121A26" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#273548" />
+                                <Setter Property="Foreground" Value="#5F6D82" />
+                                <Setter TargetName="Base" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style x:Key="DeviceArrowToggleStyle" TargetType="ToggleButton">
             <Setter Property="Width" Value="22" />
@@ -216,7 +252,7 @@
             <Grid Margin="10,0,6,0">
                 <TextBlock Text="VoxArchive" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Width="24"
+                    <Button Style="{StaticResource TitleBarGlyphButtonStyle}" Width="24"
                             Height="20"
                             Margin="0,0,6,0"
                             Padding="0"
@@ -228,7 +264,7 @@
                             BorderBrush="#3A4A60"
                             BorderThickness="1"
                             Command="{Binding OpenLibraryCommand}" />
-                    <Button Width="24"
+                    <Button Style="{StaticResource TitleBarGlyphButtonStyle}" Width="24"
                             Height="20"
                             Margin="0,0,6,0"
                             Padding="0"
@@ -240,7 +276,7 @@
                             BorderBrush="#3A4A60"
                             BorderThickness="1"
                             Command="{Binding OpenSettingsCommand}" />
-                    <Button Width="30"
+                    <Button Style="{StaticResource TitleBarGlyphButtonStyle}" Width="30"
                             Height="20"
                             Margin="0"
                             Padding="0"
