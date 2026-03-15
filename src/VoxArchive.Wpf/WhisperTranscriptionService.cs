@@ -3,6 +3,8 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -209,7 +211,8 @@ public sealed class WhisperTranscriptionService
             processor = build.Invoke(builder, null)
                 ?? throw new InvalidOperationException("Processor 生成に失敗しました。");
 
-            await using var stream = File.OpenRead(request.AudioFilePath);
+            await using var preparedInput = await PrepareWaveInputAsync(request.AudioFilePath, cancellationToken);
+
             var processAsync = processor.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
                 .FirstOrDefault(m => m.Name == "ProcessAsync" && m.GetParameters().Length >= 1 && typeof(Stream).IsAssignableFrom(m.GetParameters()[0].ParameterType));
 
@@ -218,7 +221,7 @@ public sealed class WhisperTranscriptionService
                 throw new InvalidOperationException("Processor.ProcessAsync が見つかりません。");
             }
 
-            var processArgs = BuildProcessArgs(processAsync, stream, cancellationToken);
+            var processArgs = BuildProcessArgs(processAsync, preparedInput.Stream, cancellationToken);
             var processResult = processAsync.Invoke(processor, processArgs)
                 ?? throw new InvalidOperationException("ProcessAsync の戻り値が null です。");
 
@@ -451,6 +454,75 @@ public sealed class WhisperTranscriptionService
         throw new InvalidOperationException("MoveNextAsync の戻り値型に対応していません。");
     }
 
+    private static async Task<PreparedWaveInput> PrepareWaveInputAsync(string audioFilePath, CancellationToken cancellationToken)
+    {
+        if (IsWaveFile(audioFilePath))
+        {
+            Log("PrepareWaveInput: input is already WAV");
+            return new PreparedWaveInput(File.OpenRead(audioFilePath), null);
+        }
+
+        var tempWavePath = Path.Combine(Path.GetTempPath(), $"voxarchive-whisper-{Guid.NewGuid():N}.wav");
+        Log($"PrepareWaveInput: convert to temp wav => {tempWavePath}");
+
+        await Task.Run(() => ConvertAudioToWaveFile(audioFilePath, tempWavePath), cancellationToken);
+        return new PreparedWaveInput(File.OpenRead(tempWavePath), tempWavePath);
+    }
+
+    private static void ConvertAudioToWaveFile(string sourcePath, string destinationPath)
+    {
+        using var reader = new AudioFileReader(sourcePath);
+        ISampleProvider sampleProvider = reader;
+
+        if (sampleProvider.WaveFormat.Channels == 2)
+        {
+            var mono = new StereoToMonoSampleProvider(sampleProvider)
+            {
+                LeftVolume = 0.5f,
+                RightVolume = 0.5f
+            };
+            sampleProvider = mono;
+        }
+
+        if (sampleProvider.WaveFormat.SampleRate != 16000)
+        {
+            sampleProvider = new WdlResamplingSampleProvider(sampleProvider, 16000);
+        }
+
+        WaveFileWriter.CreateWaveFile16(destinationPath, sampleProvider);
+    }
+
+    private static bool IsWaveFile(string filePath)
+    {
+        if (!string.Equals(Path.GetExtension(filePath), ".wav", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            Span<byte> header = stackalloc byte[12];
+            if (stream.Read(header) < 12)
+            {
+                return false;
+            }
+
+            return header[0] == (byte)'R'
+                && header[1] == (byte)'I'
+                && header[2] == (byte)'F'
+                && header[3] == (byte)'F'
+                && header[8] == (byte)'W'
+                && header[9] == (byte)'A'
+                && header[10] == (byte)'V'
+                && header[11] == (byte)'E';
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static TimeSpan GetTimeSpan(object target, params string[] names)
     {
         foreach (var name in names)
@@ -631,6 +703,35 @@ public sealed class WhisperTranscriptionService
         }
     }
 
+    private sealed class PreparedWaveInput : IAsyncDisposable
+    {
+        public PreparedWaveInput(Stream stream, string? temporaryWavePath)
+        {
+            Stream = stream;
+            TemporaryWavePath = temporaryWavePath;
+        }
+
+        public Stream Stream { get; }
+        public string? TemporaryWavePath { get; }
+
+        public ValueTask DisposeAsync()
+        {
+            Stream.Dispose();
+            if (!string.IsNullOrWhiteSpace(TemporaryWavePath) && File.Exists(TemporaryWavePath))
+            {
+                try
+                {
+                    File.Delete(TemporaryWavePath);
+                }
+                catch
+                {
+                    // no-op
+                }
+            }
+
+            return ValueTask.CompletedTask;
+        }
+    }
+
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);
 }
-

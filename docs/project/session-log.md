@@ -354,3 +354,5 @@
 ### 次アクション
 1. 実機で文字起こしを再実行し、同ログに記録される戻り値型と例外詳細を確認。
 2. もし失敗継続なら、ログを基に `ProcessAsync` シグネチャ差分へ追加対応。
+- 追記: 文字起こし入力が FLAC のままだと `Whisper.net.Wave.CorruptedWaveException (Invalid wave file RIFF header)` で失敗することを確認。
+- 対応: `WhisperTranscriptionService` で入力を自動WAV化（必要時: FLAC→WAV/16kHz）してから Whisper へ渡す処理を追加。
