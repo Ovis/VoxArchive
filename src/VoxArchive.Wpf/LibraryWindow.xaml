@@ -212,12 +212,7 @@
 
         <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Content="更新" Command="{Binding RefreshCommand}" Style="{StaticResource FlatButtonStyle}" />
-                <Button Grid.Column="1" Content="ファイル追加" Command="{Binding AddFileCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0,0,0,0" />
+                <Button Content="ファイル追加" Command="{Binding AddFileCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0,0,0,0" />
             </Grid>
         </Border>
 
