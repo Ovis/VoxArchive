@@ -46,6 +46,13 @@
             <Setter Property="MinHeight" Value="36" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Margin" Value="0,0,8,0" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#7F8CA3" />
+                    <Setter Property="Background" Value="#162131" />
+                    <Setter Property="BorderBrush" Value="#25364C" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
@@ -63,6 +70,11 @@
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#7F8CA3" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style TargetType="TextBox">
@@ -73,10 +85,22 @@
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#7F8CA3" />
+                    <Setter Property="Background" Value="#162131" />
+                    <Setter Property="BorderBrush" Value="#25364C" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style TargetType="Slider">
             <Setter Property="Foreground" Value="{StaticResource Accent}" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style TargetType="DataGrid">
@@ -190,6 +214,17 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Opacity" Value="1" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedItem}" Value="{x:Null}">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+
                     <TextBlock Grid.Row="0" Text="再生" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,8" />
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
@@ -246,6 +281,25 @@
                             <Button Content="ファイル削除" Command="{Binding DeleteFileCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0" />
                         </StackPanel>
                     </StackPanel>
+
+                    <Border Grid.RowSpan="9" Background="#C0111823" CornerRadius="10" IsHitTestVisible="False">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedItem}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="録音ファイルを選択してください"
+                                   Foreground="#C9D4E6"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
                 </Grid>
             </Border>
         </Grid>
