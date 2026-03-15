@@ -30,7 +30,7 @@ public sealed class WhisperTranscriptionService
     {
         var runtimeAvailable = TryGetWhisperFactoryType(out _);
         var modelInstalled = _modelStore.IsInstalled(options.TranscriptionModel);
-        var cudaRuntimeAvailable = TryGetCudaRuntimeType(out _);
+        var cudaRuntimeAvailable = TryGetCudaRuntimeType(out var cudaRuntimeDetail);
         var cudaDriverAvailable = TryLoadCudaDriver(out var cudaDriverDetail);
         var cudaAvailable = cudaRuntimeAvailable && cudaDriverAvailable;
 
@@ -43,8 +43,8 @@ public sealed class WhisperTranscriptionService
             : $"モデル '{WhisperModelStore.GetModelFileName(options.TranscriptionModel)}' は未配置です。";
 
         var cudaMessage = cudaAvailable
-            ? "CUDA 実行環境を利用できます。"
-            : $"CUDA 実行環境を利用できません。({cudaDriverDetail})";
+            ? $"CUDA available (runtime: {cudaRuntimeDetail}, driver: {cudaDriverDetail})"
+            : $"CUDA unavailable (runtime: {cudaRuntimeDetail}, driver: {cudaDriverDetail})";
 
         var detail = runtimeAvailable && modelInstalled
             ? "文字起こし実行の前提条件を満たしています。"
@@ -172,10 +172,8 @@ public sealed class WhisperTranscriptionService
     }
 
 
-    private static bool TryGetCudaRuntimeType(out Type? cudaRuntimeType)
+    private static bool TryGetCudaRuntimeType(out string detail)
     {
-        cudaRuntimeType = null;
-
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             var assemblyName = assembly.GetName().Name;
@@ -185,20 +183,45 @@ public sealed class WhisperTranscriptionService
                 continue;
             }
 
-            cudaRuntimeType = assembly.GetTypes().FirstOrDefault();
-            return cudaRuntimeType is not null;
+            detail = $"assembly loaded: {assemblyName}";
+            return true;
         }
 
         try
         {
             var loaded = Assembly.Load("Whisper.net.Runtime.Cuda");
-            cudaRuntimeType = loaded.GetTypes().FirstOrDefault();
-            return cudaRuntimeType is not null;
+            detail = $"assembly loaded: {loaded.GetName().Name}";
+            return true;
         }
         catch
         {
-            return false;
+            // Whisper.net.Runtime.Cuda may provide native assets only.
         }
+
+        var baseDir = AppContext.BaseDirectory;
+        var arch = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => "win-x64",
+            Architecture.X86 => "win-x86",
+            Architecture.Arm64 => "win-arm64",
+            _ => "win-x64"
+        };
+
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "runtimes", "cuda", arch, "ggml-cuda-whisper.dll"),
+            Path.Combine(baseDir, "runtimes", "cuda", "win-x64", "ggml-cuda-whisper.dll")
+        };
+
+        var found = candidates.FirstOrDefault(File.Exists);
+        if (!string.IsNullOrWhiteSpace(found))
+        {
+            detail = $"native runtime found: {Path.GetFileName(found)}";
+            return true;
+        }
+
+        detail = "cuda runtime assets not found";
+        return false;
     }
 
     private static bool TryLoadCudaDriver(out string detail)
@@ -811,5 +834,3 @@ public sealed class WhisperTranscriptionService
 
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);
 }
-
-
