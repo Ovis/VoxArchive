@@ -12,6 +12,19 @@ public partial class LibraryWindow : System.Windows.Window
         Closed += (_, _) => _viewModel.Dispose();
     }
 
+
+    private void OnTitleBarMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == System.Windows.Input.MouseButton.Left)
+        {
+            DragMove();
+        }
+    }
+
+    private void OnTitleBarCloseButtonClick(object sender, System.Windows.RoutedEventArgs e)
+    {
+        Close();
+    }
     private void OnSeekDragStart(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         _viewModel.BeginSeek();

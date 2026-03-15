@@ -7,6 +7,7 @@
         MinWidth="700"
         MinHeight="460"
         ResizeMode="NoResize"
+        WindowStyle="None"
         WindowStartupLocation="CenterOwner"
         Background="#0A0D12"
         FontFamily="Yu Gothic UI">
@@ -54,105 +55,174 @@
             <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
             <Setter Property="FontWeight" Value="Bold" />
         </Style>
+
+        <Style x:Key="TitleBarGlyphButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#3A4A60" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#D9E2F0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Base"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#1D2A3A" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#16202D" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Base" Property="Background" Value="#121A26" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#273548" />
+                                <Setter Property="Foreground" Value="#5F6D82" />
+                                <Setter TargetName="Base" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-    <Grid Margin="16,14">
-        <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="16,14">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="18" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="28" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" LastChildFill="False">
-                    <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                    <TextBlock Text="録音設定" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
-                </DockPanel>
-
-                <Grid Grid.Row="2">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="44" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="マイク遅延補正" />
-                        <TextBox x:Name="OffsetTextBox" ToolTip="マイク音声を前後にずらしてスピーカー音声とタイミングを合わせます" />
-                    </StackPanel>
-
-                    <TextBlock Grid.Column="2" Text="ms" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="10,0,0,8" />
-                </Grid>
-
-                <Grid Grid.Row="4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Speaker 再生ゲイン (dB)" />
-                        <TextBox x:Name="DefaultSpeakerGainTextBox" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Mic 再生ゲイン (dB)" />
-                        <TextBox x:Name="DefaultMicGainTextBox" />
-                    </StackPanel>
-                </Grid>
-
-                <Grid Grid.Row="6">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="92" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="録音開始/停止ショートカット" />
-                        <TextBox x:Name="StartStopHotkeyTextBox" IsReadOnly="True" ToolTip="右のキー設定を押してから、登録したいキーを押してください（単体キー可）" />
-                    </StackPanel>
-                    <Button x:Name="HotkeyCaptureButton" Grid.Column="1" Margin="0,23,0,0" Height="36" Content="キー設定" Click="OnToggleHotkeyCaptureClick" />
-                </Grid>
-
-                <Grid Grid.Row="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="92" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="保存先フォルダ" />
-                        <TextBox x:Name="OutputDirectoryTextBox" />
-                    </StackPanel>
-
-                    <Button Grid.Column="1" Margin="0,23,0,0" Height="36" Content="参照" Click="OnBrowseOutputDirectoryClick" />
-                </Grid>
-
-                <StackPanel Grid.Row="9" Margin="0,12,0,0">
-                    <Border Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="歌や会話の重なりが遅れて聞こえる場合に調整します。+で遅らせ、-で早めます。" />
-                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="補正値は -1000ms ～ 1000ms の範囲で指定してください。" />
-                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="再生ゲインは -60dB ～ 48dB の範囲で指定してください。" />
-                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="ショートカットは キー設定 を押してからキー入力し、もう一度 キー設定 を押して確定します（F12 単体や Ctrl+F12 の複合に対応）。" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <StackPanel Grid.Row="10" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                    <Button Width="100" Margin="0,0,8,0" Content="保存" Style="{StaticResource AccentButtonStyle}" IsDefault="True" Click="OnSaveClick" />
-                    <Button Width="100" Content="キャンセル" IsCancel="True" />
+        <Border Grid.Row="0"
+                Background="#10161F"
+                BorderBrush="{StaticResource PanelBorder}"
+                BorderThickness="0"
+                CornerRadius="10,10,0,0"
+                MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+            <Grid Margin="10,0,6,0">
+                <TextBlock Text="設定" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Style="{StaticResource TitleBarGlyphButtonStyle}" Width="30"
+                            Height="20"
+                            Margin="0"
+                            Padding="0"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="10"
+                            Content="&#xE711;"
+                            ToolTip="閉じる"
+                            Background="Transparent"
+                            BorderBrush="#3A4A60"
+                            BorderThickness="1"
+                            Click="OnTitleBarCloseButtonClick" />
                 </StackPanel>
             </Grid>
         </Border>
+
+        <Grid Grid.Row="1" Margin="16,14">
+            <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="16,14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="18" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" LastChildFill="False">
+                        <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Text="録音設定" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="44" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="マイク遅延補正" />
+                            <TextBox x:Name="OffsetTextBox" ToolTip="マイク音声を前後にずらしてスピーカー音声とタイミングを合わせます" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="2" Text="ms" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="10,0,0,8" />
+                    </Grid>
+
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Speaker 再生ゲイン (dB)" />
+                            <TextBox x:Name="DefaultSpeakerGainTextBox" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Mic 再生ゲイン (dB)" />
+                            <TextBox x:Name="DefaultMicGainTextBox" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="92" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="録音開始/停止ショートカット" />
+                            <TextBox x:Name="StartStopHotkeyTextBox" IsReadOnly="True" ToolTip="右のキー設定を押してから、登録したいキーを押してください（単体キー可）" />
+                        </StackPanel>
+                        <Button x:Name="HotkeyCaptureButton" Grid.Column="1" Margin="0,23,0,0" Height="36" Content="キー設定" Click="OnToggleHotkeyCaptureClick" />
+                    </Grid>
+
+                    <Grid Grid.Row="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="92" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="保存先フォルダ" />
+                            <TextBox x:Name="OutputDirectoryTextBox" />
+                        </StackPanel>
+
+                        <Button Grid.Column="1" Margin="0,23,0,0" Height="36" Content="参照" Click="OnBrowseOutputDirectoryClick" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="9" Margin="0,12,0,0">
+                        <Border Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="歌や会話の重なりが遅れて聞こえる場合に調整します。+で遅らせ、-で早めます。" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="補正値は -1000ms ～ 1000ms の範囲で指定してください。" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="再生ゲインは -60dB ～ 48dB の範囲で指定してください。" />
+                                <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="ショートカットは キー設定 を押してからキー入力し、もう一度 キー設定 を押して確定します（F12 単体や Ctrl+F12 の複合に対応）。" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="10" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Width="100" Margin="0,0,8,0" Content="保存" Style="{StaticResource AccentButtonStyle}" IsDefault="True" Click="OnSaveClick" />
+                        <Button Width="100" Content="キャンセル" IsCancel="True" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

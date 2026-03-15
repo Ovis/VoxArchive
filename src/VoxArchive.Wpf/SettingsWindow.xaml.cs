@@ -50,6 +50,19 @@ public partial class SettingsWindow : Window
         set => OutputDirectoryTextBox.Text = value;
     }
 
+
+    private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            DragMove();
+        }
+    }
+
+    private void OnTitleBarCloseButtonClick(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
     private void OnBrowseOutputDirectoryClick(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog

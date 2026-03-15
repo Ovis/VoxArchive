@@ -1,13 +1,24 @@
 <Window x:Class="VoxArchive.Wpf.LibraryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="ライブラリ"
         Width="1220"
         Height="780"
         MinWidth="1040"
         MinHeight="700"
+        WindowStyle="None"
+        ResizeMode="CanResize"
         FontFamily="Yu Gothic UI"
         Background="#0B1018">
+    <WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="6"
+                            CornerRadius="0"
+                            UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
         <SolidColorBrush x:Key="WindowBg" Color="#0B1018" />
         <SolidColorBrush x:Key="CardBg" Color="#121B27" />
@@ -303,9 +314,76 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="TitleBarGlyphButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#3A4A60" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#D9E2F0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Base"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#1D2A3A" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#16202D" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Base" Property="Background" Value="#121A26" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#273548" />
+                                <Setter Property="Foreground" Value="#5F6D82" />
+                                <Setter TargetName="Base" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-    <Grid Margin="16,14">
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="28" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="#10161F"
+                BorderBrush="{StaticResource CardBorder}"
+                BorderThickness="0"
+                CornerRadius="10,10,0,0"
+                MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+            <Grid Margin="10,0,6,0">
+                <TextBlock Text="ライブラリ" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Style="{StaticResource TitleBarGlyphButtonStyle}" Width="30"
+                            Height="20"
+                            Margin="0"
+                            Padding="0"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="10"
+                            Content="&#xE711;"
+                            ToolTip="閉じる"
+                            Background="Transparent"
+                            BorderBrush="#3A4A60"
+                            BorderThickness="1"
+                            Click="OnTitleBarCloseButtonClick" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="16,14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
@@ -487,6 +565,7 @@
                     </Border>
                 </Grid>
             </Border>
+        </Grid>
         </Grid>
     </Grid>
 </Window>
