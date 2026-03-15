@@ -25,6 +25,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private double _durationSeconds;
     private string _positionText = "00:00 / 00:00";
     private string _statusText = "準備完了";
+    private bool _mixToMonoPlayback = true;
     private bool _isSeekingByUser;
 
     public LibraryViewModel(RecordingCatalogService catalogService)
@@ -143,6 +144,18 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public string PositionText { get => _positionText; private set => SetField(ref _positionText, value); }
     public string StatusText { get => _statusText; private set => SetField(ref _statusText, value); }
 
+    public bool MixToMonoPlayback
+    {
+        get => _mixToMonoPlayback;
+        set
+        {
+            if (SetField(ref _mixToMonoPlayback, value))
+            {
+                _playbackService.SetMixToMono(value);
+            }
+        }
+    }
+
     public void BeginSeek() => _isSeekingByUser = true;
     public void EndSeek() => _isSeekingByUser = false;
 
@@ -239,6 +252,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             _playbackService.Load(SelectedItem.FilePath);
             _playbackService.SetGains(SpeakerGainDb, MicGainDb);
+            _playbackService.SetMixToMono(MixToMonoPlayback);
             DurationSeconds = Math.Max(0, _playbackService.Duration.TotalSeconds);
             SeekSeconds = 0;
             UpdatePositionText();

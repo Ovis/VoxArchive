@@ -33,6 +33,11 @@
             <Setter Property="Margin" Value="0,0,8,0" />
         </Style>
 
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
         <Style TargetType="TextBox">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
             <Setter Property="Background" Value="{StaticResource ControlBg}" />
@@ -112,6 +117,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -149,7 +155,9 @@
                         <TextBlock Grid.Column="1" Text="{Binding MicGainDb, StringFormat={}{0:F1}}" HorizontalAlignment="Right" />
                     </Grid>
 
-                    <StackPanel Grid.Row="6">
+                    <CheckBox Grid.Row="6" Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" Margin="0,0,0,10" />
+
+                    <StackPanel Grid.Row="7">
                         <TextBlock Text="編集" FontWeight="Bold" FontSize="15" Margin="0,0,0,8" />
                         <TextBlock Text="タイトル" Foreground="{StaticResource TextMuted}" />
                         <TextBox Text="{Binding EditableTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />

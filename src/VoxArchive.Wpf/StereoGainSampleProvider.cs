@@ -15,6 +15,7 @@ public sealed class StereoGainSampleProvider : ISampleProvider
 
     public float LeftGain { get; set; } = 1f;
     public float RightGain { get; set; } = 1f;
+    public bool MixToMono { get; set; }
 
     public int Read(float[] buffer, int offset, int count)
     {
@@ -33,8 +34,27 @@ public sealed class StereoGainSampleProvider : ISampleProvider
 
         for (var i = 0; i < read; i += channels)
         {
-            buffer[offset + i] = Clip(buffer[offset + i] * LeftGain);
-            buffer[offset + i + 1] = Clip(buffer[offset + i + 1] * RightGain);
+            var leftIndex = offset + i;
+            var rightIndex = leftIndex + 1;
+            if (rightIndex >= offset + read)
+            {
+                break;
+            }
+
+            var left = buffer[leftIndex] * LeftGain;
+            var right = buffer[rightIndex] * RightGain;
+
+            if (MixToMono)
+            {
+                var mixed = Clip((left + right) * 0.5f);
+                buffer[leftIndex] = mixed;
+                buffer[rightIndex] = mixed;
+            }
+            else
+            {
+                buffer[leftIndex] = Clip(left);
+                buffer[rightIndex] = Clip(right);
+            }
 
             for (var ch = 2; ch < channels && (i + ch) < read; ch++)
             {

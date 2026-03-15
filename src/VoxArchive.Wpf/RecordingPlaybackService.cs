@@ -80,6 +80,15 @@ public sealed class RecordingPlaybackService : IDisposable
         _gainProvider.RightGain = DbToLinear(rightDb);
     }
 
+    public void SetMixToMono(bool enabled)
+    {
+        if (_gainProvider is null)
+        {
+            return;
+        }
+
+        _gainProvider.MixToMono = enabled;
+    }
     private static float DbToLinear(double db)
     {
         var linear = Math.Pow(10d, db / 20d);
