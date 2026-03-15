@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -19,6 +20,18 @@ public partial class SettingsWindow : Window
     {
         get => int.TryParse(OffsetTextBox.Text, out var ms) ? ms : 0;
         set => OffsetTextBox.Text = value.ToString();
+    }
+
+    public double DefaultSpeakerPlaybackGainDb
+    {
+        get => ParseDouble(DefaultSpeakerGainTextBox.Text);
+        set => DefaultSpeakerGainTextBox.Text = value.ToString("F1", CultureInfo.CurrentCulture);
+    }
+
+    public double DefaultMicPlaybackGainDb
+    {
+        get => ParseDouble(DefaultMicGainTextBox.Text);
+        set => DefaultMicGainTextBox.Text = value.ToString("F1", CultureInfo.CurrentCulture);
     }
 
     public string StartStopHotkeyText
@@ -124,6 +137,27 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (!TryParseGain(DefaultSpeakerGainTextBox.Text, out var speakerGain))
+        {
+            ModernDialog.Show(this, "既定 Speaker 再生ゲインは数値で入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (!TryParseGain(DefaultMicGainTextBox.Text, out var micGain))
+        {
+            ModernDialog.Show(this, "既定 Mic 再生ゲインは数値で入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (speakerGain < -60d || speakerGain > 48d || micGain < -60d || micGain > 48d)
+        {
+            ModernDialog.Show(this, "再生ゲインは -60dB ～ 48dB の範囲で指定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        DefaultSpeakerPlaybackGainDb = speakerGain;
+        DefaultMicPlaybackGainDb = micGain;
+
         if (_isCapturingHotkey)
         {
             ModernDialog.Show(this, "ショートカット設定中です。キー設定ボタンをもう一度押して確定してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -145,5 +179,16 @@ public partial class SettingsWindow : Window
         }
 
         DialogResult = true;
+    }
+
+    private static bool TryParseGain(string text, out double value)
+    {
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value)
+            || double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static double ParseDouble(string text)
+    {
+        return TryParseGain(text, out var value) ? value : 0d;
     }
 }

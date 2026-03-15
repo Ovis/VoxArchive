@@ -606,7 +606,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
-            var vm = new LibraryViewModel(_libraryCatalogService);
+            var vm = new LibraryViewModel(
+                _libraryCatalogService,
+                _options.DefaultSpeakerPlaybackGainDb,
+                _options.DefaultMicPlaybackGainDb);
             _libraryViewModel = vm;
             _libraryWindow = new LibraryWindow(vm)
             {
@@ -682,7 +685,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Owner = System.Windows.Application.Current?.MainWindow,
             AlignmentMilliseconds = _options.ChannelAlignmentMilliseconds,
             StartStopHotkeyText = _options.StartStopHotkey,
-            OutputDirectory = _options.OutputDirectory
+            OutputDirectory = _options.OutputDirectory,
+            DefaultSpeakerPlaybackGainDb = _options.DefaultSpeakerPlaybackGainDb,
+            DefaultMicPlaybackGainDb = _options.DefaultMicPlaybackGainDb
         };
 
         if (dialog.ShowDialog() != true)
@@ -694,6 +699,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var normalizedOutput = string.IsNullOrWhiteSpace(dialog.OutputDirectory)
             ? EnsureDefaults(_options).OutputDirectory
             : dialog.OutputDirectory;
+        var normalizedSpeakerGain = Math.Clamp(dialog.DefaultSpeakerPlaybackGainDb, -60d, 48d);
+        var normalizedMicGain = Math.Clamp(dialog.DefaultMicPlaybackGainDb, -60d, 48d);
+
         if (!KeyboardShortcutHelper.TryParseAndNormalize(dialog.StartStopHotkeyText, out _, out var normalizedHotkey))
         {
             normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
@@ -703,7 +711,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             ChannelAlignmentMilliseconds = normalizedOffset,
             OutputDirectory = normalizedOutput,
-            StartStopHotkey = normalizedHotkey
+            StartStopHotkey = normalizedHotkey,
+            DefaultSpeakerPlaybackGainDb = normalizedSpeakerGain,
+            DefaultMicPlaybackGainDb = normalizedMicGain
         };
 
         AlignmentMillisecondsText = normalizedOffset.ToString();
@@ -795,7 +805,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return options with
         {
             OutputDirectory = output,
-            StartStopHotkey = normalizedHotkey
+            StartStopHotkey = normalizedHotkey,
+            DefaultSpeakerPlaybackGainDb = Math.Clamp(options.DefaultSpeakerPlaybackGainDb, -60d, 48d),
+            DefaultMicPlaybackGainDb = Math.Clamp(options.DefaultMicPlaybackGainDb, -60d, 48d)
         };
     }
 

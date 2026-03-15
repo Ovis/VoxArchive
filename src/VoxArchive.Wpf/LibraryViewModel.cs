@@ -28,7 +28,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private bool _mixToMonoPlayback = true;
     private bool _isSeekingByUser;
 
-    public LibraryViewModel(RecordingCatalogService catalogService)
+    public LibraryViewModel(RecordingCatalogService catalogService, double defaultSpeakerGainDb = 0d, double defaultMicGainDb = 0d)
     {
         _catalogService = catalogService;
         _playbackService = new RecordingPlaybackService();
@@ -37,6 +37,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             IsPlaying = false;
             PlaybackButtonText = "再生";
         };
+
+        _speakerGainDb = defaultSpeakerGainDb;
+        _micGainDb = defaultMicGainDb;
 
         _positionTimer = new DispatcherTimer
         {

@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="設定"
         Width="700"
-        Height="380"
+        Height="460"
         MinWidth="700"
-        MinHeight="380"
+        MinHeight="460"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#0A0D12"
@@ -67,6 +67,8 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="12" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -94,6 +96,24 @@
                 <Grid Grid.Row="4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Speaker 再生ゲイン (dB)" />
+                        <TextBox x:Name="DefaultSpeakerGainTextBox" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Mic 再生ゲイン (dB)" />
+                        <TextBox x:Name="DefaultMicGainTextBox" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="92" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,10,0">
@@ -103,7 +123,7 @@
                     <Button x:Name="HotkeyCaptureButton" Grid.Column="1" Margin="0,23,0,0" Height="36" Content="キー設定" Click="OnToggleHotkeyCaptureClick" />
                 </Grid>
 
-                <Grid Grid.Row="6">
+                <Grid Grid.Row="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="92" />
@@ -117,17 +137,18 @@
                     <Button Grid.Column="1" Margin="0,23,0,0" Height="36" Content="参照" Click="OnBrowseOutputDirectoryClick" />
                 </Grid>
 
-                <StackPanel Grid.Row="7" Margin="0,12,0,0">
+                <StackPanel Grid.Row="9" Margin="0,12,0,0">
                     <Border Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="歌や会話の重なりが遅れて聞こえる場合に調整します。+で遅らせ、-で早めます。" />
                             <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="補正値は -1000ms ～ 1000ms の範囲で指定してください。" />
+                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="再生ゲインは -60dB ～ 48dB の範囲で指定してください。" />
                             <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="ショートカットは キー設定 を押してからキー入力し、もう一度 キー設定 を押して確定します（F12 単体や Ctrl+F12 の複合に対応）。" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
 
-                <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                <StackPanel Grid.Row="10" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                     <Button Width="100" Margin="0,0,8,0" Content="保存" Style="{StaticResource AccentButtonStyle}" IsDefault="True" Click="OnSaveClick" />
                     <Button Width="100" Content="キャンセル" IsCancel="True" />
                 </StackPanel>
@@ -135,4 +156,3 @@
         </Border>
     </Grid>
 </Window>
-

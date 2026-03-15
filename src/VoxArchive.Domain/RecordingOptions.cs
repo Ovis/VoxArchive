@@ -18,4 +18,6 @@ public sealed record RecordingOptions
     public OutputCaptureMode OutputCaptureMode { get; init; } = OutputCaptureMode.SpeakerLoopback;
     public int? TargetProcessId { get; init; }
     public string StartStopHotkey { get; init; } = "Ctrl+F12";
+    public double DefaultSpeakerPlaybackGainDb { get; init; } = 0d;
+    public double DefaultMicPlaybackGainDb { get; init; } = 0d;
 }

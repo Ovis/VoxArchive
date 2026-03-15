@@ -138,7 +138,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Speaker Gain (dB)" Foreground="{StaticResource TextMuted}" />
-                            <Slider Minimum="-60" Maximum="24" TickFrequency="3" IsSnapToTickEnabled="False" Value="{Binding SpeakerGainDb, Mode=TwoWay}" />
+                            <Slider Minimum="-60" Maximum="48" TickFrequency="3" IsSnapToTickEnabled="False" Value="{Binding SpeakerGainDb, Mode=TwoWay}" />
                         </StackPanel>
                         <TextBlock Grid.Column="1" Text="{Binding SpeakerGainDb, StringFormat={}{0:F1}}" HorizontalAlignment="Right" />
                     </Grid>
@@ -150,7 +150,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Mic Gain (dB)" Foreground="{StaticResource TextMuted}" />
-                            <Slider Minimum="-60" Maximum="24" TickFrequency="3" IsSnapToTickEnabled="False" Value="{Binding MicGainDb, Mode=TwoWay}" />
+                            <Slider Minimum="-60" Maximum="48" TickFrequency="3" IsSnapToTickEnabled="False" Value="{Binding MicGainDb, Mode=TwoWay}" />
                         </StackPanel>
                         <TextBlock Grid.Column="1" Text="{Binding MicGainDb, StringFormat={}{0:F1}}" HorizontalAlignment="Right" />
                     </Grid>
