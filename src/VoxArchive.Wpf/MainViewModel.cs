@@ -39,6 +39,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isMiniMode;
     private bool _isRefreshingDeviceList;
     private readonly RecordingCatalogService _libraryCatalogService;
+    private readonly WhisperModelStore _whisperModelStore;
+    private readonly WhisperTranscriptionService _whisperTranscriptionService;
+    private readonly TranscriptionJobQueue _transcriptionQueue;
     private string? _lastRecordedFilePath;
     private LibraryWindow? _libraryWindow;
     private LibraryViewModel? _libraryViewModel;
@@ -58,6 +61,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
         var dbPath = Path.Combine(appDir, "library.db");
         _libraryCatalogService = new RecordingCatalogService(dbPath);
+        _whisperModelStore = new WhisperModelStore();
+        _whisperTranscriptionService = new WhisperTranscriptionService(_whisperModelStore);
+        _transcriptionQueue = new TranscriptionJobQueue(_whisperTranscriptionService);
+        _transcriptionQueue.JobCompleted += OnTranscriptionJobCompleted;
 
         SpeakerDevices = new ObservableCollection<AudioDeviceInfo>();
         MicDevices = new ObservableCollection<AudioDeviceInfo>();
@@ -582,6 +589,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var vm = new LibraryViewModel(
                 _libraryCatalogService,
+                _transcriptionQueue,
+                () => _options,
                 _options.DefaultSpeakerPlaybackGainDb,
                 _options.DefaultMicPlaybackGainDb);
             _libraryViewModel = vm;
@@ -629,6 +638,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
 
                 _lastRecordedFilePath = null;
+                TryEnqueueAutoTranscription(filePath);
                 return;
             }
             catch (FileNotFoundException) when (attempt < 9)
@@ -649,16 +659,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LastErrorText = "ライブラリ登録失敗: 録音ファイルが見つかりません。";
     }
 
+
+    private void TryEnqueueAutoTranscription(string filePath)
+    {
+        if (!_options.TranscriptionEnabled || !_options.AutoTranscriptionAfterRecord)
+        {
+            return;
+        }
+
+        var enqueued = _transcriptionQueue.TryEnqueue(new TranscriptionJobRequest(
+            AudioFilePath: filePath,
+            Options: _options,
+            Trigger: TranscriptionTrigger.AutoAfterRecord));
+
+        if (!enqueued)
+        {
+            LastErrorText = "文字起こしキューへの投入に失敗しました。";
+        }
+    }
     private async Task OpenSettingsAsync()
     {
-        var dialog = new SettingsWindow
+        var dialog = new SettingsWindow(_whisperModelStore, _whisperTranscriptionService)
         {
             Owner = System.Windows.Application.Current?.MainWindow,
             AlignmentMilliseconds = _options.ChannelAlignmentMilliseconds,
             StartStopHotkeyText = _options.StartStopHotkey,
             OutputDirectory = _options.OutputDirectory,
             DefaultSpeakerPlaybackGainDb = _options.DefaultSpeakerPlaybackGainDb,
-            DefaultMicPlaybackGainDb = _options.DefaultMicPlaybackGainDb
+            DefaultMicPlaybackGainDb = _options.DefaultMicPlaybackGainDb,
+            TranscriptionEnabled = _options.TranscriptionEnabled,
+            AutoTranscriptionAfterRecord = _options.AutoTranscriptionAfterRecord,
+            TranscriptionExecutionMode = _options.TranscriptionExecutionMode,
+            TranscriptionModel = _options.TranscriptionModel,
+            TranscriptionLanguage = _options.TranscriptionLanguage,
+            TranscriptionOutputFormats = _options.TranscriptionOutputFormats,
+            AutoTranscriptionPriority = _options.AutoTranscriptionPriority,
+            ManualTranscriptionPriority = _options.ManualTranscriptionPriority,
+            TranscriptionToastNotificationEnabled = _options.TranscriptionToastNotificationEnabled
         };
 
         if (dialog.ShowDialog() != true)
@@ -678,13 +715,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
             normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
         }
 
+        var normalizedLanguage = string.IsNullOrWhiteSpace(dialog.TranscriptionLanguage)
+            ? "ja"
+            : dialog.TranscriptionLanguage.Trim();
+        var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None
+            ? TranscriptionOutputFormats.Txt
+            : dialog.TranscriptionOutputFormats;
+
         _options = EnsureDefaults(_options) with
         {
             ChannelAlignmentMilliseconds = normalizedOffset,
             OutputDirectory = normalizedOutput,
             StartStopHotkey = normalizedHotkey,
             DefaultSpeakerPlaybackGainDb = normalizedSpeakerGain,
-            DefaultMicPlaybackGainDb = normalizedMicGain
+            DefaultMicPlaybackGainDb = normalizedMicGain,
+            TranscriptionEnabled = dialog.TranscriptionEnabled,
+            AutoTranscriptionAfterRecord = dialog.AutoTranscriptionAfterRecord,
+            TranscriptionExecutionMode = dialog.TranscriptionExecutionMode,
+            TranscriptionModel = dialog.TranscriptionModel,
+            TranscriptionLanguage = normalizedLanguage,
+            TranscriptionOutputFormats = normalizedFormats,
+            AutoTranscriptionPriority = dialog.AutoTranscriptionPriority,
+            ManualTranscriptionPriority = dialog.ManualTranscriptionPriority,
+            TranscriptionToastNotificationEnabled = dialog.TranscriptionToastNotificationEnabled
         };
 
         AlignmentMillisecondsText = normalizedOffset.ToString();
@@ -737,6 +790,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         return defaultDevice?.DeviceId ?? string.Empty;
     }
+
+    private void OnTranscriptionJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e)
+    {
+        if (e.Request.Trigger != TranscriptionTrigger.AutoAfterRecord)
+        {
+            return;
+        }
+
+        RunOnUi(() =>
+        {
+            if (e.Result.Succeeded)
+            {
+                if (e.Request.Options.TranscriptionToastNotificationEnabled)
+                {
+                    AppNotificationHub.Notify("VoxArchive", $"自動文字起こし完了: {Path.GetFileName(e.Request.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
+                }
+
+                return;
+            }
+
+            LastErrorText = $"文字起こし失敗: {e.Result.Message}";
+            if (e.Request.Options.TranscriptionToastNotificationEnabled)
+            {
+                AppNotificationHub.Notify("VoxArchive", $"自動文字起こし失敗: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
+            }
+        });
+    }
     private void RefreshCommands()
     {
         StartStopCommand.RaiseCanExecuteChanged();
@@ -767,7 +847,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OutputDirectory = output,
             StartStopHotkey = normalizedHotkey,
             DefaultSpeakerPlaybackGainDb = Math.Clamp(options.DefaultSpeakerPlaybackGainDb, -60d, 48d),
-            DefaultMicPlaybackGainDb = Math.Clamp(options.DefaultMicPlaybackGainDb, -60d, 48d)
+            DefaultMicPlaybackGainDb = Math.Clamp(options.DefaultMicPlaybackGainDb, -60d, 48d),
+            TranscriptionLanguage = string.IsNullOrWhiteSpace(options.TranscriptionLanguage) ? "ja" : options.TranscriptionLanguage.Trim(),
+            TranscriptionOutputFormats = options.TranscriptionOutputFormats == TranscriptionOutputFormats.None
+                ? TranscriptionOutputFormats.Txt
+                : options.TranscriptionOutputFormats
         };
     }
 
@@ -854,4 +938,17 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 

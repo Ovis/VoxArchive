@@ -434,6 +434,7 @@
                         <DataGrid.ContextMenu>
                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Style="{StaticResource LibraryContextMenuStyle}">
                                 <MenuItem Header="Explorerで表示" Command="{Binding OpenInExplorerCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
+                                <MenuItem Header="文字起こし" Command="{Binding TranscribeCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
                                 <Separator />
                                 <MenuItem Header="一覧から削除" Command="{Binding RemoveFromListCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
                                 <MenuItem Header="ファイル削除" Command="{Binding DeleteFileCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
@@ -539,6 +540,10 @@
                         <TextBox Text="{Binding EditableFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8" />
                         <Button Content="リネーム" Command="{Binding RenameCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0,0,0,8" />
 
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="文字起こし" Command="{Binding TranscribeCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0" />
+                        </StackPanel>
+
                         <StackPanel Orientation="Horizontal">
                             <Button Content="一覧から削除" Command="{Binding RemoveFromListCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0,0,8,0" />
                             <Button Content="ファイル削除" Command="{Binding DeleteFileCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0" />
@@ -569,3 +574,7 @@
         </Grid>
     </Grid>
 </Window>
+
+
+
+

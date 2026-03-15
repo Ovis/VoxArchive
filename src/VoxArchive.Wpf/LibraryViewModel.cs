@@ -1,11 +1,12 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
@@ -14,6 +15,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private readonly RecordingCatalogService _catalogService;
     private readonly RecordingPlaybackService _playbackService;
     private readonly DispatcherTimer _positionTimer;
+    private readonly TranscriptionJobQueue _transcriptionQueue;
+    private readonly Func<RecordingOptions> _optionsProvider;
 
     private LibraryRecordingItem? _selectedItem;
     private string _editableTitle = string.Empty;
@@ -27,13 +30,24 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private string _positionText = "00:00 / 00:00";
     private string _statusText = "準備完了";
     private bool _mixToMonoPlayback = true;
+    private bool _isTranscribing;
     private bool _isSeekingByUser;
     private bool _isUpdatingFromPlayer;
     private SeekStepOption? _selectedSeekStepOption = new(10, "10秒");
 
-    public LibraryViewModel(RecordingCatalogService catalogService, double defaultSpeakerGainDb = 0d, double defaultMicGainDb = 0d)
+    public LibraryViewModel(
+        RecordingCatalogService catalogService,
+        TranscriptionJobQueue transcriptionQueue,
+        Func<RecordingOptions> optionsProvider,
+        double defaultSpeakerGainDb = 0d,
+        double defaultMicGainDb = 0d)
     {
         _catalogService = catalogService;
+        _transcriptionQueue = transcriptionQueue;
+        _optionsProvider = optionsProvider;
+
+        _transcriptionQueue.JobCompleted += OnTranscriptionJobCompleted;
+
         _playbackService = new RecordingPlaybackService();
         _playbackService.PlaybackStopped += (_, _) =>
         {
@@ -73,6 +87,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         DeleteFileCommand = new DelegateCommand(DeleteFileAsync, () => SelectedItem is not null);
         RemoveFromListCommand = new DelegateCommand(RemoveFromListAsync, () => SelectedItem is not null);
         OpenInExplorerCommand = new DelegateCommand(OpenInExplorerAsync, () => SelectedItem is not null);
+        TranscribeCommand = new DelegateCommand(TranscribeAsync, CanTranscribe);
         SeekBackwardCommand = new DelegateCommand(SeekBackwardAsync, () => SelectedItem is not null);
         SeekForwardCommand = new DelegateCommand(SeekForwardAsync, () => SelectedItem is not null);
 
@@ -94,6 +109,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public DelegateCommand DeleteFileCommand { get; }
     public DelegateCommand RemoveFromListCommand { get; }
     public DelegateCommand OpenInExplorerCommand { get; }
+    public DelegateCommand TranscribeCommand { get; }
     public DelegateCommand SeekBackwardCommand { get; }
     public DelegateCommand SeekForwardCommand { get; }
 
@@ -171,6 +187,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             UpdatePositionText();
         }
     }
+
     public double DurationSeconds { get => _durationSeconds; private set => SetField(ref _durationSeconds, value); }
     public string PositionText { get => _positionText; private set => SetField(ref _positionText, value); }
     public string StatusText { get => _statusText; private set => SetField(ref _statusText, value); }
@@ -193,6 +210,18 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    public bool IsTranscribing
+    {
+        get => _isTranscribing;
+        private set
+        {
+            if (SetField(ref _isTranscribing, value))
+            {
+                TranscribeCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
     public void BeginSeek() => _isSeekingByUser = true;
 
     public void EndSeek()
@@ -206,6 +235,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _playbackService.Seek(TimeSpan.FromSeconds(SeekSeconds));
         UpdatePositionText();
     }
+
     public async Task ReloadAsync(string? newFilePath = null)
     {
         if (!string.IsNullOrWhiteSpace(newFilePath))
@@ -489,6 +519,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             StatusText = $"一括削除失敗: {ex.Message}";
         }
     }
+
     private async Task OpenInExplorerAsync()
     {
         if (SelectedItem is null)
@@ -514,6 +545,80 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             StatusText = $"Explorer起動失敗: {ex.Message}";
         }
     }
+
+    private bool CanTranscribe()
+    {
+        return SelectedItem is not null && !IsTranscribing;
+    }
+
+    private async Task TranscribeAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        if (!await EnsureFileExistsOrPromptRemoveAsync("文字起こし", SelectedItem.FilePath))
+        {
+            return;
+        }
+
+        var options = _optionsProvider();
+        if (!options.TranscriptionEnabled)
+        {
+            StatusText = "文字起こし機能が無効です。設定画面で有効化してください。";
+            return;
+        }
+
+        var queued = _transcriptionQueue.TryEnqueue(new TranscriptionJobRequest(
+            AudioFilePath: SelectedItem.FilePath,
+            Options: options,
+            Trigger: TranscriptionTrigger.Manual));
+
+        if (!queued)
+        {
+            StatusText = "文字起こしキューへの投入に失敗しました。";
+            return;
+        }
+
+        IsTranscribing = true;
+        StatusText = "文字起こしジョブをキューへ追加しました。";
+    }
+
+    private void OnTranscriptionJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e)
+    {
+        var app = System.Windows.Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        app.Dispatcher.Invoke(() =>
+        {
+            if (e.Request.Trigger == TranscriptionTrigger.Manual)
+            {
+                IsTranscribing = false;
+            }
+
+            if (e.Result.Succeeded)
+            {
+                StatusText = $"文字起こし完了: {Path.GetFileName(e.Request.AudioFilePath)}";
+                if (e.Request.Options.TranscriptionToastNotificationEnabled)
+                {
+                    AppNotificationHub.Notify("VoxArchive", $"文字起こし完了: {Path.GetFileName(e.Request.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
+                }
+            }
+            else
+            {
+                StatusText = $"文字起こし失敗: {e.Result.Message}";
+                if (e.Request.Options.TranscriptionToastNotificationEnabled)
+                {
+                    AppNotificationHub.Notify("VoxArchive", $"文字起こし失敗: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
+                }
+            }
+        });
+    }
+
     private Task SeekBackwardAsync() => SeekRelativeAsync(-1);
 
     private Task SeekForwardAsync() => SeekRelativeAsync(1);
@@ -545,6 +650,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         SeekSeconds = targetSeconds;
         UpdatePositionText();
     }
+
     private async Task RemoveFromListAsync()
     {
         if (SelectedItem is null)
@@ -619,6 +725,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             _isUpdatingFromPlayer = false;
         }
     }
+
     private void UpdatePositionText()
     {
         var pos = TimeSpan.FromSeconds(SeekSeconds);
@@ -642,6 +749,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         DeleteFileCommand.RaiseCanExecuteChanged();
         RemoveFromListCommand.RaiseCanExecuteChanged();
         OpenInExplorerCommand.RaiseCanExecuteChanged();
+        TranscribeCommand.RaiseCanExecuteChanged();
         SeekBackwardCommand.RaiseCanExecuteChanged();
         SeekForwardCommand.RaiseCanExecuteChanged();
     }
@@ -667,10 +775,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
+        _transcriptionQueue.JobCompleted -= OnTranscriptionJobCompleted;
         _positionTimer.Stop();
         _playbackService.Dispose();
     }
 }
-
-
 

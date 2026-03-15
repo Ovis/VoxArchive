@@ -20,4 +20,14 @@ public sealed record RecordingOptions
     public string StartStopHotkey { get; init; } = "Ctrl+F12";
     public double DefaultSpeakerPlaybackGainDb { get; init; } = 0d;
     public double DefaultMicPlaybackGainDb { get; init; } = 0d;
+    public bool TranscriptionEnabled { get; init; } = true;
+    public bool AutoTranscriptionAfterRecord { get; init; } = false;
+    public TranscriptionExecutionMode TranscriptionExecutionMode { get; init; } = TranscriptionExecutionMode.Auto;
+    public TranscriptionModel TranscriptionModel { get; init; } = TranscriptionModel.Small;
+    public string TranscriptionLanguage { get; init; } = "ja";
+    public TranscriptionOutputFormats TranscriptionOutputFormats { get; init; } = TranscriptionOutputFormats.Txt;
+    public TranscriptionPriority AutoTranscriptionPriority { get; init; } = TranscriptionPriority.Low;
+    public TranscriptionPriority ManualTranscriptionPriority { get; init; } = TranscriptionPriority.Normal;
+    public bool TranscriptionToastNotificationEnabled { get; init; } = true;
 }
+

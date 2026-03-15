@@ -152,27 +152,27 @@
 
 ## 8. 実装タスク分解（作業漏れ防止）
 ## 8.1 フェーズA: 契約と設定
-- [ ] `Domain/Application` に文字起こし用モデル・enum追加
-- [ ] `RecordingOptions` 拡張
-- [ ] `JsonSettingsService` の読込/保存更新
-- [ ] 設定画面UIへ項目追加
+- [x] `Domain/Application` に文字起こし用モデル・enum追加
+- [x] `RecordingOptions` 拡張
+- [x] `JsonSettingsService` の読込/保存更新
+- [x] 設定画面UIへ項目追加
 
 ## 8.2 フェーズB: Whisper基盤
 - [ ] Whisper.net依存追加
-- [ ] `WhisperTranscriptionService` 実装
-- [ ] モデル存在判定/ダウンロード/削除実装
-- [ ] 環境チェック実装（CPU/CUDA/モデル）
+- [x] `WhisperTranscriptionService` 実装
+- [x] モデル存在判定/ダウンロード/削除実装
+- [x] 環境チェック実装（CPU/CUDA/モデル）
 
 ## 8.3 フェーズC: 実行導線
-- [ ] `ITranscriptionJobQueue` と単一ワーカー実装
-- [ ] ライブラリ右メニューへ `文字起こし` 追加
-- [ ] 手動キュー投入を実装
-- [ ] 録音停止時の自動キュー投入を実装
+- [x] `ITranscriptionJobQueue` と単一ワーカー実装
+- [x] ライブラリ右メニューへ `文字起こし` 追加
+- [x] 手動キュー投入を実装
+- [x] 録音停止時の自動キュー投入を実装
 
 ## 8.4 フェーズD: UXと運用
-- [ ] 実行中状態表示（ボタン非活性）
-- [ ] 成功/失敗ダイアログの整備
-- [ ] トースト通知ON/OFF実装
+- [x] 実行中状態表示（ボタン非活性）
+- [x] 成功/失敗ダイアログの整備
+- [x] トースト通知ON/OFF実装
 - [ ] ログ出力（実行時間、失敗理由）追加
 
 ## 8.5 フェーズE: 検証
@@ -215,3 +215,4 @@
 - フェーズ単位で `session-log` に記録
 - タスク完了ごとに `backlog` のチェック更新
 - 各フェーズで1コミット以上（日本語タイトル）
+

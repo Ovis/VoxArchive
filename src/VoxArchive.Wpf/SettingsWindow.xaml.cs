@@ -1,19 +1,46 @@
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
 public partial class SettingsWindow : Window
 {
+    private readonly WhisperModelStore _whisperModelStore;
+    private readonly WhisperTranscriptionService _whisperTranscriptionService;
+
     private bool _isCapturingHotkey;
     private string _capturedHotkeyText = string.Empty;
 
     public SettingsWindow()
+        : this(new WhisperModelStore())
     {
+    }
+
+    private SettingsWindow(WhisperModelStore whisperModelStore)
+        : this(whisperModelStore, new WhisperTranscriptionService(whisperModelStore))
+    {
+    }
+
+    public SettingsWindow(WhisperModelStore whisperModelStore, WhisperTranscriptionService whisperTranscriptionService)
+    {
+        _whisperModelStore = whisperModelStore;
+        _whisperTranscriptionService = whisperTranscriptionService;
+
         InitializeComponent();
+
         PreviewKeyDown += OnWindowPreviewKeyDown;
+        ModelDirectoryTextBox.Text = _whisperModelStore.ModelsDirectory;
+
+        ExecutionModeComboBox.SelectedIndex = 0;
+        ModelComboBox.SelectedIndex = 2;
+        AutoPriorityComboBox.SelectedIndex = 0;
+        ManualPriorityComboBox.SelectedIndex = 1;
+        OutputTxtCheckBox.IsChecked = true;
+        TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
     }
 
     public int AlignmentMilliseconds
@@ -50,6 +77,59 @@ public partial class SettingsWindow : Window
         set => OutputDirectoryTextBox.Text = value;
     }
 
+    public bool TranscriptionEnabled
+    {
+        get => TranscriptionEnabledCheckBox.IsChecked == true;
+        set => TranscriptionEnabledCheckBox.IsChecked = value;
+    }
+
+    public bool AutoTranscriptionAfterRecord
+    {
+        get => AutoTranscriptionCheckBox.IsChecked == true;
+        set => AutoTranscriptionCheckBox.IsChecked = value;
+    }
+
+    public bool TranscriptionToastNotificationEnabled
+    {
+        get => ToastNotificationCheckBox.IsChecked == true;
+        set => ToastNotificationCheckBox.IsChecked = value;
+    }
+
+    public TranscriptionExecutionMode TranscriptionExecutionMode
+    {
+        get => GetSelectedTag(ExecutionModeComboBox, VoxArchive.Domain.TranscriptionExecutionMode.Auto);
+        set => SelectByTag(ExecutionModeComboBox, value);
+    }
+
+    public TranscriptionModel TranscriptionModel
+    {
+        get => GetSelectedTag(ModelComboBox, VoxArchive.Domain.TranscriptionModel.Small);
+        set => SelectByTag(ModelComboBox, value);
+    }
+
+    public string TranscriptionLanguage
+    {
+        get => LanguageTextBox.Text.Trim();
+        set => LanguageTextBox.Text = value;
+    }
+
+    public TranscriptionPriority AutoTranscriptionPriority
+    {
+        get => GetSelectedTag(AutoPriorityComboBox, VoxArchive.Domain.TranscriptionPriority.Low);
+        set => SelectByTag(AutoPriorityComboBox, value);
+    }
+
+    public TranscriptionPriority ManualTranscriptionPriority
+    {
+        get => GetSelectedTag(ManualPriorityComboBox, VoxArchive.Domain.TranscriptionPriority.Normal);
+        set => SelectByTag(ManualPriorityComboBox, value);
+    }
+
+    public TranscriptionOutputFormats TranscriptionOutputFormats
+    {
+        get => BuildOutputFormats();
+        set => ApplyOutputFormats(value);
+    }
 
     private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -63,6 +143,7 @@ public partial class SettingsWindow : Window
     {
         Close();
     }
+
     private void OnBrowseOutputDirectoryClick(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
@@ -136,6 +217,61 @@ public partial class SettingsWindow : Window
         e.Handled = true;
     }
 
+    private async void OnCheckEnvironmentClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var status = _whisperTranscriptionService.CheckEnvironment(BuildTemporaryOptions());
+            TranscriptionStatusTextBlock.Text = $"{status.RuntimeMessage}\n{status.ModelMessage}\n{status.DetailMessage}";
+        }
+        catch (Exception ex)
+        {
+            TranscriptionStatusTextBlock.Text = $"環境チェック失敗: {ex.Message}";
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async void OnDownloadModelClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ToggleTranscriptionButtons(false);
+            TranscriptionStatusTextBlock.Text = "モデルをダウンロードしています...";
+            var path = await _whisperModelStore.DownloadAsync(TranscriptionModel);
+            TranscriptionStatusTextBlock.Text = $"モデル取得完了: {path}";
+        }
+        catch (Exception ex)
+        {
+            TranscriptionStatusTextBlock.Text = $"モデル取得失敗: {ex.Message}";
+        }
+        finally
+        {
+            ToggleTranscriptionButtons(true);
+        }
+    }
+
+    private async void OnDeleteModelClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _whisperModelStore.DeleteAsync(TranscriptionModel);
+            TranscriptionStatusTextBlock.Text = "モデルを削除しました。";
+        }
+        catch (Exception ex)
+        {
+            TranscriptionStatusTextBlock.Text = $"モデル削除失敗: {ex.Message}";
+        }
+    }
+
+    private void ToggleTranscriptionButtons(bool isEnabled)
+    {
+        ExecutionModeComboBox.IsEnabled = isEnabled;
+        ModelComboBox.IsEnabled = isEnabled;
+        AutoPriorityComboBox.IsEnabled = isEnabled;
+        ManualPriorityComboBox.IsEnabled = isEnabled;
+    }
+
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(OffsetTextBox.Text, out var offsetMs))
@@ -191,6 +327,13 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        var formats = BuildOutputFormats();
+        if (formats == TranscriptionOutputFormats.None)
+        {
+            ModernDialog.Show(this, "文字起こし出力形式を1つ以上選択してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         DialogResult = true;
     }
 
@@ -204,4 +347,76 @@ public partial class SettingsWindow : Window
     {
         return TryParseGain(text, out var value) ? value : 0d;
     }
+
+    private static TEnum GetSelectedTag<TEnum>(ComboBox comboBox, TEnum defaultValue)
+        where TEnum : struct
+    {
+        if (comboBox.SelectedItem is ComboBoxItem item && item.Tag is TEnum value)
+        {
+            return value;
+        }
+
+        return defaultValue;
+    }
+
+    private static void SelectByTag<TEnum>(ComboBox comboBox, TEnum value)
+        where TEnum : struct
+    {
+        foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (item.Tag is TEnum tag && EqualityComparer<TEnum>.Default.Equals(tag, value))
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        if (comboBox.Items.Count > 0)
+        {
+            comboBox.SelectedIndex = 0;
+        }
+    }
+
+    private TranscriptionOutputFormats BuildOutputFormats()
+    {
+        var formats = TranscriptionOutputFormats.None;
+        if (OutputTxtCheckBox.IsChecked == true)
+        {
+            formats |= TranscriptionOutputFormats.Txt;
+        }
+
+        if (OutputSrtCheckBox.IsChecked == true)
+        {
+            formats |= TranscriptionOutputFormats.Srt;
+        }
+
+        if (OutputVttCheckBox.IsChecked == true)
+        {
+            formats |= TranscriptionOutputFormats.Vtt;
+        }
+
+        if (OutputJsonCheckBox.IsChecked == true)
+        {
+            formats |= TranscriptionOutputFormats.Json;
+        }
+
+        return formats;
+    }
+
+    private void ApplyOutputFormats(TranscriptionOutputFormats formats)
+    {
+        OutputTxtCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Txt);
+        OutputSrtCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Srt);
+        OutputVttCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Vtt);
+        OutputJsonCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Json);
+    }
+
+    private RecordingOptions BuildTemporaryOptions()
+    {
+        return new RecordingOptions
+        {
+            TranscriptionModel = TranscriptionModel
+        };
+    }
 }
+

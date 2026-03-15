@@ -300,3 +300,41 @@
 1. `RecordingOptions` 拡張と設定画面項目の実装。
 2. Whisper.net 実装（モデル管理/環境チェック/実行サービス）。
 3. ライブラリの `文字起こし` ボタンと録音後自動実行の導線接続。
+
+## 2026-03-15 Session-Whisper-Impl-01
+
+### 実施
+1. Domain を拡張し、文字起こし設定を `RecordingOptions` へ追加。
+   - `TranscriptionEnabled`
+   - `AutoTranscriptionAfterRecord`
+   - `TranscriptionExecutionMode`
+   - `TranscriptionModel`
+   - `TranscriptionLanguage`
+   - `TranscriptionOutputFormats`
+   - `AutoTranscriptionPriority`
+   - `ManualTranscriptionPriority`
+   - `TranscriptionToastNotificationEnabled`
+2. WPF に文字起こし基盤を追加。
+   - `WhisperModelStore`（モデル配置/取得/削除）
+   - `WhisperTranscriptionService`（Whisper.net をリフレクション経由で実行）
+   - `TranscriptionJobQueue`（単一ワーカー）
+3. MainViewModel に自動文字起こし導線を追加。
+   - 録音停止後のライブラリ登録完了時に自動キュー投入
+   - ジョブ完了時の通知/エラー表示
+4. LibraryViewModel / LibraryWindow に手動文字起こし導線を追加。
+   - 右メニューと右クリックメニューに `文字起こし` を追加
+   - 実行中の非活性制御、完了ステータス更新
+5. SettingsWindow を拡張し、文字起こし設定とモデル管理UIを追加。
+   - 実行モード、モデル、言語、出力形式（複数）
+   - 自動/手動優先度、通知有無
+   - 環境チェック、モデル取得、モデル削除
+6. 通知ハブ `AppNotificationHub` を追加し、タスクトレイバルーン通知を実装。
+7. `dotnet build src/VoxArchive.Wpf/VoxArchive.Wpf.csproj --no-restore` でビルド成功を確認。
+
+### 既知事項
+- Whisper.net パッケージをプロジェクト参照として追加していないため、実行環境に `Whisper.net` が存在しない場合は環境チェックで未検出となる。
+- 依存が存在する環境では、リフレクション経由で実行を試みる。
+
+### 次アクション
+1. Whisper.net 実体（NuGet runtime 含む）を導入した実機で E2E 検証。
+2. CUDA優先時の実行経路とフォールバック挙動を実測確認。

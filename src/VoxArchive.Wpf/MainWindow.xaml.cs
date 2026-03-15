@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeTrayIcon();
+        AppNotificationHub.BalloonRequested += OnBalloonRequested;
 
         DataContextChanged += OnDataContextChanged;
         SourceInitialized += OnSourceInitialized;
@@ -132,6 +133,20 @@ public partial class MainWindow : Window
             _notifyIcon.Dispose();
             _notifyIcon = null;
         }
+        AppNotificationHub.BalloonRequested -= OnBalloonRequested;
+    }
+
+    private void OnBalloonRequested(string title, string message, Forms.ToolTipIcon icon)
+    {
+        if (_notifyIcon is null)
+        {
+            return;
+        }
+
+        _notifyIcon.BalloonTipTitle = title;
+        _notifyIcon.BalloonTipText = message;
+        _notifyIcon.BalloonTipIcon = icon;
+        _notifyIcon.ShowBalloonTip(4500);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -360,4 +375,5 @@ public partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 }
+
 
