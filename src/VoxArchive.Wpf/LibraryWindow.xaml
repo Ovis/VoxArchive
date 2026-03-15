@@ -141,6 +141,66 @@
             <Setter Property="Padding" Value="8,4" />
             <Setter Property="Background" Value="Transparent" />
         </Style>
+    
+        <Style x:Key="LibraryContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Background" Value="#182334" />
+            <Setter Property="BorderBrush" Value="#2F4664" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="4">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LibraryMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#243A55" />
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#3D5D84" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#7F8CA3" />
+                                <Setter TargetName="ItemBorder" Property="Opacity" Value="0.7" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="16,14">
@@ -188,7 +248,14 @@
                               IsReadOnly="True"
                               SelectionMode="Single"
                               SelectionUnit="FullRow"
-                              MouseDoubleClick="OnRecordingGridMouseDoubleClick">
+                              MouseDoubleClick="OnRecordingGridMouseDoubleClick"
+                              PreviewMouseRightButtonDown="OnRecordingGridPreviewMouseRightButtonDown">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Style="{StaticResource LibraryContextMenuStyle}" ItemContainerStyle="{StaticResource LibraryMenuItemStyle}">
+                                <MenuItem Header="一覧から削除" Command="{Binding RemoveFromListCommand}" />
+                                <MenuItem Header="ファイル削除" Command="{Binding DeleteFileCommand}" />
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="タイトル" Binding="{Binding Title}" Width="2*" />
                             <DataGridTextColumn Header="ファイル名" Binding="{Binding FileName}" Width="2*" />

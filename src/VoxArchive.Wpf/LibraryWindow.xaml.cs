@@ -38,6 +38,18 @@ public partial class LibraryWindow : System.Windows.Window
         }
     }
 
+    private void OnRecordingGridPreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        var source = e.OriginalSource as System.Windows.DependencyObject;
+        var row = FindParent<System.Windows.Controls.DataGridRow>(source);
+        if (row is null)
+        {
+            return;
+        }
+
+        row.IsSelected = true;
+        row.Focus();
+    }
     private static T? FindParent<T>(System.Windows.DependencyObject? child)
         where T : System.Windows.DependencyObject
     {
