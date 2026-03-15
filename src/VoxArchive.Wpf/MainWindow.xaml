@@ -405,7 +405,17 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
                         <Grid Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Path Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Fill="{StaticResource TextPrimary}" Data="M3,7 H7 L13,3 V17 L7,13 H3 Z" Stretch="Fill" />
+                            <Canvas Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Width="20" Height="20">
+                                <Rectangle Width="12" Height="16" RadiusX="1.8" RadiusY="1.8"
+                                           Canvas.Left="4" Canvas.Top="2"
+                                           Stroke="{StaticResource TextPrimary}" StrokeThickness="1.6" />
+                                <Ellipse Width="3.6" Height="3.6"
+                                         Canvas.Left="8.2" Canvas.Top="4.2"
+                                         Stroke="{StaticResource TextPrimary}" StrokeThickness="1.4" />
+                                <Ellipse Width="7.2" Height="7.2"
+                                         Canvas.Left="6.4" Canvas.Top="9.0"
+                                         Stroke="{StaticResource TextPrimary}" StrokeThickness="1.4" />
+                            </Canvas>
                             <Path Visibility="{Binding IsProgramMode, Converter={StaticResource BoolToVisibilityConverter}}" Stroke="{StaticResource TextPrimary}" StrokeThickness="1.8" Data="M2,3 H18 V17 H2 Z M2,6 H18" Stretch="Fill" />
                         </Grid>
                     </Button>
@@ -423,4 +433,3 @@
         </Border>
     </Grid>
 </Window>
-
