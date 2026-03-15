@@ -52,6 +52,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         RefreshCommand = new DelegateCommand(RefreshAsync);
         AddFileCommand = new DelegateCommand(AddFileAsync);
+        RemoveMissingFromListCommand = new DelegateCommand(RemoveMissingFromListAsync);
         TogglePlaybackCommand = new DelegateCommand(TogglePlaybackAsync, () => SelectedItem is not null);
         StopCommand = new DelegateCommand(StopAsync, () => _playbackService.IsLoaded);
         SaveTitleCommand = new DelegateCommand(SaveTitleAsync, () => SelectedItem is not null);
@@ -68,6 +69,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     public DelegateCommand RefreshCommand { get; }
     public DelegateCommand AddFileCommand { get; }
+    public DelegateCommand RemoveMissingFromListCommand { get; }
     public DelegateCommand TogglePlaybackCommand { get; }
     public DelegateCommand StopCommand { get; }
     public DelegateCommand SaveTitleCommand { get; }
@@ -425,6 +427,42 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private async Task RemoveMissingFromListAsync()
+    {
+        var missing = Items.Where(x => !File.Exists(x.FilePath)).ToList();
+        if (missing.Count == 0)
+        {
+            StatusText = "削除対象の欠損ファイル情報はありません。";
+            return;
+        }
+
+        var result = ModernDialog.Show(
+            $"実ファイルが見つからない {missing.Count} 件を一覧から削除します。",
+            "一括削除確認",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (result != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var item in missing)
+            {
+                await _catalogService.RemoveFromListAsync(item.FilePath);
+            }
+
+            await RefreshAsync();
+            StatusText = $"{missing.Count} 件を一覧から削除しました。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"一括削除失敗: {ex.Message}";
+        }
+    }
     private async Task RemoveFromListAsync()
     {
         if (SelectedItem is null)

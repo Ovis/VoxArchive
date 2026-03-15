@@ -141,7 +141,7 @@
             <Setter Property="Padding" Value="8,4" />
             <Setter Property="Background" Value="Transparent" />
         </Style>
-    
+
         <Style x:Key="LibraryContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
             <Setter Property="Background" Value="#182334" />
@@ -212,7 +212,13 @@
 
         <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12">
             <Grid>
-                <Button Content="ファイル追加" Command="{Binding AddFileCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0,0,0,0" />
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="ファイル追加" Command="{Binding AddFileCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0" />
+                <Button Grid.Column="2" Content="削除済ファイル一括削除" Command="{Binding RemoveMissingFromListCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0" />
             </Grid>
         </Border>
 
