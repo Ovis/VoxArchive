@@ -42,11 +42,6 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="{StaticResource ControlBg}" />
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
@@ -57,6 +52,7 @@
             <Setter Property="GridLinesVisibility" Value="Horizontal" />
             <Setter Property="HeadersVisibility" Value="Column" />
         </Style>
+
         <Style TargetType="DataGridColumnHeader">
             <Setter Property="Foreground" Value="#111827" />
             <Setter Property="Background" Value="#E5E7EB" />
@@ -77,8 +73,8 @@
 
         <Border Grid.Row="0" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10">
             <DockPanel LastChildFill="False">
-                <Button Content="再スキャン" Command="{Binding RefreshCommand}" DockPanel.Dock="Left" />
-                <CheckBox Content="除外項目も表示" IsChecked="{Binding IncludeHidden, Mode=TwoWay}" DockPanel.Dock="Left" Margin="0,0,14,0" />
+                <Button Content="更新" Command="{Binding RefreshCommand}" DockPanel.Dock="Left" />
+                <Button Content="ファイル追加" Command="{Binding AddFileCommand}" DockPanel.Dock="Left" />
                 <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMuted}" />
             </DockPanel>
         </Border>
@@ -103,7 +99,6 @@
                         <DataGridTextColumn Header="長さ" Binding="{Binding DurationText}" Width="80" />
                         <DataGridTextColumn Header="更新日時" Binding="{Binding UpdatedText}" Width="160" />
                         <DataGridTextColumn Header="サイズ" Binding="{Binding SizeText}" Width="90" />
-                        <DataGridTextColumn Header="状態" Binding="{Binding StatusText}" Width="70" />
                     </DataGrid.Columns>
                 </DataGrid>
             </Border>
@@ -165,7 +160,7 @@
                         <Button Content="リネーム" Command="{Binding RenameCommand}" Margin="0,0,0,8" />
 
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="{Binding ToggleHiddenButtonText}" Command="{Binding ToggleHiddenCommand}" Margin="0,0,8,0" />
+                            <Button Content="一覧から削除" Command="{Binding RemoveFromListCommand}" Margin="0,0,8,0" />
                             <Button Content="ファイル削除" Command="{Binding DeleteFileCommand}" Background="#5C232A" BorderBrush="#7A2D36" Margin="0" />
                         </StackPanel>
                     </StackPanel>
@@ -173,6 +168,6 @@
             </Border>
         </Grid>
 
-        <TextBlock Grid.Row="4" Text="一覧から除外はファイル実体を削除しません。" Foreground="{StaticResource TextMuted}" />
+        <TextBlock Grid.Row="4" Text="一覧から削除はファイル実体を削除しません。" Foreground="{StaticResource TextMuted}" />
     </Grid>
 </Window>

@@ -11,10 +11,8 @@ public sealed class LibraryRecordingItem
     public int Channels { get; init; }
     public long FileSizeBytes { get; init; }
     public DateTime LastWriteUtc { get; init; }
-    public bool IsHidden { get; init; }
 
     public string DurationText => TimeSpan.FromMilliseconds(DurationMilliseconds).ToString(@"hh\:mm\:ss");
     public string SizeText => $"{FileSizeBytes / 1024d / 1024d:F2} MB";
     public string UpdatedText => LastWriteUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
-    public string StatusText => IsHidden ? "除外" : "通常";
 }

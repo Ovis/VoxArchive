@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Threading;
+using Microsoft.Win32;
 
 namespace VoxArchive.Wpf;
 
@@ -11,12 +12,10 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private readonly RecordingCatalogService _catalogService;
     private readonly RecordingPlaybackService _playbackService;
     private readonly DispatcherTimer _positionTimer;
-    private readonly string _outputDirectory;
 
     private LibraryRecordingItem? _selectedItem;
     private string _editableTitle = string.Empty;
     private string _editableFileName = string.Empty;
-    private bool _includeHidden;
     private bool _isPlaying;
     private string _playbackButtonText = "再生";
     private double _speakerGainDb;
@@ -27,10 +26,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private string _statusText = "準備完了";
     private bool _isSeekingByUser;
 
-    public LibraryViewModel(RecordingCatalogService catalogService, string outputDirectory)
+    public LibraryViewModel(RecordingCatalogService catalogService)
     {
         _catalogService = catalogService;
-        _outputDirectory = outputDirectory;
         _playbackService = new RecordingPlaybackService();
         _playbackService.PlaybackStopped += (_, _) =>
         {
@@ -47,12 +45,13 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         Items = new ObservableCollection<LibraryRecordingItem>();
 
         RefreshCommand = new DelegateCommand(RefreshAsync);
+        AddFileCommand = new DelegateCommand(AddFileAsync);
         TogglePlaybackCommand = new DelegateCommand(TogglePlaybackAsync, () => SelectedItem is not null && _playbackService.IsLoaded);
         StopCommand = new DelegateCommand(StopAsync, () => _playbackService.IsLoaded);
         SaveTitleCommand = new DelegateCommand(SaveTitleAsync, () => SelectedItem is not null);
         RenameCommand = new DelegateCommand(RenameAsync, () => SelectedItem is not null);
         DeleteFileCommand = new DelegateCommand(DeleteFileAsync, () => SelectedItem is not null);
-        ToggleHiddenCommand = new DelegateCommand(ToggleHiddenAsync, () => SelectedItem is not null);
+        RemoveFromListCommand = new DelegateCommand(RemoveFromListAsync, () => SelectedItem is not null);
 
         _ = RefreshAsync();
     }
@@ -62,12 +61,13 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public ObservableCollection<LibraryRecordingItem> Items { get; }
 
     public DelegateCommand RefreshCommand { get; }
+    public DelegateCommand AddFileCommand { get; }
     public DelegateCommand TogglePlaybackCommand { get; }
     public DelegateCommand StopCommand { get; }
     public DelegateCommand SaveTitleCommand { get; }
     public DelegateCommand RenameCommand { get; }
     public DelegateCommand DeleteFileCommand { get; }
-    public DelegateCommand ToggleHiddenCommand { get; }
+    public DelegateCommand RemoveFromListCommand { get; }
 
     public LibraryRecordingItem? SelectedItem
     {
@@ -83,18 +83,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             EditableFileName = value?.FileName ?? string.Empty;
             LoadSelectedForPlayback();
             RaiseCommands();
-        }
-    }
-
-    public bool IncludeHidden
-    {
-        get => _includeHidden;
-        set
-        {
-            if (SetField(ref _includeHidden, value))
-            {
-                _ = RefreshAsync();
-            }
         }
     }
 
@@ -154,17 +142,31 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public string PositionText { get => _positionText; private set => SetField(ref _positionText, value); }
     public string StatusText { get => _statusText; private set => SetField(ref _statusText, value); }
 
-    public string ToggleHiddenButtonText => SelectedItem?.IsHidden == true ? "一覧へ戻す" : "一覧から除外";
-
     public void BeginSeek() => _isSeekingByUser = true;
     public void EndSeek() => _isSeekingByUser = false;
-    public Task ReloadAsync() => RefreshAsync();
+
+    public async Task ReloadAsync(string? newFilePath = null)
+    {
+        if (!string.IsNullOrWhiteSpace(newFilePath))
+        {
+            try
+            {
+                await _catalogService.AddOrUpdateFileAsync(newFilePath);
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"追加失敗: {ex.Message}";
+            }
+        }
+
+        await RefreshAsync();
+    }
 
     private async Task RefreshAsync()
     {
         try
         {
-            var list = await _catalogService.SyncAndGetAsync(_outputDirectory, IncludeHidden);
+            var list = await _catalogService.GetAllAsync();
             Items.Clear();
             foreach (var item in list)
             {
@@ -177,11 +179,46 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             }
 
             StatusText = $"{Items.Count} 件";
-            OnPropertyChanged(nameof(ToggleHiddenButtonText));
         }
         catch (Exception ex)
         {
             StatusText = $"読み込み失敗: {ex.Message}";
+        }
+    }
+
+    private async Task AddFileAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "ライブラリへ追加するFLACを選択",
+            Filter = "FLAC (*.flac)|*.flac",
+            Multiselect = true,
+            CheckFileExists = true
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var added = 0;
+        foreach (var file in dialog.FileNames)
+        {
+            try
+            {
+                await _catalogService.AddOrUpdateFileAsync(file);
+                added++;
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"追加失敗: {ex.Message}";
+            }
+        }
+
+        await RefreshAsync();
+        if (added > 0)
+        {
+            StatusText = $"{added} 件追加しました。";
         }
     }
 
@@ -325,7 +362,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async Task ToggleHiddenAsync()
+    private async Task RemoveFromListAsync()
     {
         if (SelectedItem is null)
         {
@@ -334,14 +371,13 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
-            var willHide = !SelectedItem.IsHidden;
-            await _catalogService.SetHiddenAsync(SelectedItem.FilePath, willHide);
+            await _catalogService.RemoveFromListAsync(SelectedItem.FilePath);
             await RefreshAsync();
-            StatusText = willHide ? "一覧から除外しました。" : "一覧へ戻しました。";
+            StatusText = "一覧から削除しました（ファイルは残ります）。";
         }
         catch (Exception ex)
         {
-            StatusText = $"更新失敗: {ex.Message}";
+            StatusText = $"一覧削除失敗: {ex.Message}";
         }
     }
 
@@ -377,8 +413,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         SaveTitleCommand.RaiseCanExecuteChanged();
         RenameCommand.RaiseCanExecuteChanged();
         DeleteFileCommand.RaiseCanExecuteChanged();
-        ToggleHiddenCommand.RaiseCanExecuteChanged();
-        OnPropertyChanged(nameof(ToggleHiddenButtonText));
+        RemoveFromListCommand.RaiseCanExecuteChanged();
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

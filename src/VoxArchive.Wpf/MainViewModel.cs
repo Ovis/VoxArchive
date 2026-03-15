@@ -41,6 +41,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isProcessPopupOpenNormal;
     private bool _isProcessPopupOpenMini;
     private bool _isRefreshingDeviceList;
+    private readonly RecordingCatalogService _libraryCatalogService;
+    private string? _lastRecordedFilePath;
     private LibraryWindow? _libraryWindow;
     private LibraryViewModel? _libraryViewModel;
 
@@ -56,6 +58,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _deviceService = context.DeviceService;
         _processCatalogService = context.ProcessCatalogService;
         _options = EnsureDefaults(context.DefaultOptions);
+        var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
+        var dbPath = Path.Combine(appDir, "library.db");
+        _libraryCatalogService = new RecordingCatalogService(dbPath);
 
         SpeakerDevices = new ObservableCollection<AudioDeviceInfo>();
         MicDevices = new ObservableCollection<AudioDeviceInfo>();
@@ -87,9 +92,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ResetLevelMeters();
             }
 
-            if (s == RecordingState.Stopped && _libraryViewModel is not null)
+            if (s == RecordingState.Stopped)
             {
-                _ = _libraryViewModel.ReloadAsync();
+                _ = RegisterLatestRecordingAsync();
             }
             OnPropertyChanged(nameof(StartStopButtonText));
             OnPropertyChanged(nameof(PauseResumeButtonText));
@@ -108,6 +113,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _recordingService.StatisticsUpdated += (_, st) => RunOnUi(() =>
         {
             OutputPathText = $"出力: {st.OutputFilePath ?? "-"}";
+            if (!string.IsNullOrWhiteSpace(st.OutputFilePath))
+            {
+                _lastRecordedFilePath = st.OutputFilePath;
+            }
             ElapsedText = st.ElapsedTime.ToString(@"hh\:mm\:ss");
             SpeakerLevelPercent = IsSpeakerCaptureEnabled ? ConvertLevelToPercent(st.SpeakerLevel) : 0;
             MicLevelPercent = IsMicCaptureEnabled ? ConvertLevelToPercent(st.MicLevel) : 0;
@@ -541,6 +550,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             await _settingsService.SaveRecordingOptionsAsync(_options);
             var path = await _recordingService.StartAsync(startOptions);
+            _lastRecordedFilePath = path;
             _recordingService.SetSpeakerCaptureEnabled(IsSpeakerCaptureEnabled);
             _recordingService.SetMicCaptureEnabled(IsMicCaptureEnabled);
             OutputPathText = $"出力: {path}";
@@ -596,9 +606,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
-            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
-            var dbPath = Path.Combine(appDir, "library.db");
-            var vm = new LibraryViewModel(new RecordingCatalogService(dbPath), EnsureDefaults(_options).OutputDirectory);
+            var vm = new LibraryViewModel(_libraryCatalogService);
             _libraryViewModel = vm;
             _libraryWindow = new LibraryWindow(vm)
             {
@@ -617,6 +625,48 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         await Task.CompletedTask;
+    }
+
+    private async Task RegisterLatestRecordingAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_lastRecordedFilePath))
+        {
+            return;
+        }
+
+        var filePath = _lastRecordedFilePath;
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                if (_libraryViewModel is not null)
+                {
+                    await _libraryViewModel.ReloadAsync(filePath);
+                }
+                else
+                {
+                    await _libraryCatalogService.AddOrUpdateFileAsync(filePath);
+                }
+
+                _lastRecordedFilePath = null;
+                return;
+            }
+            catch (FileNotFoundException) when (attempt < 9)
+            {
+                await Task.Delay(100);
+            }
+            catch (IOException) when (attempt < 9)
+            {
+                await Task.Delay(100);
+            }
+            catch (Exception ex)
+            {
+                LastErrorText = $"ライブラリ登録失敗: {ex.Message}";
+                return;
+            }
+        }
+
+        LastErrorText = "ライブラリ登録失敗: 録音ファイルが見つかりません。";
     }
 
     private async Task OpenSettingsAsync()

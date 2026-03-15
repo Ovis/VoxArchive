@@ -1,4 +1,3 @@
-using System.IO;
 using Microsoft.Data.Sqlite;
 
 namespace VoxArchive.Wpf;
@@ -12,52 +11,37 @@ public sealed class RecordingCatalogService
         _dbPath = dbPath;
     }
 
-    public async Task<IReadOnlyList<LibraryRecordingItem>> SyncAndGetAsync(string outputDirectory, bool includeHidden, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<LibraryRecordingItem>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureDatabase();
+        await using var connection = OpenConnection();
+        return await GetAllCoreAsync(connection, cancellationToken);
+    }
+
+    public async Task AddOrUpdateFileAsync(string filePath, CancellationToken cancellationToken = default)
     {
         EnsureDatabase();
 
-        var files = Directory.Exists(outputDirectory)
-            ? Directory.EnumerateFiles(outputDirectory, "*.flac", SearchOption.TopDirectoryOnly).ToArray()
-            : Array.Empty<string>();
-
-        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        await using var connection = OpenConnection();
-
-        foreach (var path in files)
+        if (!File.Exists(filePath))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            existing.Add(path);
-
-            var fileInfo = new FileInfo(path);
-            string title;
-            long durationMs;
-            int sampleRate;
-            int channels;
-
-            try
-            {
-                using var tagFile = TagLib.File.Create(path);
-                title = string.IsNullOrWhiteSpace(tagFile.Tag.Title)
-                    ? Path.GetFileNameWithoutExtension(path)
-                    : tagFile.Tag.Title.Trim();
-                durationMs = (long)tagFile.Properties.Duration.TotalMilliseconds;
-                sampleRate = tagFile.Properties.AudioSampleRate;
-                channels = tagFile.Properties.AudioChannels;
-            }
-            catch
-            {
-                title = Path.GetFileNameWithoutExtension(path);
-                durationMs = 0;
-                sampleRate = 0;
-                channels = 0;
-            }
-
-            await UpsertAsync(connection, path, fileInfo.Name, title, durationMs, sampleRate, channels, fileInfo.Length, fileInfo.LastWriteTimeUtc, cancellationToken);
+            throw new FileNotFoundException("録音ファイルが見つかりません。", filePath);
         }
 
-        await RemoveMissingAsync(connection, existing, cancellationToken);
-        return await GetAllAsync(connection, includeHidden, cancellationToken);
+        var fileInfo = new FileInfo(filePath);
+        var (title, durationMs, sampleRate, channels) = ReadMetadata(filePath, fileInfo.Name);
+
+        await using var connection = OpenConnection();
+        await UpsertAsync(
+            connection,
+            filePath,
+            fileInfo.Name,
+            title,
+            durationMs,
+            sampleRate,
+            channels,
+            fileInfo.Length,
+            fileInfo.LastWriteTimeUtc,
+            cancellationToken);
     }
 
     public async Task UpdateTitleAsync(string filePath, string title, CancellationToken cancellationToken = default)
@@ -146,25 +130,15 @@ WHERE file_path = $oldPath;";
             File.Delete(filePath);
         }
 
-        await using var connection = OpenConnection();
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "DELETE FROM recordings WHERE file_path = $path;";
-        cmd.Parameters.AddWithValue("$path", filePath);
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await RemoveFromListAsync(filePath, cancellationToken);
     }
 
-    public async Task SetHiddenAsync(string filePath, bool isHidden, CancellationToken cancellationToken = default)
+    public async Task RemoveFromListAsync(string filePath, CancellationToken cancellationToken = default)
     {
         EnsureDatabase();
         await using var connection = OpenConnection();
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-UPDATE recordings
-SET is_hidden = $hidden,
-    updated_utc = $updated
-WHERE file_path = $path;";
-        cmd.Parameters.AddWithValue("$hidden", isHidden ? 1 : 0);
-        cmd.Parameters.AddWithValue("$updated", DateTime.UtcNow.ToString("o"));
+        cmd.CommandText = "DELETE FROM recordings WHERE file_path = $path;";
         cmd.Parameters.AddWithValue("$path", filePath);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -178,8 +152,9 @@ WHERE file_path = $path;";
         }
 
         using var connection = OpenConnection();
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = @"
 CREATE TABLE IF NOT EXISTS recordings (
     id TEXT PRIMARY KEY,
     file_path TEXT NOT NULL UNIQUE,
@@ -190,11 +165,69 @@ CREATE TABLE IF NOT EXISTS recordings (
     channels INTEGER NOT NULL,
     file_size_bytes INTEGER NOT NULL,
     last_write_utc TEXT NOT NULL,
-    is_hidden INTEGER NOT NULL DEFAULT 0,
     created_utc TEXT NOT NULL,
     updated_utc TEXT NOT NULL
 );";
-        cmd.ExecuteNonQuery();
+            cmd.ExecuteNonQuery();
+        }
+
+        MigrateIfHasLegacyHiddenColumn(connection);
+    }
+
+    private static void MigrateIfHasLegacyHiddenColumn(SqliteConnection connection)
+    {
+        using var check = connection.CreateCommand();
+        check.CommandText = "PRAGMA table_info(recordings);";
+        using var reader = check.ExecuteReader();
+        var hasHidden = false;
+        while (reader.Read())
+        {
+            var name = reader.GetString(1);
+            if (string.Equals(name, "is_hidden", StringComparison.OrdinalIgnoreCase))
+            {
+                hasHidden = true;
+                break;
+            }
+        }
+
+        if (!hasHidden)
+        {
+            return;
+        }
+
+        using var tx = connection.BeginTransaction();
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = @"
+CREATE TABLE recordings_new (
+    id TEXT PRIMARY KEY,
+    file_path TEXT NOT NULL UNIQUE,
+    file_name TEXT NOT NULL,
+    title TEXT,
+    duration_ms INTEGER NOT NULL,
+    sample_rate INTEGER NOT NULL,
+    channels INTEGER NOT NULL,
+    file_size_bytes INTEGER NOT NULL,
+    last_write_utc TEXT NOT NULL,
+    created_utc TEXT NOT NULL,
+    updated_utc TEXT NOT NULL
+);
+
+INSERT INTO recordings_new(
+    id, file_path, file_name, title, duration_ms, sample_rate, channels,
+    file_size_bytes, last_write_utc, created_utc, updated_utc)
+SELECT
+    id, file_path, file_name, title, duration_ms, sample_rate, channels,
+    file_size_bytes, last_write_utc, created_utc, updated_utc
+FROM recordings;
+
+DROP TABLE recordings;
+ALTER TABLE recordings_new RENAME TO recordings;";
+            cmd.ExecuteNonQuery();
+        }
+
+        tx.Commit();
     }
 
     private SqliteConnection OpenConnection()
@@ -202,6 +235,27 @@ CREATE TABLE IF NOT EXISTS recordings (
         var connection = new SqliteConnection($"Data Source={_dbPath}");
         connection.Open();
         return connection;
+    }
+
+    private static (string title, long durationMs, int sampleRate, int channels) ReadMetadata(string filePath, string fileName)
+    {
+        try
+        {
+            using var tagFile = TagLib.File.Create(filePath);
+            var title = string.IsNullOrWhiteSpace(tagFile.Tag.Title)
+                ? Path.GetFileNameWithoutExtension(fileName)
+                : tagFile.Tag.Title.Trim();
+
+            return (
+                title,
+                (long)tagFile.Properties.Duration.TotalMilliseconds,
+                tagFile.Properties.AudioSampleRate,
+                tagFile.Properties.AudioChannels);
+        }
+        catch
+        {
+            return (Path.GetFileNameWithoutExtension(fileName), 0, 0, 0);
+        }
     }
 
     private static async Task UpsertAsync(
@@ -220,10 +274,10 @@ CREATE TABLE IF NOT EXISTS recordings (
         cmd.CommandText = @"
 INSERT INTO recordings(
     id, file_path, file_name, title, duration_ms, sample_rate, channels,
-    file_size_bytes, last_write_utc, is_hidden, created_utc, updated_utc)
+    file_size_bytes, last_write_utc, created_utc, updated_utc)
 VALUES(
     $id, $path, $fileName, $title, $duration, $sampleRate, $channels,
-    $size, $lastWrite, 0, $created, $updated)
+    $size, $lastWrite, $created, $updated)
 ON CONFLICT(file_path) DO UPDATE SET
     file_name = excluded.file_name,
     title = excluded.title,
@@ -250,39 +304,10 @@ ON CONFLICT(file_path) DO UPDATE SET
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static async Task RemoveMissingAsync(SqliteConnection connection, HashSet<string> existing, CancellationToken cancellationToken)
-    {
-        var dbPaths = new List<string>();
-        await using (var select = connection.CreateCommand())
-        {
-            select.CommandText = "SELECT file_path FROM recordings;";
-            await using var reader = await select.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                dbPaths.Add(reader.GetString(0));
-            }
-        }
-
-        foreach (var dbPath in dbPaths)
-        {
-            if (existing.Contains(dbPath))
-            {
-                continue;
-            }
-
-            await using var delete = connection.CreateCommand();
-            delete.CommandText = "DELETE FROM recordings WHERE file_path = $path;";
-            delete.Parameters.AddWithValue("$path", dbPath);
-            await delete.ExecuteNonQueryAsync(cancellationToken);
-        }
-    }
-
-    private static async Task<IReadOnlyList<LibraryRecordingItem>> GetAllAsync(SqliteConnection connection, bool includeHidden, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<LibraryRecordingItem>> GetAllCoreAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = includeHidden
-            ? "SELECT id, file_path, file_name, title, duration_ms, sample_rate, channels, file_size_bytes, last_write_utc, is_hidden FROM recordings ORDER BY last_write_utc DESC;"
-            : "SELECT id, file_path, file_name, title, duration_ms, sample_rate, channels, file_size_bytes, last_write_utc, is_hidden FROM recordings WHERE is_hidden = 0 ORDER BY last_write_utc DESC;";
+        cmd.CommandText = "SELECT id, file_path, file_name, title, duration_ms, sample_rate, channels, file_size_bytes, last_write_utc FROM recordings ORDER BY last_write_utc DESC;";
 
         var list = new List<LibraryRecordingItem>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -298,8 +323,7 @@ ON CONFLICT(file_path) DO UPDATE SET
                 SampleRate = reader.GetInt32(5),
                 Channels = reader.GetInt32(6),
                 FileSizeBytes = reader.GetInt64(7),
-                LastWriteUtc = DateTime.TryParse(reader.GetString(8), out var dt) ? dt : DateTime.UtcNow,
-                IsHidden = reader.GetInt32(9) != 0
+                LastWriteUtc = DateTime.TryParse(reader.GetString(8), out var dt) ? dt : DateTime.UtcNow
             });
         }
 
