@@ -35,10 +35,11 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
         </Style>
+
         <Style x:Key="FlatButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-            <Setter Property="Background" Value="#223042" />
-            <Setter Property="BorderBrush" Value="#3A4E69" />
+            <Setter Property="Background" Value="#1B2A3C" />
+            <Setter Property="BorderBrush" Value="#2F4664" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="14,7" />
             <Setter Property="Height" Value="36" />
@@ -48,14 +49,14 @@
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
-            <Setter Property="Background" Value="{StaticResource Accent}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="Background" Value="#2F6FD8" />
+            <Setter Property="BorderBrush" Value="#3C7BE2" />
             <Setter Property="Foreground" Value="White" />
         </Style>
 
         <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
-            <Setter Property="Background" Value="{StaticResource Danger}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Danger}" />
+            <Setter Property="Background" Value="#9F3742" />
+            <Setter Property="BorderBrush" Value="#B14551" />
             <Setter Property="Foreground" Value="White" />
         </Style>
 
@@ -123,8 +124,6 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="12" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12">
@@ -132,13 +131,9 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Button Grid.Column="0" Content="更新" Command="{Binding RefreshCommand}" Style="{StaticResource FlatButtonStyle}" />
                 <Button Grid.Column="1" Content="ファイル追加" Command="{Binding AddFileCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0,0,0,0" />
-                <Border Grid.Column="2" HorizontalAlignment="Right" Background="#1A2636" BorderBrush="#2D425F" BorderThickness="1" CornerRadius="999" Padding="12,6">
-                    <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMuted}" FontSize="12" />
-                </Border>
             </Grid>
         </Border>
 
@@ -233,9 +228,7 @@
                         </Border>
                     </Grid>
 
-                    <Border Grid.Row="6" Background="#162235" BorderBrush="#2A3C56" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                        <CheckBox Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" />
-                    </Border>
+                    <CheckBox Grid.Row="6" Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" Margin="0,2,0,0" />
 
                     <StackPanel Grid.Row="8">
                         <TextBlock Text="編集" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,8" />
@@ -256,9 +249,5 @@
                 </Grid>
             </Border>
         </Grid>
-
-        <Border Grid.Row="4" Background="#131D2B" BorderBrush="#243244" BorderThickness="1" CornerRadius="8" Padding="12,8">
-            <TextBlock Text="一覧から削除はファイル実体を削除しません。" Foreground="{StaticResource TextMuted}" />
-        </Border>
     </Grid>
 </Window>
