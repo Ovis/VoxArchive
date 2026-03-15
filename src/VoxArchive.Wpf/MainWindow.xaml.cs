@@ -5,6 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using Forms = System.Windows.Forms;
+using Drawing = System.Drawing;
 
 namespace VoxArchive.Wpf;
 
@@ -22,13 +24,48 @@ public partial class MainWindow : Window
     private MainViewModel? _viewModel;
     private HwndSource? _hwndSource;
     private bool _isStartStopHotkeyRegistered;
+    private bool _isExitRequested;
+    private Forms.NotifyIcon? _notifyIcon;
 
     public MainWindow()
     {
         InitializeComponent();
+        InitializeTrayIcon();
+
         DataContextChanged += OnDataContextChanged;
         SourceInitialized += OnSourceInitialized;
+        Closing += OnClosing;
         Closed += OnClosed;
+        StateChanged += OnStateChanged;
+    }
+
+    private void InitializeTrayIcon()
+    {
+        var menu = new Forms.ContextMenuStrip();
+
+        var showMainItem = new Forms.ToolStripMenuItem("メイン画面を表示");
+        showMainItem.Click += (_, _) => ShowFromTray();
+
+        var showLibraryItem = new Forms.ToolStripMenuItem("ライブラリを表示");
+        showLibraryItem.Click += (_, _) => OpenLibraryFromTray();
+
+        var exitItem = new Forms.ToolStripMenuItem("終了");
+        exitItem.Click += (_, _) => ExitFromTray();
+
+        menu.Items.Add(showMainItem);
+        menu.Items.Add(showLibraryItem);
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add(exitItem);
+
+        _notifyIcon = new Forms.NotifyIcon
+        {
+            Text = "VoxArchive",
+            Icon = Drawing.SystemIcons.Application,
+            Visible = true,
+            ContextMenuStrip = menu
+        };
+
+        _notifyIcon.DoubleClick += (_, _) => ShowFromTray();
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -38,6 +75,25 @@ public partial class MainWindow : Window
         UpdateGlobalStartStopHotkey();
     }
 
+    private void OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (_isExitRequested)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        HideToTray();
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Minimized)
+        {
+            HideToTray();
+        }
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         UnregisterGlobalStartStopHotkey();
@@ -45,6 +101,13 @@ public partial class MainWindow : Window
         {
             _hwndSource.RemoveHook(WndProc);
             _hwndSource = null;
+        }
+
+        if (_notifyIcon is not null)
+        {
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+            _notifyIcon = null;
         }
     }
 
@@ -77,6 +140,43 @@ public partial class MainWindow : Window
         {
             UpdateGlobalStartStopHotkey();
         }
+    }
+
+    private void OpenLibraryFromTray()
+    {
+        ShowFromTray();
+
+        if (_viewModel?.OpenLibraryCommand.CanExecute(null) == true)
+        {
+            _viewModel.OpenLibraryCommand.Execute(null);
+        }
+    }
+
+    private void ExitFromTray()
+    {
+        _isExitRequested = true;
+
+        if (_notifyIcon is not null)
+        {
+            _notifyIcon.Visible = false;
+        }
+
+        Close();
+    }
+
+    private void HideToTray()
+    {
+        ShowInTaskbar = false;
+        WindowState = WindowState.Normal;
+        Hide();
+    }
+
+    private void ShowFromTray()
+    {
+        ShowInTaskbar = true;
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
     }
 
     private void OnDeviceListBoxPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
