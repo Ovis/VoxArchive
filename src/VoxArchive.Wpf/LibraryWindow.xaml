@@ -240,6 +240,16 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="InlineLoadingProgressStyle" TargetType="ProgressBar">
+            <Setter Property="Foreground" Value="{StaticResource Accent}" />
+            <Setter Property="Background" Value="#1A2636" />
+            <Setter Property="BorderBrush" Value="#2F4664" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Margin" Value="10,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="{StaticResource CardBg}" />
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
@@ -575,9 +585,26 @@
                         <TextBlock Text="ファイル名" Foreground="{StaticResource TextMuted}" />
                         <TextBox Text="{Binding EditableFileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8" />
                         <Button Content="リネーム" Command="{Binding RenameCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0,0,0,8" />
-
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <Button Content="文字起こし" Command="{Binding TranscribeCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTranscribing}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <ProgressBar Width="84" IsIndeterminate="True" Style="{StaticResource InlineLoadingProgressStyle}" />
+                                <TextBlock Text="文字起こし中..."
+                                           Margin="8,0,0,0"
+                                           Foreground="{StaticResource TextMuted}"
+                                           FontSize="12"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal">
@@ -610,8 +637,3 @@
         </Grid>
     </Grid>
 </Window>
-
-
-
-
-
