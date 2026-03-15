@@ -94,6 +94,108 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="LibraryComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Background" Value="#1B2A3C" />
+            <Setter Property="Padding" Value="8,4" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#243A55" />
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#2A5EBD" />
+                    <Setter Property="Foreground" Value="White" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Background" Value="#1B2A3C" />
+            <Setter Property="BorderBrush" Value="#2F4664" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource LibraryComboBoxItemStyle}" />
+            <Style.Resources>
+                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#1B2A3C" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#EFF4FC" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#2A5EBD" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#1B2A3C" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#EFF4FC" />
+            </Style.Resources>
+        </Style>
+
+        <Style x:Key="SeekStepComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="ComboRoot"
+                                    Background="#1B2A3C"
+                                    BorderBrush="#2F4664"
+                                    BorderThickness="1"
+                                    CornerRadius="6" />
+                            <Grid Margin="8,0,8,0" IsHitTestVisible="False">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="20" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding DataContext.SelectedSeekStepOption.Label, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Foreground="{StaticResource TextPrimary}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="▼"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextPrimary}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <ToggleButton Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                          ClickMode="Press"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Opacity="0">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent" />
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   PopupAnimation="Fade">
+                                <Border Margin="0,4,0,0"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Background="#1B2A3C"
+                                        BorderBrush="#2F4664"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <ScrollViewer CanContentScroll="True" MaxHeight="260">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ComboRoot" Property="BorderBrush" Value="#3D5D84" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ComboRoot" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="Slider">
             <Setter Property="Foreground" Value="{StaticResource Accent}" />
             <Style.Triggers>
@@ -280,6 +382,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="10" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
@@ -303,9 +406,21 @@
                     </StackPanel>
 
                     <TextBlock Grid.Row="2" Text="{Binding PositionText}" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4" />
-                    <Slider Grid.Row="3" Minimum="0" Maximum="{Binding DurationSeconds}" Value="{Binding SeekSeconds, Mode=TwoWay}" IsMoveToPointEnabled="True" PreviewMouseLeftButtonDown="OnSeekDragStart" PreviewMouseLeftButtonUp="OnSeekDragEnd" Margin="0,0,0,10" />
+                    <Grid Grid.Row="3" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="42" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="112" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="42" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="－" Command="{Binding SeekBackwardCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0" />
+                        <ComboBox Grid.Column="2" Style="{StaticResource SeekStepComboBoxStyle}" ItemsSource="{Binding SeekStepOptions}" SelectedItem="{Binding SelectedSeekStepOption, Mode=TwoWay}" DisplayMemberPath="Label" HorizontalContentAlignment="Center" />
+                        <Button Grid.Column="4" Content="＋" Command="{Binding SeekForwardCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0" />
+                    </Grid>
+                    <Slider Grid.Row="4" Minimum="0" Maximum="{Binding DurationSeconds}" Value="{Binding SeekSeconds, Mode=TwoWay}" IsMoveToPointEnabled="True" PreviewMouseLeftButtonDown="OnSeekDragStart" PreviewMouseLeftButtonUp="OnSeekDragEnd" Margin="0,0,0,10" />
 
-                    <Grid Grid.Row="4" Margin="0,0,0,10">
+                    <Grid Grid.Row="5" Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="74" />
@@ -319,7 +434,7 @@
                         </Border>
                     </Grid>
 
-                    <Grid Grid.Row="5" Margin="0,0,0,12">
+                    <Grid Grid.Row="6" Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="74" />
@@ -333,9 +448,9 @@
                         </Border>
                     </Grid>
 
-                    <CheckBox Grid.Row="6" Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" Margin="0,2,0,0" />
+                    <CheckBox Grid.Row="7" Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" Margin="0,2,0,0" />
 
-                    <StackPanel Grid.Row="8">
+                    <StackPanel Grid.Row="9">
                         <TextBlock Text="編集" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,8" />
 
                         <TextBlock Text="タイトル" Foreground="{StaticResource TextMuted}" />
@@ -352,7 +467,7 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <Border Grid.RowSpan="9" Background="#C0111823" CornerRadius="10" IsHitTestVisible="False">
+                    <Border Grid.RowSpan="10" Background="#C0111823" CornerRadius="10" IsHitTestVisible="False">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Collapsed" />

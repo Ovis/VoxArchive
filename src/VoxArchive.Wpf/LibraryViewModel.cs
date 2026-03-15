@@ -29,6 +29,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private bool _mixToMonoPlayback = true;
     private bool _isSeekingByUser;
     private bool _isUpdatingFromPlayer;
+    private SeekStepOption? _selectedSeekStepOption = new(10, "10秒");
 
     public LibraryViewModel(RecordingCatalogService catalogService, double defaultSpeakerGainDb = 0d, double defaultMicGainDb = 0d)
     {
@@ -50,6 +51,17 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _positionTimer.Tick += (_, _) => UpdatePositionFromPlayer();
 
         Items = new ObservableCollection<LibraryRecordingItem>();
+        SeekStepOptions = new[]
+        {
+            new SeekStepOption(5, "5秒"),
+            new SeekStepOption(10, "10秒"),
+            new SeekStepOption(15, "15秒"),
+            new SeekStepOption(30, "30秒"),
+            new SeekStepOption(60, "1分"),
+            new SeekStepOption(300, "5分"),
+            new SeekStepOption(600, "10分")
+        };
+        SelectedSeekStepOption = SeekStepOptions[1];
 
         RefreshCommand = new DelegateCommand(RefreshAsync);
         AddFileCommand = new DelegateCommand(AddFileAsync);
@@ -61,6 +73,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         DeleteFileCommand = new DelegateCommand(DeleteFileAsync, () => SelectedItem is not null);
         RemoveFromListCommand = new DelegateCommand(RemoveFromListAsync, () => SelectedItem is not null);
         OpenInExplorerCommand = new DelegateCommand(OpenInExplorerAsync, () => SelectedItem is not null);
+        SeekBackwardCommand = new DelegateCommand(SeekBackwardAsync, () => SelectedItem is not null);
+        SeekForwardCommand = new DelegateCommand(SeekForwardAsync, () => SelectedItem is not null);
 
         _ = RefreshAsync();
     }
@@ -68,6 +82,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<LibraryRecordingItem> Items { get; }
+    public IReadOnlyList<SeekStepOption> SeekStepOptions { get; }
 
     public DelegateCommand RefreshCommand { get; }
     public DelegateCommand AddFileCommand { get; }
@@ -79,6 +94,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public DelegateCommand DeleteFileCommand { get; }
     public DelegateCommand RemoveFromListCommand { get; }
     public DelegateCommand OpenInExplorerCommand { get; }
+    public DelegateCommand SeekBackwardCommand { get; }
+    public DelegateCommand SeekForwardCommand { get; }
 
     public LibraryRecordingItem? SelectedItem
     {
@@ -157,6 +174,12 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public double DurationSeconds { get => _durationSeconds; private set => SetField(ref _durationSeconds, value); }
     public string PositionText { get => _positionText; private set => SetField(ref _positionText, value); }
     public string StatusText { get => _statusText; private set => SetField(ref _statusText, value); }
+
+    public SeekStepOption? SelectedSeekStepOption
+    {
+        get => _selectedSeekStepOption;
+        set => SetField(ref _selectedSeekStepOption, value);
+    }
 
     public bool MixToMonoPlayback
     {
@@ -491,6 +514,37 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             StatusText = $"Explorer起動失敗: {ex.Message}";
         }
     }
+    private Task SeekBackwardAsync() => SeekRelativeAsync(-1);
+
+    private Task SeekForwardAsync() => SeekRelativeAsync(1);
+
+    private async Task SeekRelativeAsync(int direction)
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        if (!await EnsureFileExistsOrPromptRemoveAsync("シーク", SelectedItem.FilePath))
+        {
+            return;
+        }
+
+        if (!_playbackService.IsLoaded)
+        {
+            LoadSelectedForPlayback();
+        }
+
+        if (!_playbackService.IsLoaded)
+        {
+            return;
+        }
+
+        var stepSeconds = SelectedSeekStepOption?.Seconds ?? 10;
+        var targetSeconds = Math.Clamp(SeekSeconds + (direction * stepSeconds), 0d, DurationSeconds);
+        SeekSeconds = targetSeconds;
+        UpdatePositionText();
+    }
     private async Task RemoveFromListAsync()
     {
         if (SelectedItem is null)
@@ -588,6 +642,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         DeleteFileCommand.RaiseCanExecuteChanged();
         RemoveFromListCommand.RaiseCanExecuteChanged();
         OpenInExplorerCommand.RaiseCanExecuteChanged();
+        SeekBackwardCommand.RaiseCanExecuteChanged();
+        SeekForwardCommand.RaiseCanExecuteChanged();
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
@@ -606,6 +662,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+
+    public sealed record SeekStepOption(int Seconds, string Label);
 
     public void Dispose()
     {
