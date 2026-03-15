@@ -323,7 +323,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
 
-    public double WindowWidth => 630;
+    public double WindowWidth => 510;
     public double WindowHeight => 100;
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
