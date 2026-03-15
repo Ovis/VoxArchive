@@ -479,24 +479,24 @@
                     <TextBlock Grid.Row="0" Text="再生" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,8" />
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Content="{Binding PlaybackButtonText}" Command="{Binding TogglePlaybackCommand}" Width="126" Style="{StaticResource PrimaryButtonStyle}" />
-                        <Button Content="停止" Command="{Binding StopCommand}" Width="84" Style="{StaticResource FlatButtonStyle}" Margin="0" />
+                        <Button Content="{Binding PlaybackButtonText}" Command="{Binding TogglePlaybackCommand}" Width="116" Height="32" MinHeight="32" FontSize="12" Padding="10,5" Style="{StaticResource PrimaryButtonStyle}" />
+                        <Button Content="停止" Command="{Binding StopCommand}" Width="78" Height="32" MinHeight="32" FontSize="12" Padding="10,5" Style="{StaticResource FlatButtonStyle}" Margin="0" />
                     </StackPanel>
 
                     <TextBlock Grid.Row="2" Text="{Binding PositionText}" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4" />
-                    <Grid Grid.Row="3" Margin="0,0,0,8">
+                    <Slider Grid.Row="3" Minimum="0" Maximum="{Binding DurationSeconds}" Value="{Binding SeekSeconds, Mode=TwoWay}" IsMoveToPointEnabled="True" PreviewMouseLeftButtonDown="OnSeekDragStart" PreviewMouseLeftButtonUp="OnSeekDragEnd" Margin="0,0,0,8" />
+                    <Grid Grid.Row="4" Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="42" />
+                            <ColumnDefinition Width="38" />
                             <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="112" />
+                            <ColumnDefinition Width="96" />
                             <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="42" />
+                            <ColumnDefinition Width="38" />
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Content="－" Command="{Binding SeekBackwardCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0" />
-                        <ComboBox Grid.Column="2" Style="{StaticResource SeekStepComboBoxStyle}" ItemsSource="{Binding SeekStepOptions}" SelectedItem="{Binding SelectedSeekStepOption, Mode=TwoWay}" DisplayMemberPath="Label" HorizontalContentAlignment="Center" />
-                        <Button Grid.Column="4" Content="＋" Command="{Binding SeekForwardCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0" />
+                        <Button Grid.Column="0" Content="－" Command="{Binding SeekBackwardCommand}" Height="30" MinHeight="30" FontSize="14" Padding="8,4" Style="{StaticResource FlatButtonStyle}" Margin="0" />
+                        <ComboBox Grid.Column="2" Style="{StaticResource SeekStepComboBoxStyle}" Height="30" FontSize="12" ItemsSource="{Binding SeekStepOptions}" SelectedItem="{Binding SelectedSeekStepOption, Mode=TwoWay}" DisplayMemberPath="Label" HorizontalContentAlignment="Center" />
+                        <Button Grid.Column="4" Content="＋" Command="{Binding SeekForwardCommand}" Height="30" MinHeight="30" FontSize="14" Padding="8,4" Style="{StaticResource FlatButtonStyle}" Margin="0" />
                     </Grid>
-                    <Slider Grid.Row="4" Minimum="0" Maximum="{Binding DurationSeconds}" Value="{Binding SeekSeconds, Mode=TwoWay}" IsMoveToPointEnabled="True" PreviewMouseLeftButtonDown="OnSeekDragStart" PreviewMouseLeftButtonUp="OnSeekDragEnd" Margin="0,0,0,10" />
 
                     <Grid Grid.Row="5" Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
