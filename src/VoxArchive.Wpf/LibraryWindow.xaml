@@ -16,6 +16,8 @@
         <SolidColorBrush x:Key="TextPrimary" Color="#F3F6FA" />
         <SolidColorBrush x:Key="TextMuted" Color="#99A7BD" />
         <SolidColorBrush x:Key="Accent" Color="#E94545" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#2A5EBD" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="White" />
 
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
