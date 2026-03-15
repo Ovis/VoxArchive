@@ -27,6 +27,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private string _statusText = "準備完了";
     private bool _mixToMonoPlayback = true;
     private bool _isSeekingByUser;
+    private bool _isUpdatingFromPlayer;
 
     public LibraryViewModel(RecordingCatalogService catalogService, double defaultSpeakerGainDb = 0d, double defaultMicGainDb = 0d)
     {
@@ -135,14 +136,19 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         get => _seekSeconds;
         set
         {
-            if (SetField(ref _seekSeconds, value) && _isSeekingByUser)
+            if (!SetField(ref _seekSeconds, value))
+            {
+                return;
+            }
+
+            if (!_isUpdatingFromPlayer)
             {
                 _playbackService.Seek(TimeSpan.FromSeconds(value));
-                UpdatePositionText();
             }
+
+            UpdatePositionText();
         }
     }
-
     public double DurationSeconds { get => _durationSeconds; private set => SetField(ref _durationSeconds, value); }
     public string PositionText { get => _positionText; private set => SetField(ref _positionText, value); }
     public string StatusText { get => _statusText; private set => SetField(ref _statusText, value); }
@@ -160,8 +166,18 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     }
 
     public void BeginSeek() => _isSeekingByUser = true;
-    public void EndSeek() => _isSeekingByUser = false;
 
+    public void EndSeek()
+    {
+        _isSeekingByUser = false;
+        if (!_playbackService.IsLoaded)
+        {
+            return;
+        }
+
+        _playbackService.Seek(TimeSpan.FromSeconds(SeekSeconds));
+        UpdatePositionText();
+    }
     public async Task ReloadAsync(string? newFilePath = null)
     {
         if (!string.IsNullOrWhiteSpace(newFilePath))
@@ -473,10 +489,16 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        SeekSeconds = _playbackService.Position.TotalSeconds;
-        UpdatePositionText();
+        _isUpdatingFromPlayer = true;
+        try
+        {
+            SeekSeconds = _playbackService.Position.TotalSeconds;
+        }
+        finally
+        {
+            _isUpdatingFromPlayer = false;
+        }
     }
-
     private void UpdatePositionText()
     {
         var pos = TimeSpan.FromSeconds(SeekSeconds);
@@ -524,3 +546,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _playbackService.Dispose();
     }
 }
+
+
+
