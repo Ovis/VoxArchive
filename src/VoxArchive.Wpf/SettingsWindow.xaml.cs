@@ -223,7 +223,7 @@ public partial class SettingsWindow : Window
         try
         {
             var status = _whisperTranscriptionService.CheckEnvironment(BuildTemporaryOptions());
-            TranscriptionStatusTextBlock.Text = $"{status.RuntimeMessage}\n{status.ModelMessage}\n{status.DetailMessage}";
+            TranscriptionStatusTextBlock.Text = $"{status.RuntimeMessage}\n{status.ModelMessage}\n{status.CudaMessage}\n{status.DetailMessage}";
         }
         catch (Exception ex)
         {
@@ -462,5 +462,4 @@ public partial class SettingsWindow : Window
         };
     }
 }
-
 

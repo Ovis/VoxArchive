@@ -1,6 +1,7 @@
 using System.Collections;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using NAudio.Wave;
@@ -29,6 +30,9 @@ public sealed class WhisperTranscriptionService
     {
         var runtimeAvailable = TryGetWhisperFactoryType(out _);
         var modelInstalled = _modelStore.IsInstalled(options.TranscriptionModel);
+        var cudaRuntimeAvailable = TryGetCudaRuntimeType(out _);
+        var cudaDriverAvailable = TryLoadCudaDriver(out var cudaDriverDetail);
+        var cudaAvailable = cudaRuntimeAvailable && cudaDriverAvailable;
 
         var runtimeMessage = runtimeAvailable
             ? "Whisper.net ランタイムを検出しました。"
@@ -38,11 +42,20 @@ public sealed class WhisperTranscriptionService
             ? $"モデル '{WhisperModelStore.GetModelFileName(options.TranscriptionModel)}' は配置済みです。"
             : $"モデル '{WhisperModelStore.GetModelFileName(options.TranscriptionModel)}' は未配置です。";
 
+        var cudaMessage = cudaAvailable
+            ? "CUDA 実行環境を利用できます。"
+            : $"CUDA 実行環境を利用できません。({cudaDriverDetail})";
+
         var detail = runtimeAvailable && modelInstalled
             ? "文字起こし実行の前提条件を満たしています。"
             : "設定画面のモデル管理/依存関係を確認してください。";
 
-        return new WhisperEnvironmentStatus(runtimeAvailable, modelInstalled, runtimeMessage, modelMessage, detail);
+        if (options.TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !cudaAvailable)
+        {
+            detail += " CudaPreferred が選択されていますが、現在は CUDA を使用できません。CPU にフォールバックします。";
+        }
+
+        return new WhisperEnvironmentStatus(runtimeAvailable, modelInstalled, runtimeMessage, modelMessage, cudaAvailable, cudaMessage, detail);
     }
 
     public async Task<string> EnsureModelAsync(TranscriptionModel model, CancellationToken cancellationToken = default)
@@ -158,6 +171,49 @@ public sealed class WhisperTranscriptionService
         }
     }
 
+
+    private static bool TryGetCudaRuntimeType(out Type? cudaRuntimeType)
+    {
+        cudaRuntimeType = null;
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var assemblyName = assembly.GetName().Name;
+            if (string.IsNullOrWhiteSpace(assemblyName)
+                || !assemblyName.StartsWith("Whisper.net.Runtime.Cuda", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            cudaRuntimeType = assembly.GetTypes().FirstOrDefault();
+            return cudaRuntimeType is not null;
+        }
+
+        try
+        {
+            var loaded = Assembly.Load("Whisper.net.Runtime.Cuda");
+            cudaRuntimeType = loaded.GetTypes().FirstOrDefault();
+            return cudaRuntimeType is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryLoadCudaDriver(out string detail)
+    {
+        IntPtr handle;
+        if (NativeLibrary.TryLoad("nvcuda.dll", out handle))
+        {
+            NativeLibrary.Free(handle);
+            detail = "nvcuda.dll を検出";
+            return true;
+        }
+
+        detail = "nvcuda.dll を検出できません";
+        return false;
+    }
     private static async Task<IReadOnlyList<TranscribedSegment>> ExecuteWhisperAsync(
         Type factoryType,
         string modelPath,
@@ -755,4 +811,5 @@ public sealed class WhisperTranscriptionService
 
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);
 }
+
 

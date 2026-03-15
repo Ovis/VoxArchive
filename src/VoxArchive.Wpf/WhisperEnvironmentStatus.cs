@@ -5,4 +5,7 @@ public sealed record WhisperEnvironmentStatus(
     bool ModelInstalled,
     string RuntimeMessage,
     string ModelMessage,
+    bool CudaAvailable,
+    string CudaMessage,
     string DetailMessage);
+
