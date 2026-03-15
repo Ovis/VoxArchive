@@ -158,6 +158,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     public void BeginSeek() => _isSeekingByUser = true;
     public void EndSeek() => _isSeekingByUser = false;
+    public Task ReloadAsync() => RefreshAsync();
 
     private async Task RefreshAsync()
     {

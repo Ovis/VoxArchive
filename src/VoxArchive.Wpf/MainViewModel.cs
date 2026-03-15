@@ -42,6 +42,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isProcessPopupOpenMini;
     private bool _isRefreshingDeviceList;
     private LibraryWindow? _libraryWindow;
+    private LibraryViewModel? _libraryViewModel;
 
     private const double MeterFloorDb = -60d;
     private const double MeterCeilingDb = 0d;
@@ -84,6 +85,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (s is RecordingState.Stopped or RecordingState.Error)
             {
                 ResetLevelMeters();
+            }
+
+            if (s == RecordingState.Stopped && _libraryViewModel is not null)
+            {
+                _ = _libraryViewModel.ReloadAsync();
             }
             OnPropertyChanged(nameof(StartStopButtonText));
             OnPropertyChanged(nameof(PauseResumeButtonText));
@@ -593,11 +599,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
             var dbPath = Path.Combine(appDir, "library.db");
             var vm = new LibraryViewModel(new RecordingCatalogService(dbPath), EnsureDefaults(_options).OutputDirectory);
+            _libraryViewModel = vm;
             _libraryWindow = new LibraryWindow(vm)
             {
                 Owner = System.Windows.Application.Current?.MainWindow
             };
-            _libraryWindow.Closed += (_, _) => _libraryWindow = null;
+            _libraryWindow.Closed += (_, _) =>
+            {
+                _libraryWindow = null;
+                _libraryViewModel = null;
+            };
             _libraryWindow.Show();
         }
         catch (Exception ex)
