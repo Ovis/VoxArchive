@@ -546,10 +546,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 _options.DefaultSpeakerPlaybackGainDb,
                 _options.DefaultMicPlaybackGainDb);
             _libraryViewModel = vm;
-            _libraryWindow = new LibraryWindow(vm)
-            {
-                Owner = System.Windows.Application.Current?.MainWindow
-            };
+            _libraryWindow = new LibraryWindow(vm);
             _libraryWindow.Closed += (_, _) =>
             {
                 _libraryWindow = null;
