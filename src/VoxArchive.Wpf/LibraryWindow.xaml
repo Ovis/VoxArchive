@@ -130,7 +130,7 @@
                     </StackPanel>
 
                     <TextBlock Grid.Row="2" Text="{Binding PositionText}" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4" />
-                    <Slider Grid.Row="3" Minimum="0" Maximum="{Binding DurationSeconds}" Value="{Binding SeekSeconds, Mode=TwoWay}" PreviewMouseLeftButtonDown="OnSeekDragStart" PreviewMouseLeftButtonUp="OnSeekDragEnd" Margin="0,0,0,10" />
+                    <Slider Grid.Row="3" Minimum="0" Maximum="{Binding DurationSeconds}" Value="{Binding SeekSeconds, Mode=TwoWay}" IsMoveToPointEnabled="True" PreviewMouseLeftButtonDown="OnSeekDragStart" PreviewMouseLeftButtonUp="OnSeekDragEnd" Margin="0,0,0,10" />
 
                     <Grid Grid.Row="4" Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
@@ -180,3 +180,4 @@
         <TextBlock Grid.Row="4" Text="一覧から削除はファイル実体を削除しません。" Foreground="{StaticResource TextMuted}" />
     </Grid>
 </Window>
+
