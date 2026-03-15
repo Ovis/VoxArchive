@@ -36,6 +36,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isSpeakerDevicePopupOpenNormal;
     private bool _isMicDevicePopupOpenNormal;
     private bool _isProcessPopupOpenNormal;
+    private bool _isMiniMode;
     private bool _isRefreshingDeviceList;
     private readonly RecordingCatalogService _libraryCatalogService;
     private string? _lastRecordedFilePath;
@@ -76,6 +77,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ToggleSpeakerCaptureCommand = new DelegateCommand(ToggleSpeakerCaptureAsync);
         ToggleMicCaptureCommand = new DelegateCommand(ToggleMicCaptureAsync);
         ToggleOutputModeCommand = new DelegateCommand(ToggleOutputModeAsync, () => IsDeviceSelectionEnabled);
+        ToggleWindowModeCommand = new DelegateCommand(ToggleWindowModeAsync);
         OpenSettingsCommand = new DelegateCommand(OpenSettingsAsync, () => IsDeviceSelectionEnabled);
         OpenLibraryCommand = new DelegateCommand(OpenLibraryAsync);
 
@@ -130,6 +132,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public DelegateCommand ToggleSpeakerCaptureCommand { get; }
     public DelegateCommand ToggleMicCaptureCommand { get; }
     public DelegateCommand ToggleOutputModeCommand { get; }
+    public DelegateCommand ToggleWindowModeCommand { get; }
     public DelegateCommand OpenSettingsCommand { get; }
     public DelegateCommand OpenLibraryCommand { get; }
 
@@ -289,6 +292,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
 
+
+    public bool IsMiniMode
+    {
+        get => _isMiniMode;
+        private set
+        {
+            if (!SetField(ref _isMiniMode, value))
+            {
+                return;
+            }
+
+            if (value)
+            {
+                IsSpeakerDevicePopupOpenNormal = false;
+                IsMicDevicePopupOpenNormal = false;
+                IsProcessPopupOpenNormal = false;
+            }
+
+            OnPropertyChanged(nameof(WindowWidth));
+            OnPropertyChanged(nameof(WindowHeight));
+            OnPropertyChanged(nameof(NormalMainControlsVisibility));
+            OnPropertyChanged(nameof(MiniMainControlsVisibility));
+            OnPropertyChanged(nameof(WindowModeGlyph));
+            OnPropertyChanged(nameof(WindowModeToolTip));
+        }
+    }
     public OutputCaptureMode SelectedOutputMode
     {
         get => _selectedOutputMode;
@@ -323,8 +352,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
 
-    public double WindowWidth => 510;
+    public double WindowWidth => IsMiniMode ? 320 : 510;
     public double WindowHeight => 100;
+    public Visibility NormalMainControlsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility MiniMainControlsVisibility => IsMiniMode ? Visibility.Visible : Visibility.Collapsed;
+    public string WindowModeGlyph => IsMiniMode ? "\uE73F" : "\uE740";
+    public string WindowModeToolTip => IsMiniMode ? "通常モード" : "ミニモード";
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
     public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
@@ -531,6 +564,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
 
+
+    private Task ToggleWindowModeAsync()
+    {
+        IsMiniMode = !IsMiniMode;
+        return Task.CompletedTask;
+    }
     private async Task OpenLibraryAsync()
     {
         try
@@ -703,6 +742,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StartStopCommand.RaiseCanExecuteChanged();
         PauseResumeCommand.RaiseCanExecuteChanged();
         ToggleOutputModeCommand.RaiseCanExecuteChanged();
+        ToggleWindowModeCommand.RaiseCanExecuteChanged();
         OpenSettingsCommand.RaiseCanExecuteChanged();
         OpenLibraryCommand.RaiseCanExecuteChanged();
         RefreshProcessesCommand.RaiseCanExecuteChanged();
@@ -814,3 +854,4 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
