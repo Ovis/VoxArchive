@@ -94,9 +94,7 @@ public partial class MainWindow : Window
         }
 
         _viewModel.IsSpeakerDevicePopupOpenNormal = false;
-        _viewModel.IsSpeakerDevicePopupOpenMini = false;
         _viewModel.IsMicDevicePopupOpenNormal = false;
-        _viewModel.IsMicDevicePopupOpenMini = false;
     }
 
     private static T? FindAncestor<T>(DependencyObject? start)

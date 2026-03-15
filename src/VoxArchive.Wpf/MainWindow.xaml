@@ -120,7 +120,7 @@
             <Setter Property="Margin" Value="0,0,4,0" />
         </Style>
 
-        <Style x:Key="MiniModeSwitchButtonStyle" TargetType="Button" BasedOn="{StaticResource CircleIconButtonStyle}">
+        <Style x:Key="HeaderActionButtonStyle" TargetType="Button" BasedOn="{StaticResource CircleIconButtonStyle}">
             <Setter Property="Width" Value="42" />
             <Setter Property="Height" Value="42" />
             <Setter Property="Margin" Value="8,0,0,0" />
@@ -205,7 +205,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Visibility="{Binding NormalHeaderVisibility}" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="12,10">
+        <Border Grid.Row="0" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="12,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -216,7 +216,6 @@
                     <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -335,146 +334,10 @@
                         </Border>
                     </Popup>
                 </Grid>
-                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="ライブラリ" Command="{Binding OpenLibraryCommand}"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
-                <Button Grid.Column="9" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
-                <Button Grid.Column="10" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
-            </Grid>
-        </Border>
-
-        <Border Grid.Row="0" Visibility="{Binding MiniHeaderVisibility}" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="12,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="14" />
-                    <ColumnDefinition Width="150" />
-                    <ColumnDefinition Width="14" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <Grid Grid.Column="0" VerticalAlignment="Center">
-                    <Button Style="{StaticResource RoundIconButtonStyle}" Command="{Binding StartStopCommand}" Visibility="{Binding RecordButtonVisibility}" Content="REC" />
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding RecordingControlsVisibility}">
-                        <Button Style="{StaticResource CircleIconButtonStyle}" Command="{Binding PauseResumeCommand}">
-                            <Grid>
-                                <Grid Visibility="{Binding PauseGlyphVisibility}" Width="24" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="9" />
-                                        <ColumnDefinition Width="6" />
-                                        <ColumnDefinition Width="9" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Background="{StaticResource TextPrimary}" CornerRadius="1" />
-                                    <Border Grid.Column="2" Background="{StaticResource TextPrimary}" CornerRadius="1" />
-                                </Grid>
-                                <TextBlock Visibility="{Binding ResumeGlyphVisibility}" Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource CircleIconButtonStyle}" Margin="0" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Command="{Binding StartStopCommand}">
-                            <Border Width="14" Height="14" Background="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Button>
-                    </StackPanel>
-                </Grid>
-
-                <TextBlock Grid.Column="2" Text="{Binding ElapsedText}" FontFamily="Consolas" FontSize="30" FontWeight="Bold" VerticalAlignment="Center" />
-
-                <Grid Grid.Column="4" x:Name="SpeakerDeviceAnchorMini" VerticalAlignment="Center">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="22" />
-                    </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}">
-                        <Grid>
-                            <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#00BFFF" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock.Clip>
-                                        <RectangleGeometry>
-                                            <RectangleGeometry.Rect>
-                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}">
-                                                    <Binding Path="SpeakerLevelPercent" />
-                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualWidth" />
-                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualHeight" />
-                                                </MultiBinding>
-                                            </RectangleGeometry.Rect>
-                                        </RectangleGeometry>
-                                    </TextBlock.Clip>
-                                </TextBlock>
-                            </Grid>
-                            <Line X1="3" Y1="22" X2="21" Y2="4" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
-                        </Grid>
-                    </Button>
-                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" />
-                    <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
-                        </Border>
-                    </Popup>
-                </Grid>
-
-                <Grid Grid.Column="6" x:Name="MicDeviceAnchorMini" VerticalAlignment="Center">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="22" />
-                    </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}">
-                        <Grid>
-                            <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#36E062" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock.Clip>
-                                        <RectangleGeometry>
-                                            <RectangleGeometry.Rect>
-                                                <MultiBinding Converter="{StaticResource LevelClipRectConverter}" ConverterParameter="Vertical">
-                                                    <Binding Path="MicLevelPercent" />
-                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualWidth" />
-                                                    <Binding RelativeSource="{RelativeSource AncestorType=Grid}" Path="ActualHeight" />
-                                                </MultiBinding>
-                                            </RectangleGeometry.Rect>
-                                        </RectangleGeometry>
-                                    </TextBlock.Clip>
-                                </TextBlock>
-                            </Grid>
-                            <Line X1="3" Y1="22" X2="21" Y2="4" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding MicMuteSlashVisibility}" />
-                        </Grid>
-                    </Button>
-                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" />
-                    <Popup IsOpen="{Binding IsMicDevicePopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                            <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
-                        </Border>
-                    </Popup>
-                </Grid>
-
-                <Grid Grid.Column="7" x:Name="ModeProcessAnchorMini" VerticalAlignment="Center" HorizontalAlignment="Right">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="22" />
-                    </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedOutputModeName}" Command="{Binding ToggleOutputModeCommand}" IsEnabled="{Binding IsDeviceSelectionEnabled}">
-                        <Grid Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Path Visibility="{Binding IsSpeakerMode, Converter={StaticResource BoolToVisibilityConverter}}" Fill="{StaticResource TextPrimary}" Data="M3,7 H7 L13,3 V17 L7,13 H3 Z" Stretch="Fill" />
-                            <Path Visibility="{Binding IsProgramMode, Converter={StaticResource BoolToVisibilityConverter}}" Stroke="{StaticResource TextPrimary}" StrokeThickness="1.8" Data="M2,3 H18 V17 H2 Z M2,6 H18" Stretch="Fill" />
-                        </Grid>
-                    </Button>
-                    <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedProcessDisplayName}" IsChecked="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
-                    <Popup IsOpen="{Binding IsProcessPopupOpenMini, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ModeProcessAnchorMini}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                        <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
-                            <StackPanel>
-                                <Button Margin="0,0,0,4" Padding="8,3" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" Foreground="#111827" Background="#E5E7EB" BorderBrush="#CBD5E1" />
-                                <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" Width="360" MaxHeight="260" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-                            </StackPanel>
-                        </Border>
-                    </Popup>
-                </Grid>
-                <Button Grid.Column="8" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="ライブラリ" Command="{Binding OpenLibraryCommand}"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
-                <Button Grid.Column="9" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
-                <Button Grid.Column="10" Style="{StaticResource MiniModeSwitchButtonStyle}" ToolTip="{Binding MiniModeButtonText}" Command="{Binding ToggleMiniModeCommand}"><TextBlock Text="{Binding MiniModeGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="8" Style="{StaticResource HeaderActionButtonStyle}" ToolTip="ライブラリ" Command="{Binding OpenLibraryCommand}"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
+                <Button Grid.Column="9" Style="{StaticResource HeaderActionButtonStyle}" ToolTip="設定" Command="{Binding OpenSettingsCommand}"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Button>
             </Grid>
         </Border>
     </Grid>
 </Window>
+

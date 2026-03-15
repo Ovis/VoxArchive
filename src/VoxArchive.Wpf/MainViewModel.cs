@@ -30,16 +30,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _micLevelPercent;
     private string _alignmentMillisecondsText = "0";
     private string _startStopHotkeyText = KeyboardShortcutHelper.DefaultStartStopHotkey;
-    private bool _isMiniMode;
     private ProcessListItem? _selectedProcessItem;
     private bool _isSpeakerCaptureEnabled = true;
     private bool _isMicCaptureEnabled = true;
     private bool _isSpeakerDevicePopupOpenNormal;
     private bool _isMicDevicePopupOpenNormal;
-    private bool _isSpeakerDevicePopupOpenMini;
-    private bool _isMicDevicePopupOpenMini;
     private bool _isProcessPopupOpenNormal;
-    private bool _isProcessPopupOpenMini;
     private bool _isRefreshingDeviceList;
     private readonly RecordingCatalogService _libraryCatalogService;
     private string? _lastRecordedFilePath;
@@ -76,7 +72,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         StartStopCommand = new DelegateCommand(StartOrStopAsync, CanStartOrStop);
         PauseResumeCommand = new DelegateCommand(PauseOrResumeAsync, CanPauseOrResume);
-        ToggleMiniModeCommand = new DelegateCommand(ToggleMiniModeAsync, () => IsStoppedOrError);
         RefreshProcessesCommand = new DelegateCommand(LoadProcessesAsync, () => IsProcessSelectionEnabled);
         ToggleSpeakerCaptureCommand = new DelegateCommand(ToggleSpeakerCaptureAsync);
         ToggleMicCaptureCommand = new DelegateCommand(ToggleMicCaptureAsync);
@@ -131,7 +126,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public DelegateCommand StartStopCommand { get; }
     public DelegateCommand PauseResumeCommand { get; }
-    public DelegateCommand ToggleMiniModeCommand { get; }
     public DelegateCommand RefreshProcessesCommand { get; }
     public DelegateCommand ToggleSpeakerCaptureCommand { get; }
     public DelegateCommand ToggleMicCaptureCommand { get; }
@@ -183,7 +177,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 if (!_isRefreshingDeviceList)
                 {
                     IsSpeakerDevicePopupOpenNormal = false;
-                    IsSpeakerDevicePopupOpenMini = false;
                 }
             }
         }
@@ -200,7 +193,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 if (!_isRefreshingDeviceList)
                 {
                     IsMicDevicePopupOpenNormal = false;
-                    IsMicDevicePopupOpenMini = false;
                 }
             }
         }
@@ -270,17 +262,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool IsSpeakerDevicePopupOpenMini
-    {
-        get => _isSpeakerDevicePopupOpenMini;
-        set
-        {
-            if (SetField(ref _isSpeakerDevicePopupOpenMini, value) && value)
-            {
-                _ = LoadDevicesAsync();
-            }
-        }
-    }
 
     public bool IsMicDevicePopupOpenNormal
     {
@@ -294,17 +275,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool IsMicDevicePopupOpenMini
-    {
-        get => _isMicDevicePopupOpenMini;
-        set
-        {
-            if (SetField(ref _isMicDevicePopupOpenMini, value) && value)
-            {
-                _ = LoadDevicesAsync();
-            }
-        }
-    }
 
     public bool IsProcessPopupOpenNormal
     {
@@ -318,17 +288,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool IsProcessPopupOpenMini
-    {
-        get => _isProcessPopupOpenMini;
-        set
-        {
-            if (SetField(ref _isProcessPopupOpenMini, value) && value && IsProcessSelectionEnabled)
-            {
-                _ = LoadProcessesAsync();
-            }
-        }
-    }
 
     public OutputCaptureMode SelectedOutputMode
     {
@@ -344,7 +303,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 if (value != OutputCaptureMode.ProcessLoopback)
                 {
                     IsProcessPopupOpenNormal = false;
-                    IsProcessPopupOpenMini = false;
                 }
                 RefreshCommands();
             }
@@ -360,34 +318,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(SelectedProcessDisplayName));
                 IsProcessPopupOpenNormal = false;
-                IsProcessPopupOpenMini = false;
             }
         }
     }
 
-    public bool IsMiniMode
-    {
-        get => _isMiniMode;
-        private set
-        {
-            if (SetField(ref _isMiniMode, value))
-            {
-                OnPropertyChanged(nameof(DetailsVisibility));
-                OnPropertyChanged(nameof(NormalHeaderVisibility));
-                OnPropertyChanged(nameof(MiniHeaderVisibility));
-                OnPropertyChanged(nameof(WindowWidth));
-                OnPropertyChanged(nameof(WindowHeight));
-                OnPropertyChanged(nameof(MiniModeButtonText));
-                OnPropertyChanged(nameof(MiniModeGlyph));
-            }
-        }
-    }
 
-    public Visibility DetailsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility NormalHeaderVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility MiniHeaderVisibility => IsMiniMode ? Visibility.Visible : Visibility.Collapsed;
-    public double WindowWidth => IsMiniMode ? 640 : 760;
-    public double WindowHeight => IsMiniMode ? 145 : 145;
+    public double WindowWidth => 670;
+    public double WindowHeight => 142;
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
     public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
@@ -404,8 +341,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string StartStopButtonText => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error ? "録音開始" : "停止";
     public string PauseResumeButtonText => _recordingService.CurrentState == RecordingState.Paused ? "再開" : "一時停止";
-    public string MiniModeButtonText => IsMiniMode ? "通常表示に切替" : "ミニ表示に切替";
-    public string MiniModeGlyph => IsMiniMode ? "\uE73F" : "\uE740";
 
     private async Task LoadDevicesAsync()
     {
@@ -721,17 +656,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await _settingsService.SaveRecordingOptionsAsync(_options);
         LastErrorText = string.Empty;
     }
-    private Task ToggleMiniModeAsync()
-    {
-        IsSpeakerDevicePopupOpenNormal = false;
-        IsSpeakerDevicePopupOpenMini = false;
-        IsMicDevicePopupOpenNormal = false;
-        IsMicDevicePopupOpenMini = false;
-        IsProcessPopupOpenNormal = false;
-        IsProcessPopupOpenMini = false;
-        IsMiniMode = !IsMiniMode;
-        return Task.CompletedTask;
-    }
 
     private bool CanStartOrStop()
     {
@@ -781,7 +705,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         StartStopCommand.RaiseCanExecuteChanged();
         PauseResumeCommand.RaiseCanExecuteChanged();
-        ToggleMiniModeCommand.RaiseCanExecuteChanged();
         ToggleOutputModeCommand.RaiseCanExecuteChanged();
         OpenSettingsCommand.RaiseCanExecuteChanged();
         OpenLibraryCommand.RaiseCanExecuteChanged();
