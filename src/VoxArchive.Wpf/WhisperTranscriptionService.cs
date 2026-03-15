@@ -1,3 +1,4 @@
+using System.Collections;
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -8,6 +9,13 @@ namespace VoxArchive.Wpf;
 
 public sealed class WhisperTranscriptionService
 {
+    private static readonly object LogSync = new();
+    private static readonly string LogFilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "VoxArchive",
+        "logs",
+        "whisper-transcription.log");
+
     private readonly WhisperModelStore _modelStore;
 
     public WhisperTranscriptionService(WhisperModelStore modelStore)
@@ -48,25 +56,30 @@ public sealed class WhisperTranscriptionService
     public async Task<TranscriptionJobResult> TranscribeAsync(TranscriptionJobRequest request, CancellationToken cancellationToken = default)
     {
         var started = DateTimeOffset.Now;
+        Log($"Transcribe start: file={request.AudioFilePath}, model={request.Options.TranscriptionModel}, lang={request.Options.TranscriptionLanguage}");
 
         if (!File.Exists(request.AudioFilePath))
         {
+            Log("Transcribe failed: audio file missing");
             return Fail("対象ファイルが見つかりません。", started);
         }
 
         if (request.Options.TranscriptionOutputFormats == TranscriptionOutputFormats.None)
         {
+            Log("Transcribe failed: output formats none");
             return Fail("出力形式が選択されていません。", started);
         }
 
         var modelPath = _modelStore.GetModelPath(request.Options.TranscriptionModel);
         if (!File.Exists(modelPath))
         {
+            Log($"Transcribe failed: model file missing ({modelPath})");
             return Fail("モデルが未配置です。設定画面からモデルをダウンロードしてください。", started);
         }
 
         if (!TryGetWhisperFactoryType(out var factoryType))
         {
+            Log("Transcribe failed: Whisper factory type not found");
             return Fail("Whisper.net ランタイムが利用できません。依存ライブラリを確認してください。", started);
         }
 
@@ -75,6 +88,7 @@ public sealed class WhisperTranscriptionService
             var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cancellationToken);
             var generated = await WriteOutputsAsync(request.AudioFilePath, request.Options.TranscriptionOutputFormats, segments, cancellationToken);
 
+            Log($"Transcribe success: segments={segments.Count}, outputs={string.Join(",", generated.Select(Path.GetFileName))}");
             return new TranscriptionJobResult(
                 Succeeded: true,
                 Message: "文字起こしが完了しました。",
@@ -84,7 +98,8 @@ public sealed class WhisperTranscriptionService
         }
         catch (Exception ex)
         {
-            return Fail($"文字起こしに失敗しました: {ex.Message}", started);
+            Log("Transcribe exception", ex);
+            return Fail($"文字起こしに失敗しました: {ex.Message} (詳細ログ: {LogFilePath})", started);
         }
     }
 
@@ -149,6 +164,8 @@ public sealed class WhisperTranscriptionService
         TranscriptionJobRequest request,
         CancellationToken cancellationToken)
     {
+        Log($"ExecuteWhisper: factoryType={factoryType.FullName}, modelPath={modelPath}");
+
         var fromPath = factoryType.GetMethods(BindingFlags.Public | BindingFlags.Static)
             .FirstOrDefault(m => m.Name == "FromPath" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string));
         if (fromPath is null)
@@ -202,10 +219,14 @@ public sealed class WhisperTranscriptionService
             }
 
             var processArgs = BuildProcessArgs(processAsync, stream, cancellationToken);
-            var asyncEnumerable = processAsync.Invoke(processor, processArgs)
+            var processResult = processAsync.Invoke(processor, processArgs)
                 ?? throw new InvalidOperationException("ProcessAsync の戻り値が null です。");
 
-            return await ReadSegmentsAsync(asyncEnumerable, cancellationToken);
+            var resolvedResult = await UnwrapAwaitableAsync(processResult, cancellationToken)
+                ?? throw new InvalidOperationException("ProcessAsync の解決結果が null です。");
+
+            Log($"ProcessAsync result resolved type: {resolvedResult.GetType().FullName}");
+            return await ReadSegmentsAsync(resolvedResult, cancellationToken);
         }
         finally
         {
@@ -251,24 +272,56 @@ public sealed class WhisperTranscriptionService
         return args;
     }
 
-    private static async Task<IReadOnlyList<TranscribedSegment>> ReadSegmentsAsync(object asyncEnumerable, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<TranscribedSegment>> ReadSegmentsAsync(object source, CancellationToken cancellationToken)
     {
-        var getAsyncEnumerator = asyncEnumerable.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .FirstOrDefault(m => m.Name == "GetAsyncEnumerator");
+        if (await TryReadSegmentsFromAsyncEnumerableAsync(source, cancellationToken) is { } asyncSegments)
+        {
+            return asyncSegments;
+        }
+
+        if (TryReadSegmentsFromEnumerable(source) is { } syncSegments)
+        {
+            return syncSegments;
+        }
+
+        throw new InvalidOperationException($"文字起こし結果の列挙型に対応していません: {source.GetType().FullName}");
+    }
+
+    private static async Task<IReadOnlyList<TranscribedSegment>?> TryReadSegmentsFromAsyncEnumerableAsync(object source, CancellationToken cancellationToken)
+    {
+        var asyncEnumerableInterface = source.GetType().GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
+        if (asyncEnumerableInterface is null)
+        {
+            return null;
+        }
+
+        var getAsyncEnumerator = asyncEnumerableInterface.GetMethod("GetAsyncEnumerator");
         if (getAsyncEnumerator is null)
         {
-            throw new InvalidOperationException("IAsyncEnumerable の列挙取得に失敗しました。");
+            return null;
         }
 
         var enumArgs = getAsyncEnumerator.GetParameters().Length == 1
             ? [cancellationToken]
             : Array.Empty<object?>();
-        var enumerator = getAsyncEnumerator.Invoke(asyncEnumerable, enumArgs)
-            ?? throw new InvalidOperationException("AsyncEnumerator の生成に失敗しました。");
 
-        var moveNextAsync = enumerator.GetType().GetMethod("MoveNextAsync")
+        var enumerator = getAsyncEnumerator.Invoke(source, enumArgs);
+        if (enumerator is null)
+        {
+            throw new InvalidOperationException("IAsyncEnumerable の列挙取得に失敗しました。");
+        }
+
+        var asyncEnumeratorInterface = enumerator.GetType().GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerator<>));
+        if (asyncEnumeratorInterface is null)
+        {
+            throw new InvalidOperationException("IAsyncEnumerator インターフェイス取得に失敗しました。");
+        }
+
+        var moveNextAsync = asyncEnumeratorInterface.GetMethod("MoveNextAsync")
             ?? throw new InvalidOperationException("MoveNextAsync が見つかりません。");
-        var currentProperty = enumerator.GetType().GetProperty("Current")
+        var currentProperty = asyncEnumeratorInterface.GetProperty("Current")
             ?? throw new InvalidOperationException("Current プロパティが見つかりません。");
 
         var list = new List<TranscribedSegment>();
@@ -302,6 +355,59 @@ public sealed class WhisperTranscriptionService
         }
 
         return list;
+    }
+
+    private static IReadOnlyList<TranscribedSegment>? TryReadSegmentsFromEnumerable(object source)
+    {
+        if (source is not IEnumerable enumerable || source is string)
+        {
+            return null;
+        }
+
+        var list = new List<TranscribedSegment>();
+        foreach (var item in enumerable)
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            list.Add(new TranscribedSegment(
+                GetTimeSpan(item, "Start", "StartTime", "Begin", "Offset"),
+                GetTimeSpan(item, "End", "EndTime", "Finish"),
+                GetString(item, "Text", "Transcript", "Sentence")));
+        }
+
+        return list;
+    }
+
+    private static async Task<object?> UnwrapAwaitableAsync(object value, CancellationToken cancellationToken)
+    {
+        if (value is Task task)
+        {
+            await task.WaitAsync(cancellationToken);
+            return GetTaskResult(task);
+        }
+
+        var type = value.GetType();
+        var asTask = type.GetMethod("AsTask", Type.EmptyTypes);
+        if (asTask is not null && typeof(Task).IsAssignableFrom(asTask.ReturnType))
+        {
+            var taskValue = asTask.Invoke(value, null) as Task;
+            if (taskValue is not null)
+            {
+                await taskValue.WaitAsync(cancellationToken);
+                return GetTaskResult(taskValue);
+            }
+        }
+
+        return value;
+    }
+
+    private static object? GetTaskResult(Task task)
+    {
+        var resultProperty = task.GetType().GetProperty("Result", BindingFlags.Public | BindingFlags.Instance);
+        return resultProperty?.GetValue(task);
     }
 
     private static async Task<bool> AwaitBooleanAsync(object? awaitable)
@@ -495,6 +601,34 @@ public sealed class WhisperTranscriptionService
             GeneratedFiles: Array.Empty<string>(),
             StartedAt: started,
             FinishedAt: DateTimeOffset.Now);
+    }
+
+    private static void Log(string message, Exception? ex = null)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(LogFilePath);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            var sb = new StringBuilder();
+            sb.Append('[').Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")).Append("] ").AppendLine(message);
+            if (ex is not null)
+            {
+                sb.AppendLine(ex.ToString());
+            }
+
+            lock (LogSync)
+            {
+                File.AppendAllText(LogFilePath, sb.ToString(), System.Text.Encoding.UTF8);
+            }
+        }
+        catch
+        {
+            // ログ出力失敗で文字起こし本体を落とさない。
+        }
     }
 
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);

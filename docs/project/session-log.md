@@ -338,3 +338,19 @@
 ### 次アクション
 1. Whisper.net 実体（NuGet runtime 含む）を導入した実機で E2E 検証。
 2. CUDA優先時の実行経路とフォールバック挙動を実測確認。
+
+## 2026-03-16 Session-Whisper-Debug-AsyncEnum
+
+### 実施
+1. 文字起こし失敗（`IAsyncEnumerable の列挙取得に失敗しました。`）に対して、`WhisperTranscriptionService` の反射列挙処理を互換強化。
+   - `IAsyncEnumerable<T>` インターフェイス経由の列挙取得へ変更
+   - `Task` / `ValueTask` 戻り値のアンラップ処理を追加
+   - 同期 `IEnumerable` 戻り値のフォールバック読み取りを追加
+2. 調査用ログ出力を追加。
+   - ログファイル: `%LocalAppData%\\VoxArchive\\logs\\whisper-transcription.log`
+   - 開始/成功/例外、戻り値型などを追記
+3. 失敗メッセージにログファイルパスを含め、ユーザーが即座に追跡可能な状態へ改善。
+
+### 次アクション
+1. 実機で文字起こしを再実行し、同ログに記録される戻り値型と例外詳細を確認。
+2. もし失敗継続なら、ログを基に `ProcessAsync` シグネチャ差分へ追加対応。
