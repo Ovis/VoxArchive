@@ -618,10 +618,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 _libraryViewModel = null;
             };
             _libraryWindow.Show();
+            _ = vm.ReloadAsync();
         }
         catch (Exception ex)
         {
             LastErrorText = $"ライブラリ起動失敗: {ex.Message}";
+            MessageBox.Show(
+                $"ライブラリウィンドウの表示に失敗しました。\n{ex.Message}",
+                "ライブラリ起動失敗",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
 
         await Task.CompletedTask;
