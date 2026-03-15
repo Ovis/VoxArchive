@@ -413,8 +413,22 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="2">
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="言語（auto / ja / en など）" />
-                                <TextBox x:Name="LanguageTextBox" Text="ja" />
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="言語" />
+                                <ComboBox x:Name="LanguageComboBox"
+                                          Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
+                                          SelectedValuePath="Tag">
+                                    <ComboBoxItem Content="自動判定 (auto)" Tag="auto" />
+                                    <ComboBoxItem Content="日本語 (ja)" Tag="ja" />
+                                    <ComboBoxItem Content="英語 (en)" Tag="en" />
+                                    <ComboBoxItem Content="中国語 (zh)" Tag="zh" />
+                                    <ComboBoxItem Content="韓国語 (ko)" Tag="ko" />
+                                    <ComboBoxItem Content="フランス語 (fr)" Tag="fr" />
+                                    <ComboBoxItem Content="ドイツ語 (de)" Tag="de" />
+                                    <ComboBoxItem Content="スペイン語 (es)" Tag="es" />
+                                    <ComboBoxItem Content="イタリア語 (it)" Tag="it" />
+                                    <ComboBoxItem Content="ポルトガル語 (pt)" Tag="pt" />
+                                    <ComboBoxItem Content="ロシア語 (ru)" Tag="ru" />
+                                </ComboBox>
 
                                 <TextBlock Style="{StaticResource FieldLabelStyle}" Text="出力形式" Margin="0,8,0,6" />
                                 <WrapPanel>

@@ -39,6 +39,7 @@ public partial class SettingsWindow : Window
         ModelComboBox.SelectedIndex = 2;
         AutoPriorityComboBox.SelectedIndex = 0;
         ManualPriorityComboBox.SelectedIndex = 1;
+        LanguageComboBox.SelectedIndex = 1;
         OutputTxtCheckBox.IsChecked = true;
         TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
     }
@@ -109,8 +110,8 @@ public partial class SettingsWindow : Window
 
     public string TranscriptionLanguage
     {
-        get => LanguageTextBox.Text.Trim();
-        set => LanguageTextBox.Text = value;
+        get => GetSelectedStringTag(LanguageComboBox, "ja");
+        set => SelectByStringTag(LanguageComboBox, value, "ja");
     }
 
     public TranscriptionPriority AutoTranscriptionPriority
@@ -270,6 +271,7 @@ public partial class SettingsWindow : Window
         ModelComboBox.IsEnabled = isEnabled;
         AutoPriorityComboBox.IsEnabled = isEnabled;
         ManualPriorityComboBox.IsEnabled = isEnabled;
+        LanguageComboBox.IsEnabled = isEnabled;
     }
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
@@ -377,6 +379,47 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private static string GetSelectedStringTag(ComboBox comboBox, string defaultValue)
+    {
+        if (comboBox.SelectedItem is ComboBoxItem item)
+        {
+            var text = item.Tag?.ToString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+        }
+
+        return defaultValue;
+    }
+
+    private static void SelectByStringTag(ComboBox comboBox, string value, string fallbackValue)
+    {
+        var target = string.IsNullOrWhiteSpace(value) ? fallbackValue : value.Trim();
+        foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), target, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), fallbackValue, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        if (comboBox.Items.Count > 0)
+        {
+            comboBox.SelectedIndex = 0;
+        }
+    }
+
     private TranscriptionOutputFormats BuildOutputFormats()
     {
         var formats = TranscriptionOutputFormats.None;
@@ -419,4 +462,5 @@ public partial class SettingsWindow : Window
         };
     }
 }
+
 
