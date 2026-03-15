@@ -19,6 +19,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\Icons\voxarchive.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,3 +28,5 @@
   </ItemGroup>
 
 </Project>
+
+

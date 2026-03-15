@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private bool _isStartStopHotkeyRegistered;
     private bool _isExitRequested;
     private Forms.NotifyIcon? _notifyIcon;
+    private Drawing.Icon? _trayAppIcon;
 
     public MainWindow()
     {
@@ -57,10 +58,12 @@ public partial class MainWindow : Window
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(exitItem);
 
+        _trayAppIcon = LoadTrayApplicationIcon();
+
         _notifyIcon = new Forms.NotifyIcon
         {
             Text = "VoxArchive",
-            Icon = Drawing.SystemIcons.Application,
+            Icon = _trayAppIcon ?? Drawing.SystemIcons.Application,
             Visible = true,
             ContextMenuStrip = menu
         };
@@ -68,6 +71,23 @@ public partial class MainWindow : Window
         _notifyIcon.DoubleClick += (_, _) => ShowFromTray();
     }
 
+    private static Drawing.Icon? LoadTrayApplicationIcon()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return null;
+            }
+
+            return Drawing.Icon.ExtractAssociatedIcon(processPath)?.Clone() as Drawing.Icon;
+        }
+        catch
+        {
+            return null;
+        }
+    }
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         _hwndSource = (HwndSource?)PresentationSource.FromVisual(this);
@@ -102,6 +122,9 @@ public partial class MainWindow : Window
             _hwndSource.RemoveHook(WndProc);
             _hwndSource = null;
         }
+
+        _trayAppIcon?.Dispose();
+        _trayAppIcon = null;
 
         if (_notifyIcon is not null)
         {
@@ -337,5 +360,4 @@ public partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 }
-
 
