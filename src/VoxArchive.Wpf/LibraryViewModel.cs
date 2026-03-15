@@ -18,6 +18,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private readonly TranscriptionJobQueue _transcriptionQueue;
     private readonly Func<RecordingOptions> _optionsProvider;
 
+    private const TranscriptionOutputFormats AllTranscriptionOutputFormats = TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt | TranscriptionOutputFormats.Vtt | TranscriptionOutputFormats.Json;
+
     private LibraryRecordingItem? _selectedItem;
     private string _editableTitle = string.Empty;
     private string _editableFileName = string.Empty;
@@ -87,6 +89,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         DeleteFileCommand = new DelegateCommand(DeleteFileAsync, () => SelectedItem is not null);
         RemoveFromListCommand = new DelegateCommand(RemoveFromListAsync, () => SelectedItem is not null);
         OpenInExplorerCommand = new DelegateCommand(OpenInExplorerAsync, () => SelectedItem is not null);
+        OpenTranscriptionFileCommand = new DelegateCommand(OpenTranscriptionFileAsync, CanOpenTranscriptionFile);
         TranscribeCommand = new DelegateCommand(TranscribeAsync, CanTranscribe);
         SeekBackwardCommand = new DelegateCommand(SeekBackwardAsync, () => SelectedItem is not null);
         SeekForwardCommand = new DelegateCommand(SeekForwardAsync, () => SelectedItem is not null);
@@ -109,6 +112,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public DelegateCommand DeleteFileCommand { get; }
     public DelegateCommand RemoveFromListCommand { get; }
     public DelegateCommand OpenInExplorerCommand { get; }
+    public DelegateCommand OpenTranscriptionFileCommand { get; }
     public DelegateCommand TranscribeCommand { get; }
     public DelegateCommand SeekBackwardCommand { get; }
     public DelegateCommand SeekForwardCommand { get; }
@@ -526,12 +530,10 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             return;
         }
-
         if (!await EnsureFileExistsOrPromptRemoveAsync("Explorer表示", SelectedItem.FilePath))
         {
             return;
         }
-
         try
         {
             var args = $"/select,\"{SelectedItem.FilePath}\"";
@@ -545,54 +547,85 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             StatusText = $"Explorer起動失敗: {ex.Message}";
         }
     }
-
+    private Task OpenTranscriptionFileAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return Task.CompletedTask;
+        }
+        var options = _optionsProvider();
+        if (!TryGetExistingTranscriptionFilePath(SelectedItem.FilePath, options.TranscriptionModel, out var outputPath))
+        {
+            StatusText = "指定モデルの文字起こしファイルが見つかりません。";
+            return Task.CompletedTask;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo(outputPath!)
+            {
+                UseShellExecute = true
+            });
+            StatusText = $"文字起こしファイルを開きました: {Path.GetFileName(outputPath)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"文字起こしファイルを開けませんでした: {ex.Message}";
+        }
+        return Task.CompletedTask;
+    }
+    private bool CanOpenTranscriptionFile()
+    {
+        if (SelectedItem is null)
+        {
+            return false;
+        }
+        var options = _optionsProvider();
+        return TryGetExistingTranscriptionFilePath(SelectedItem.FilePath, options.TranscriptionModel, out _);
+    }
     private bool CanTranscribe()
     {
+        if (SelectedItem is null)
+        {
+            return false;
+        }
         var options = _optionsProvider();
-        return SelectedItem is not null
-            && !IsTranscribing
-            && options.TranscriptionEnabled;
+        return !IsTranscribing
+            && options.TranscriptionEnabled
+            && !TryGetExistingTranscriptionFilePath(SelectedItem.FilePath, options.TranscriptionModel, out _);
     }
-
     public void NotifyOptionsChanged()
     {
         TranscribeCommand.RaiseCanExecuteChanged();
+        OpenTranscriptionFileCommand.RaiseCanExecuteChanged();
     }
-
     private async Task TranscribeAsync()
     {
         if (SelectedItem is null)
         {
             return;
         }
-
         if (!await EnsureFileExistsOrPromptRemoveAsync("文字起こし", SelectedItem.FilePath))
         {
             return;
         }
-
         var options = _optionsProvider();
         if (!options.TranscriptionEnabled)
         {
             StatusText = "文字起こし機能が無効です。設定画面で有効化してください。";
             return;
         }
-
         var queued = _transcriptionQueue.TryEnqueue(new TranscriptionJobRequest(
             AudioFilePath: SelectedItem.FilePath,
             Options: options,
             Trigger: TranscriptionTrigger.Manual));
-
         if (!queued)
         {
             StatusText = "文字起こしキューへの投入に失敗しました。";
             return;
         }
-
         IsTranscribing = true;
         StatusText = "文字起こしジョブをキューへ追加しました。";
     }
-
     private void OnTranscriptionJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e)
     {
         var app = System.Windows.Application.Current;
@@ -600,14 +633,12 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             return;
         }
-
         app.Dispatcher.Invoke(() =>
         {
             if (e.Request.Trigger == TranscriptionTrigger.Manual)
             {
                 IsTranscribing = false;
             }
-
             if (e.Result.Succeeded)
             {
                 StatusText = $"文字起こし完了: {Path.GetFileName(e.Request.AudioFilePath)}";
@@ -624,9 +655,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                     AppNotificationHub.Notify("VoxArchive", $"文字起こし失敗: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
                 }
             }
+            RaiseCommands();
         });
     }
-
     private Task SeekBackwardAsync() => SeekRelativeAsync(-1);
 
     private Task SeekForwardAsync() => SeekRelativeAsync(1);
@@ -757,11 +788,29 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         DeleteFileCommand.RaiseCanExecuteChanged();
         RemoveFromListCommand.RaiseCanExecuteChanged();
         OpenInExplorerCommand.RaiseCanExecuteChanged();
+        OpenTranscriptionFileCommand.RaiseCanExecuteChanged();
         TranscribeCommand.RaiseCanExecuteChanged();
         SeekBackwardCommand.RaiseCanExecuteChanged();
         SeekForwardCommand.RaiseCanExecuteChanged();
     }
 
+    private static bool TryGetExistingTranscriptionFilePath(string audioFilePath, TranscriptionModel model, out string? outputPath)
+    {
+        outputPath = null;
+        var candidates = WhisperTranscriptionService.BuildOutputPaths(audioFilePath, model, AllTranscriptionOutputFormats);
+        foreach (var path in candidates)
+        {
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            outputPath = path;
+            return true;
+        }
+
+        return false;
+    }
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))

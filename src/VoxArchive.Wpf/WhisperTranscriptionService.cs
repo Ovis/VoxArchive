@@ -105,7 +105,7 @@ public sealed class WhisperTranscriptionService
         }
     }
 
-    public IReadOnlyList<string> BuildOutputPaths(string audioFilePath, TranscriptionModel model, TranscriptionOutputFormats formats)
+    public static IReadOnlyList<string> BuildOutputPaths(string audioFilePath, TranscriptionModel model, TranscriptionOutputFormats formats)
     {
         var basePath = BuildOutputBasePath(audioFilePath, model);
 
@@ -755,6 +755,4 @@ public sealed class WhisperTranscriptionService
 
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);
 }
-
-
 
