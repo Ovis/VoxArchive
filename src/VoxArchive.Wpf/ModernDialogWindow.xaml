@@ -42,17 +42,9 @@
             </Grid>
 
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="SecondaryButton"
-                        MinWidth="96"
-                        Margin="0,0,8,0"
-                        Padding="14,7"
-                        Background="#1A2330"
-                        BorderBrush="#33465F"
-                        BorderThickness="1"
-                        Foreground="#D8E0ED"
-                        Click="OnSecondaryClick" />
                 <Button x:Name="PrimaryButton"
                         MinWidth="96"
+                        Margin="0,0,8,0"
                         Padding="14,7"
                         Background="#2A5EBD"
                         BorderBrush="#2A5EBD"
@@ -60,7 +52,16 @@
                         Foreground="White"
                         FontWeight="SemiBold"
                         Click="OnPrimaryClick" />
+                <Button x:Name="SecondaryButton"
+                        MinWidth="96"
+                        Padding="14,7"
+                        Background="#1A2330"
+                        BorderBrush="#33465F"
+                        BorderThickness="1"
+                        Foreground="#D8E0ED"
+                        Click="OnSecondaryClick" />
             </StackPanel>
         </Grid>
     </Border>
 </Window>
+
