@@ -7,13 +7,14 @@
         Height="{Binding WindowHeight, Mode=OneWay}"
         MinWidth="{Binding WindowWidth, Mode=OneWay}"
         MinHeight="{Binding WindowHeight, Mode=OneWay}"
-        ResizeMode="CanMinimize"
+        ResizeMode="NoResize"
+        WindowStyle="None"
         Topmost="True"
         FontFamily="Yu Gothic UI"
-        Background="#0A0D12">
+        Background="#121821">
     <Window.Resources>
         <SolidColorBrush x:Key="PanelBg" Color="#121821" />
-        <SolidColorBrush x:Key="PanelBorder" Color="#283242" />
+        <SolidColorBrush x:Key="PanelBorder" Color="#1A2330" />
         <SolidColorBrush x:Key="ControlBg" Color="#1A2330" />
         <SolidColorBrush x:Key="ControlBorder" Color="#314055" />
         <SolidColorBrush x:Key="TextPrimary" Color="#F3F6FA" />
@@ -200,12 +201,38 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="8,6">
+    <Grid Margin="0">
         <Grid.RowDefinitions>
+            <RowDefinition Height="28" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="12,10">
+        <Border Grid.Row="0"
+                Background="#10161F"
+                BorderBrush="{StaticResource PanelBorder}"
+                BorderThickness="0"
+                CornerRadius="10,10,0,0"
+                MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+            <Grid Margin="10,0,4,0">
+                <TextBlock Text="VoxArchive" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" />
+                <Button HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Width="30"
+                        Height="20"
+                        Margin="0"
+                        Padding="0"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Content="&#xE711;"
+                        ToolTip="閉じる"
+                        Background="Transparent"
+                        BorderBrush="#3A4A60"
+                        BorderThickness="1"
+                        Click="OnTitleBarCloseButtonClick" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Background="#121821" BorderBrush="{StaticResource PanelBorder}" BorderThickness="0" CornerRadius="0,0,10,10" Padding="12,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />

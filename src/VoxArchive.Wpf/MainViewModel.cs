@@ -324,7 +324,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
 
     public double WindowWidth => 650;
-    public double WindowHeight => 130;
+    public double WindowHeight => 100;
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
     public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;

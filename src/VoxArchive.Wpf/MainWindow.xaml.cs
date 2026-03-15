@@ -179,6 +179,18 @@ public partial class MainWindow : Window
         Activate();
     }
 
+    private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            DragMove();
+        }
+    }
+
+    private void OnTitleBarCloseButtonClick(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
     private void OnDeviceListBoxPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (_viewModel is null)
@@ -325,3 +337,5 @@ public partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 }
+
+
