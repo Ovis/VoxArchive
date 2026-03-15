@@ -743,6 +743,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         AlignmentMillisecondsText = normalizedOffset.ToString();
         StartStopHotkeyText = normalizedHotkey;
         await _settingsService.SaveRecordingOptionsAsync(_options);
+        _libraryViewModel?.NotifyOptionsChanged();
         LastErrorText = string.Empty;
     }
 
@@ -938,17 +939,4 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 

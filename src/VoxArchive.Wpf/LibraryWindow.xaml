@@ -57,13 +57,37 @@
             <Setter Property="MinHeight" Value="36" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Margin" Value="0,0,8,0" />
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Foreground" Value="#7F8CA3" />
-                    <Setter Property="Background" Value="#162131" />
-                    <Setter Property="BorderBrush" Value="#25364C" />
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Base"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#24364C" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#3A5678" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#172434" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#2A405B" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#6F7E94" />
+                                <Setter TargetName="Base" Property="Background" Value="#162131" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#25364C" />
+                                <Setter TargetName="Base" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">

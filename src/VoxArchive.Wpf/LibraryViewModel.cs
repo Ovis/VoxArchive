@@ -548,7 +548,15 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     private bool CanTranscribe()
     {
-        return SelectedItem is not null && !IsTranscribing;
+        var options = _optionsProvider();
+        return SelectedItem is not null
+            && !IsTranscribing
+            && options.TranscriptionEnabled;
+    }
+
+    public void NotifyOptionsChanged()
+    {
+        TranscribeCommand.RaiseCanExecuteChanged();
     }
 
     private async Task TranscribeAsync()
