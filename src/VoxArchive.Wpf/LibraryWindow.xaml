@@ -97,7 +97,8 @@
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           SelectionMode="Single"
-                          SelectionUnit="FullRow">
+                          SelectionUnit="FullRow"
+                          MouseDoubleClick="OnRecordingGridMouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="タイトル" Binding="{Binding Title}" Width="2*" />
                         <DataGridTextColumn Header="ファイル名" Binding="{Binding FileName}" Width="2*" />
