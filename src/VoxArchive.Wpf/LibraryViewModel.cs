@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -59,6 +60,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         RenameCommand = new DelegateCommand(RenameAsync, () => SelectedItem is not null);
         DeleteFileCommand = new DelegateCommand(DeleteFileAsync, () => SelectedItem is not null);
         RemoveFromListCommand = new DelegateCommand(RemoveFromListAsync, () => SelectedItem is not null);
+        OpenInExplorerCommand = new DelegateCommand(OpenInExplorerAsync, () => SelectedItem is not null);
 
         _ = RefreshAsync();
     }
@@ -76,6 +78,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public DelegateCommand RenameCommand { get; }
     public DelegateCommand DeleteFileCommand { get; }
     public DelegateCommand RemoveFromListCommand { get; }
+    public DelegateCommand OpenInExplorerCommand { get; }
 
     public LibraryRecordingItem? SelectedItem
     {
@@ -463,6 +466,31 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             StatusText = $"一括削除失敗: {ex.Message}";
         }
     }
+    private async Task OpenInExplorerAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        if (!await EnsureFileExistsOrPromptRemoveAsync("Explorer表示", SelectedItem.FilePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var args = $"/select,\"{SelectedItem.FilePath}\"";
+            Process.Start(new ProcessStartInfo("explorer.exe", args)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Explorer起動失敗: {ex.Message}";
+        }
+    }
     private async Task RemoveFromListAsync()
     {
         if (SelectedItem is null)
@@ -559,6 +587,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         RenameCommand.RaiseCanExecuteChanged();
         DeleteFileCommand.RaiseCanExecuteChanged();
         RemoveFromListCommand.RaiseCanExecuteChanged();
+        OpenInExplorerCommand.RaiseCanExecuteChanged();
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

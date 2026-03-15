@@ -252,9 +252,11 @@
                               MouseDoubleClick="OnRecordingGridMouseDoubleClick"
                               PreviewMouseRightButtonDown="OnRecordingGridPreviewMouseRightButtonDown">
                         <DataGrid.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Style="{StaticResource LibraryContextMenuStyle}" ItemContainerStyle="{StaticResource LibraryMenuItemStyle}">
-                                <MenuItem Header="一覧から削除" Command="{Binding RemoveFromListCommand}" />
-                                <MenuItem Header="ファイル削除" Command="{Binding DeleteFileCommand}" />
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Style="{StaticResource LibraryContextMenuStyle}">
+                                <MenuItem Header="Explorerで表示" Command="{Binding OpenInExplorerCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
+                                <Separator />
+                                <MenuItem Header="一覧から削除" Command="{Binding RemoveFromListCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
+                                <MenuItem Header="ファイル削除" Command="{Binding DeleteFileCommand}" Style="{StaticResource LibraryMenuItemStyle}" />
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.Columns>
