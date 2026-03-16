@@ -348,7 +348,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="22" />
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}">
+                        <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedSpeakerDeviceName}" Command="{Binding ToggleSpeakerCaptureCommand}" BorderBrush="{Binding SpeakerRingBrush}">
                             <Grid>
                                 <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding SpeakerIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -382,7 +382,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="22" />
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}">
+                        <Button Grid.Column="0" Style="{StaticResource DeviceIconButtonStyle}" Margin="0" ToolTip="{Binding SelectedMicDeviceName}" Command="{Binding ToggleMicCaptureCommand}" BorderBrush="{Binding MicRingBrush}">
                             <Grid>
                                 <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{Binding MicIconBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -480,6 +480,7 @@
         </Border>
     </Grid>
 </Window>
+
 
 
 

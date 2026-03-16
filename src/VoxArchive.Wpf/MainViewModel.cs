@@ -168,6 +168,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _speakerLevelPercent, value))
             {
                 OnPropertyChanged(nameof(SpeakerIconBrush));
+                OnPropertyChanged(nameof(SpeakerRingBrush));
             }
         }
     }
@@ -180,6 +181,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _micLevelPercent, value))
             {
                 OnPropertyChanged(nameof(MicIconBrush));
+                OnPropertyChanged(nameof(MicRingBrush));
             }
         }
     }
@@ -234,6 +236,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                 OnPropertyChanged(nameof(SpeakerMuteSlashVisibility));
                 OnPropertyChanged(nameof(SpeakerIconBrush));
+                OnPropertyChanged(nameof(SpeakerRingBrush));
             }
         }
     }
@@ -253,12 +256,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                 OnPropertyChanged(nameof(MicMuteSlashVisibility));
                 OnPropertyChanged(nameof(MicIconBrush));
+                OnPropertyChanged(nameof(MicRingBrush));
             }
         }
     }
 
     public Brush SpeakerIconBrush => BuildIconBrush(IsSpeakerCaptureEnabled, SpeakerLevelPercent, Colors.DeepSkyBlue);
     public Brush MicIconBrush => BuildIconBrush(IsMicCaptureEnabled, MicLevelPercent, Color.FromRgb(54, 224, 98));
+    public Brush SpeakerRingBrush => BuildRingBrush(IsSpeakerCaptureEnabled, SpeakerLevelPercent, Color.FromRgb(0, 191, 255));
+    public Brush MicRingBrush => BuildRingBrush(IsMicCaptureEnabled, MicLevelPercent, Color.FromRgb(54, 224, 98));
     public Visibility SpeakerMuteSlashVisibility => IsSpeakerCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
     public Visibility MicMuteSlashVisibility => IsMicCaptureEnabled ? Visibility.Collapsed : Visibility.Visible;
     public string SelectedSpeakerDeviceName => SpeakerDevices.FirstOrDefault(x => x.DeviceId == SelectedSpeakerDeviceId)?.FriendlyName ?? "スピーカーデバイス未選択";
@@ -899,6 +905,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
         MicLevelPercent = 0d;
     }
 
+    private static Brush BuildRingBrush(bool isEnabled, double levelPercent, Color accent)
+    {
+        if (!isEnabled)
+        {
+            return new SolidColorBrush(Color.FromRgb(74, 86, 104));
+        }
+
+        var t = Math.Clamp(levelPercent / 100d, 0d, 1d);
+        var baseColor = Color.FromRgb(49, 64, 85);
+        var ring = InterpolateColor(baseColor, accent, t);
+        return new SolidColorBrush(ring);
+    }
+
+    private static Color InterpolateColor(Color from, Color to, double t)
+    {
+        var r = (byte)(from.R + ((to.R - from.R) * t));
+        var g = (byte)(from.G + ((to.G - from.G) * t));
+        var b = (byte)(from.B + ((to.B - from.B) * t));
+        return Color.FromRgb(r, g, b);
+    }
     private static Brush BuildIconBrush(bool isEnabled, double levelPercent, Color accent)
     {
         _ = levelPercent;
@@ -997,6 +1023,8 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
+
 
 
 
