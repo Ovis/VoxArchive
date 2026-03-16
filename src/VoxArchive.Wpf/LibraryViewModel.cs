@@ -478,8 +478,24 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             SelectedItem = Items.FirstOrDefault(x => x.FilePath == newPath);
             StatusText = "ファイル名を変更しました。";
         }
+        catch (IOException ex)
+        {
+            ModernDialog.Show(
+                $"同名のファイルが既に存在するため、リネームできません。\n{ex.Message}",
+                "リネーム失敗",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning,
+                MessageBoxResult.OK);
+            StatusText = $"リネーム失敗: {ex.Message}";
+        }
         catch (Exception ex)
         {
+            ModernDialog.Show(
+                ex.Message,
+                "リネーム失敗",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning,
+                MessageBoxResult.OK);
             StatusText = $"リネーム失敗: {ex.Message}";
         }
     }
@@ -998,6 +1014,11 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _playbackService.Dispose();
     }
 }
+
+
+
+
+
 
 
 
