@@ -12,7 +12,10 @@ namespace VoxArchive.Wpf;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    private static readonly object ErrorLogSync = new();
+
     private readonly IRecordingService _recordingService;
+
     private readonly ISettingsService _settingsService;
     private readonly IDeviceService _deviceService;
     private readonly IProcessCatalogService _processCatalogService;
@@ -901,6 +904,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         return new SolidColorBrush(Color.FromRgb(210, 216, 225));
     }
+    private static void WriteAppErrorLog(string message)
+    {
+        try
+        {
+            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
+            Directory.CreateDirectory(appDir);
+            var logPath = Path.Combine(appDir, "app-errors.log");
+            var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}";
+            lock (ErrorLogSync)
+            {
+                File.AppendAllText(logPath, line + Environment.NewLine);
+            }
+        }
+        catch
+        {
+            // ログ出力失敗はアプリ動作を止めない。
+        }
+    }
+
     private static void RunOnUi(Action action)
     {
         if (System.Windows.Application.Current.Dispatcher.CheckAccess())
@@ -921,6 +943,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         field = value;
         OnPropertyChanged(propertyName);
+        if (propertyName == nameof(LastErrorText) && value is string errorText && !string.IsNullOrWhiteSpace(errorText))
+        {
+            WriteAppErrorLog(errorText);
+        }
         if (propertyName is nameof(SelectedOutputMode) or nameof(SelectedProcessItem))
         {
             RefreshCommands();
