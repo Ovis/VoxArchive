@@ -303,7 +303,7 @@ public sealed class WhisperTranscriptionService
             var factoryOptions = CreateFactoryOptions(factoryType.Assembly, request.Options.TranscriptionExecutionMode, out var requestedUseGpu);
             if (fromPathWithOptions is not null && factoryOptions is not null)
             {
-                Log($"ExecuteWhisper options: mode={request.Options.TranscriptionExecutionMode}, useGpu={(requestedUseGpu.HasValue ? requestedUseGpu.Value.ToString() : \"default\")}");
+                Log($"ExecuteWhisper options: mode={request.Options.TranscriptionExecutionMode}, useGpu={(requestedUseGpu.HasValue ? requestedUseGpu.Value.ToString() : "default")}");
                 factory = fromPathWithOptions.Invoke(null, [modelPath, factoryOptions]);
             }
             else
