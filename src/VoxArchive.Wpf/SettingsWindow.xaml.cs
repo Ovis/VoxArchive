@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -12,8 +14,15 @@ public partial class SettingsWindow : Window
     private readonly WhisperModelStore _whisperModelStore;
     private readonly WhisperTranscriptionService _whisperTranscriptionService;
 
+    private static readonly Brush StatusDefaultBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9BB4D1"));
+    private static readonly Brush StatusWarningBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFCA80"));
+    private static readonly Brush StatusErrorBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF9A9A"));
+
     private bool _isCapturingHotkey;
+    private bool _suppressEnvironmentAutoCheck = true;
     private string _capturedHotkeyText = string.Empty;
+    private int _environmentCheckVersion;
+    private int _environmentCheckInProgress;
 
     public SettingsWindow()
         : this(new WhisperModelStore())
@@ -27,21 +36,34 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(WhisperModelStore whisperModelStore, WhisperTranscriptionService whisperTranscriptionService)
     {
-        _whisperModelStore = whisperModelStore;
-        _whisperTranscriptionService = whisperTranscriptionService;
+        try
+        {
 
-        InitializeComponent();
+            _whisperModelStore = whisperModelStore;
+            _whisperTranscriptionService = whisperTranscriptionService;
 
-        PreviewKeyDown += OnWindowPreviewKeyDown;
-        ModelDirectoryTextBox.Text = _whisperModelStore.ModelsDirectory;
+            _suppressEnvironmentAutoCheck = true;
+            InitializeComponent();
 
-        ExecutionModeComboBox.SelectedIndex = 0;
-        ModelComboBox.SelectedIndex = 2;
-        AutoPriorityComboBox.SelectedIndex = 0;
-        ManualPriorityComboBox.SelectedIndex = 1;
-        LanguageComboBox.SelectedIndex = 1;
-        OutputTxtCheckBox.IsChecked = true;
-        TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
+            PreviewKeyDown += OnWindowPreviewKeyDown;
+            ModelDirectoryTextBox.Text = _whisperModelStore.ModelsDirectory;
+
+            ExecutionModeComboBox.SelectedIndex = 0;
+            ModelComboBox.SelectedIndex = 2;
+            AutoPriorityComboBox.SelectedIndex = 0;
+            ManualPriorityComboBox.SelectedIndex = 1;
+            LanguageComboBox.SelectedIndex = 1;
+            OutputTxtCheckBox.IsChecked = true;
+
+            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
+            TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
+
+            _suppressEnvironmentAutoCheck = false;
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
     }
 
     public int AlignmentMilliseconds
@@ -220,17 +242,77 @@ public partial class SettingsWindow : Window
 
     private async void OnCheckEnvironmentClick(object sender, RoutedEventArgs e)
     {
+        await RefreshEnvironmentStatusAsync();
+    }
+
+    private void OnTranscriptionEnvironmentSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressEnvironmentAutoCheck)
+        {
+            return;
+        }
+
+        _ = RefreshEnvironmentStatusAsync();
+    }
+
+    private async Task RefreshEnvironmentStatusAsync()
+    {
+        if (Interlocked.CompareExchange(ref _environmentCheckInProgress, 1, 0) != 0)
+        {
+            return;
+        }
+
+        var checkVersion = Interlocked.Increment(ref _environmentCheckVersion);
+        SetEnvironmentCheckUiState(isChecking: true);
+
         try
         {
-            var status = _whisperTranscriptionService.CheckEnvironment(BuildTemporaryOptions());
-            TranscriptionStatusTextBlock.Text = $"{status.RuntimeMessage}\n{status.ModelMessage}\n{status.CudaMessage}\n{status.DetailMessage}";
+            var options = BuildTemporaryOptions();
+            var status = await Task.Run(() => _whisperTranscriptionService.CheckEnvironment(options));
+            if (checkVersion != _environmentCheckVersion)
+            {
+                return;
+            }
+
+            var lines = new List<string>
+            {
+                status.RuntimeMessage,
+                status.ModelMessage,
+                status.CudaMessage,
+                status.DetailMessage
+            };
+
+            TranscriptionStatusTextBlock.Text = string.Join(Environment.NewLine, lines.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+            if (!status.RuntimeAvailable || !status.ModelInstalled)
+            {
+                TranscriptionStatusTextBlock.Foreground = StatusErrorBrush;
+                return;
+            }
+
+            if (TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !status.CudaAvailable)
+            {
+                TranscriptionStatusTextBlock.Foreground = StatusWarningBrush;
+                return;
+            }
+
+            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
         }
         catch (Exception ex)
         {
+            if (checkVersion != _environmentCheckVersion)
+            {
+                return;
+            }
+
+            TranscriptionStatusTextBlock.Foreground = StatusErrorBrush;
             TranscriptionStatusTextBlock.Text = $"環境チェック失敗: {ex.Message}";
         }
-
-        await Task.CompletedTask;
+        finally
+        {
+            Interlocked.Exchange(ref _environmentCheckInProgress, 0);
+            SetEnvironmentCheckUiState(isChecking: false);
+        }
     }
 
     private async void OnDownloadModelClick(object sender, RoutedEventArgs e)
@@ -265,6 +347,16 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void SetEnvironmentCheckUiState(bool isChecking)
+    {
+        if (CheckEnvironmentButton is null)
+        {
+            return;
+        }
+
+        CheckEnvironmentButton.IsEnabled = !isChecking;
+        CheckEnvironmentButton.Content = isChecking ? "確認中..." : "環境チェック";
+    }
     private void ToggleTranscriptionButtons(bool isEnabled)
     {
         ExecutionModeComboBox.IsEnabled = isEnabled;
@@ -458,7 +550,8 @@ public partial class SettingsWindow : Window
     {
         return new RecordingOptions
         {
-            TranscriptionModel = TranscriptionModel
+            TranscriptionModel = TranscriptionModel,
+            TranscriptionExecutionMode = TranscriptionExecutionMode
         };
     }
 }

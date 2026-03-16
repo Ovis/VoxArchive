@@ -46,3 +46,4 @@ public sealed class DelegateCommand : ICommand
         CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 }
+

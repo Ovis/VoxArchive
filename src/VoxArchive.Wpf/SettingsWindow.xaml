@@ -399,7 +399,8 @@
                                 <TextBlock Style="{StaticResource FieldLabelStyle}" Text="実行モード" Margin="0,8,0,6" />
                                 <ComboBox x:Name="ExecutionModeComboBox"
                                           Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                          SelectedValuePath="Tag">
+                                          SelectedValuePath="Tag"
+                                          SelectionChanged="OnTranscriptionEnvironmentSelectionChanged">
                                     <ComboBoxItem Content="自動" Tag="{x:Static domain:TranscriptionExecutionMode.Auto}" />
                                     <ComboBoxItem Content="CPU固定" Tag="{x:Static domain:TranscriptionExecutionMode.CpuOnly}" />
                                     <ComboBoxItem Content="CUDA優先" Tag="{x:Static domain:TranscriptionExecutionMode.CudaPreferred}" />
@@ -408,7 +409,8 @@
                                 <TextBlock Style="{StaticResource FieldLabelStyle}" Text="モデル" Margin="0,8,0,6" />
                                 <ComboBox x:Name="ModelComboBox"
                                           Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                          SelectedValuePath="Tag">
+                                          SelectedValuePath="Tag"
+                                          SelectionChanged="OnTranscriptionEnvironmentSelectionChanged">
                                     <ComboBoxItem Content="tiny" Tag="{x:Static domain:TranscriptionModel.Tiny}" />
                                     <ComboBoxItem Content="base" Tag="{x:Static domain:TranscriptionModel.Base}" />
                                     <ComboBoxItem Content="small" Tag="{x:Static domain:TranscriptionModel.Small}" />
@@ -474,7 +476,7 @@
                                 <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="文字起こし結果は録音ファイルと同じフォルダへ同名で出力されます。" />
 
                                 <WrapPanel Margin="0,8,0,0">
-                                    <Button Content="環境チェック" Click="OnCheckEnvironmentClick" />
+                                    <Button x:Name="CheckEnvironmentButton" Content="環境チェック" Click="OnCheckEnvironmentClick" />
                                     <Button Content="モデル取得" Click="OnDownloadModelClick" />
                                     <Button Content="モデル削除" Click="OnDeleteModelClick" />
                                 </WrapPanel>
@@ -495,6 +497,7 @@
         </Grid>
     </Grid>
 </Window>
+
 
 
 

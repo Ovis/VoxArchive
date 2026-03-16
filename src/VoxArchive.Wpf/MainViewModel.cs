@@ -679,72 +679,85 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
     private async Task OpenSettingsAsync()
     {
-        var dialog = new SettingsWindow(_whisperModelStore, _whisperTranscriptionService)
+        try
         {
-            Owner = System.Windows.Application.Current?.MainWindow,
-            AlignmentMilliseconds = _options.ChannelAlignmentMilliseconds,
-            StartStopHotkeyText = _options.StartStopHotkey,
-            OutputDirectory = _options.OutputDirectory,
-            DefaultSpeakerPlaybackGainDb = _options.DefaultSpeakerPlaybackGainDb,
-            DefaultMicPlaybackGainDb = _options.DefaultMicPlaybackGainDb,
-            TranscriptionEnabled = _options.TranscriptionEnabled,
-            AutoTranscriptionAfterRecord = _options.AutoTranscriptionAfterRecord,
-            TranscriptionExecutionMode = _options.TranscriptionExecutionMode,
-            TranscriptionModel = _options.TranscriptionModel,
-            TranscriptionLanguage = _options.TranscriptionLanguage,
-            TranscriptionOutputFormats = _options.TranscriptionOutputFormats,
-            AutoTranscriptionPriority = _options.AutoTranscriptionPriority,
-            ManualTranscriptionPriority = _options.ManualTranscriptionPriority,
-            TranscriptionToastNotificationEnabled = _options.TranscriptionToastNotificationEnabled
-        };
+            var dialog = new SettingsWindow(_whisperModelStore, _whisperTranscriptionService)
+            {
+                Owner = System.Windows.Application.Current?.MainWindow,
+                AlignmentMilliseconds = _options.ChannelAlignmentMilliseconds,
+                StartStopHotkeyText = _options.StartStopHotkey,
+                OutputDirectory = _options.OutputDirectory,
+                DefaultSpeakerPlaybackGainDb = _options.DefaultSpeakerPlaybackGainDb,
+                DefaultMicPlaybackGainDb = _options.DefaultMicPlaybackGainDb,
+                TranscriptionEnabled = _options.TranscriptionEnabled,
+                AutoTranscriptionAfterRecord = _options.AutoTranscriptionAfterRecord,
+                TranscriptionExecutionMode = _options.TranscriptionExecutionMode,
+                TranscriptionModel = _options.TranscriptionModel,
+                TranscriptionLanguage = _options.TranscriptionLanguage,
+                TranscriptionOutputFormats = _options.TranscriptionOutputFormats,
+                AutoTranscriptionPriority = _options.AutoTranscriptionPriority,
+                ManualTranscriptionPriority = _options.ManualTranscriptionPriority,
+                TranscriptionToastNotificationEnabled = _options.TranscriptionToastNotificationEnabled
+            };
 
-        if (dialog.ShowDialog() != true)
-        {
-            return;
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var normalizedOffset = Math.Clamp(dialog.AlignmentMilliseconds, -1000, 1000);
+            var normalizedOutput = string.IsNullOrWhiteSpace(dialog.OutputDirectory)
+                ? EnsureDefaults(_options).OutputDirectory
+                : dialog.OutputDirectory;
+            var normalizedSpeakerGain = Math.Clamp(dialog.DefaultSpeakerPlaybackGainDb, -60d, 48d);
+            var normalizedMicGain = Math.Clamp(dialog.DefaultMicPlaybackGainDb, -60d, 48d);
+
+            if (!KeyboardShortcutHelper.TryParseAndNormalize(dialog.StartStopHotkeyText, out _, out var normalizedHotkey))
+            {
+                normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
+            }
+
+            var normalizedLanguage = string.IsNullOrWhiteSpace(dialog.TranscriptionLanguage)
+                ? "ja"
+                : dialog.TranscriptionLanguage.Trim();
+            var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None
+                ? TranscriptionOutputFormats.Txt
+                : dialog.TranscriptionOutputFormats;
+
+            _options = EnsureDefaults(_options) with
+            {
+                ChannelAlignmentMilliseconds = normalizedOffset,
+                OutputDirectory = normalizedOutput,
+                StartStopHotkey = normalizedHotkey,
+                DefaultSpeakerPlaybackGainDb = normalizedSpeakerGain,
+                DefaultMicPlaybackGainDb = normalizedMicGain,
+                TranscriptionEnabled = dialog.TranscriptionEnabled,
+                AutoTranscriptionAfterRecord = dialog.AutoTranscriptionAfterRecord,
+                TranscriptionExecutionMode = dialog.TranscriptionExecutionMode,
+                TranscriptionModel = dialog.TranscriptionModel,
+                TranscriptionLanguage = normalizedLanguage,
+                TranscriptionOutputFormats = normalizedFormats,
+                AutoTranscriptionPriority = dialog.AutoTranscriptionPriority,
+                ManualTranscriptionPriority = dialog.ManualTranscriptionPriority,
+                TranscriptionToastNotificationEnabled = dialog.TranscriptionToastNotificationEnabled
+            };
+
+            AlignmentMillisecondsText = normalizedOffset.ToString();
+            StartStopHotkeyText = normalizedHotkey;
+            await _settingsService.SaveRecordingOptionsAsync(_options);
+            _libraryViewModel?.NotifyOptionsChanged();
+            LastErrorText = string.Empty;
         }
-
-        var normalizedOffset = Math.Clamp(dialog.AlignmentMilliseconds, -1000, 1000);
-        var normalizedOutput = string.IsNullOrWhiteSpace(dialog.OutputDirectory)
-            ? EnsureDefaults(_options).OutputDirectory
-            : dialog.OutputDirectory;
-        var normalizedSpeakerGain = Math.Clamp(dialog.DefaultSpeakerPlaybackGainDb, -60d, 48d);
-        var normalizedMicGain = Math.Clamp(dialog.DefaultMicPlaybackGainDb, -60d, 48d);
-
-        if (!KeyboardShortcutHelper.TryParseAndNormalize(dialog.StartStopHotkeyText, out _, out var normalizedHotkey))
+        catch (Exception ex)
         {
-            normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
+            LastErrorText = $"設定画面起動失敗: {ex.Message}";
+            ModernDialog.Show(
+                $"設定画面の表示に失敗しました。\n{ex.Message}",
+                "設定画面起動失敗",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
-
-        var normalizedLanguage = string.IsNullOrWhiteSpace(dialog.TranscriptionLanguage)
-            ? "ja"
-            : dialog.TranscriptionLanguage.Trim();
-        var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None
-            ? TranscriptionOutputFormats.Txt
-            : dialog.TranscriptionOutputFormats;
-
-        _options = EnsureDefaults(_options) with
-        {
-            ChannelAlignmentMilliseconds = normalizedOffset,
-            OutputDirectory = normalizedOutput,
-            StartStopHotkey = normalizedHotkey,
-            DefaultSpeakerPlaybackGainDb = normalizedSpeakerGain,
-            DefaultMicPlaybackGainDb = normalizedMicGain,
-            TranscriptionEnabled = dialog.TranscriptionEnabled,
-            AutoTranscriptionAfterRecord = dialog.AutoTranscriptionAfterRecord,
-            TranscriptionExecutionMode = dialog.TranscriptionExecutionMode,
-            TranscriptionModel = dialog.TranscriptionModel,
-            TranscriptionLanguage = normalizedLanguage,
-            TranscriptionOutputFormats = normalizedFormats,
-            AutoTranscriptionPriority = dialog.AutoTranscriptionPriority,
-            ManualTranscriptionPriority = dialog.ManualTranscriptionPriority,
-            TranscriptionToastNotificationEnabled = dialog.TranscriptionToastNotificationEnabled
-        };
-
-        AlignmentMillisecondsText = normalizedOffset.ToString();
-        StartStopHotkeyText = normalizedHotkey;
-        await _settingsService.SaveRecordingOptionsAsync(_options);
-        _libraryViewModel?.NotifyOptionsChanged();
-        LastErrorText = string.Empty;
     }
 
     private bool CanStartOrStop()
@@ -939,4 +952,5 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
 

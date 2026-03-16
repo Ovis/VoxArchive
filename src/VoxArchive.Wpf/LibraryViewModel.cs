@@ -600,32 +600,50 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     }
     private async Task TranscribeAsync()
     {
-        if (SelectedItem is null)
+        try
         {
-            return;
+            if (SelectedItem is null)
+            {
+                return;
+            }
+
+            if (!await EnsureFileExistsOrPromptRemoveAsync("文字起こし", SelectedItem.FilePath))
+            {
+                return;
+            }
+
+            var options = _optionsProvider();
+            if (!options.TranscriptionEnabled)
+            {
+                StatusText = "文字起こし機能が無効です。設定画面で有効化してください。";
+                return;
+            }
+
+            var queued = _transcriptionQueue.TryEnqueue(new TranscriptionJobRequest(
+                AudioFilePath: SelectedItem.FilePath,
+                Options: options,
+                Trigger: TranscriptionTrigger.Manual));
+            if (!queued)
+            {
+                StatusText = "文字起こしキューへの投入に失敗しました。";
+                return;
+            }
+
+            IsTranscribing = true;
+            StatusText = "文字起こしジョブをキューへ追加しました。";
         }
-        if (!await EnsureFileExistsOrPromptRemoveAsync("文字起こし", SelectedItem.FilePath))
+        catch (Exception ex)
         {
-            return;
+            IsTranscribing = false;
+            StatusText = $"文字起こし開始時に例外が発生しました: {ex.Message}";
+            ModernDialog.Show(
+                $"文字起こし開始時に例外が発生しました。\n{ex.Message}",
+                "文字起こしエラー",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
-        var options = _optionsProvider();
-        if (!options.TranscriptionEnabled)
-        {
-            StatusText = "文字起こし機能が無効です。設定画面で有効化してください。";
-            return;
-        }
-        var queued = _transcriptionQueue.TryEnqueue(new TranscriptionJobRequest(
-            AudioFilePath: SelectedItem.FilePath,
-            Options: options,
-            Trigger: TranscriptionTrigger.Manual));
-        if (!queued)
-        {
-            StatusText = "文字起こしキューへの投入に失敗しました。";
-            return;
-        }
-        IsTranscribing = true;
-        StatusText = "文字起こしジョブをキューへ追加しました。";
     }
+
     private void OnTranscriptionJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e)
     {
         var app = System.Windows.Application.Current;
@@ -837,4 +855,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _playbackService.Dispose();
     }
 }
+
+
 

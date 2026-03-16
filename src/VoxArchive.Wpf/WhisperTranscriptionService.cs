@@ -1,4 +1,5 @@
 using System.Collections;
+using System.ComponentModel;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -13,12 +14,9 @@ namespace VoxArchive.Wpf;
 
 public sealed class WhisperTranscriptionService
 {
-    private static readonly object LogSync = new();
-    private static readonly string LogFilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "VoxArchive",
-        "logs",
-        "whisper-transcription.log");
+
+    private static readonly object CudaNativeLoadSync = new();
+    private static readonly List<IntPtr> CudaNativeHandles = new();
 
     private readonly WhisperModelStore _modelStore;
 
@@ -29,35 +27,116 @@ public sealed class WhisperTranscriptionService
 
     public WhisperEnvironmentStatus CheckEnvironment(RecordingOptions options)
     {
-        var runtimeAvailable = TryGetWhisperFactoryType(out _);
-        var modelInstalled = _modelStore.IsInstalled(options.TranscriptionModel);
-        var cudaRuntimeAvailable = TryGetCudaRuntimeType(out var cudaRuntimeDetail);
-        var cudaDriverAvailable = TryLoadCudaDriver(out var cudaDriverDetail);
-        var cudaAvailable = cudaRuntimeAvailable && cudaDriverAvailable;
-
-        var runtimeMessage = runtimeAvailable
-            ? "Whisper.net ランタイムを検出しました。"
-            : "Whisper.net ランタイムを検出できませんでした。";
-
-        var modelMessage = modelInstalled
-            ? $"モデル '{WhisperModelStore.GetModelFileName(options.TranscriptionModel)}' は配置済みです。"
-            : $"モデル '{WhisperModelStore.GetModelFileName(options.TranscriptionModel)}' は未配置です。";
-
-        var cudaMessage = cudaAvailable
-            ? $"CUDA available (runtime: {cudaRuntimeDetail}, driver: {cudaDriverDetail})"
-            : $"CUDA unavailable (runtime: {cudaRuntimeDetail}, driver: {cudaDriverDetail})";
-
-        var detail = runtimeAvailable && modelInstalled
-            ? "文字起こし実行の前提条件を満たしています。"
-            : "設定画面のモデル管理/依存関係を確認してください。";
-
-        if (options.TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !cudaAvailable)
+        try
         {
-            detail += " CudaPreferred が選択されていますが、現在は CUDA を使用できません。CPU にフォールバックします。";
-        }
+            var runtimeAvailable = TryGetWhisperFactoryType(out _);
+            var modelInstalled = _modelStore.IsInstalled(options.TranscriptionModel);
 
-        return new WhisperEnvironmentStatus(runtimeAvailable, modelInstalled, runtimeMessage, modelMessage, cudaAvailable, cudaMessage, detail);
+            // 設定画面の環境チェックではネイティブDLLのロードを避け、存在確認ベースで安全に判定する。
+            var cudaRuntimeAvailable = TryProbeCudaRuntimeForSettings(out var cudaRuntimeDetail);
+            var cudaDriverAvailable = TryProbeCudaDriverForSettings(out var cudaDriverDetail);
+            var cudaAvailable = cudaRuntimeAvailable && cudaDriverAvailable;
+
+            var runtimeMessage = runtimeAvailable
+                ? "Whisper.net ランタイムを検出しました。"
+                : "Whisper.net ランタイムを検出できませんでした。";
+
+            var modelMessage = modelInstalled
+                ? $"モデル '{WhisperModelStore.GetModelFileName(options.TranscriptionModel)}' は配置済みです。"
+                : $"モデル '{WhisperModelStore.GetModelFileName(options.TranscriptionModel)}' は未配置です。";
+
+            var cudaMessage = cudaAvailable
+                ? $"CUDA available (runtime: {cudaRuntimeDetail}, driver: {cudaDriverDetail})"
+                : $"CUDA unavailable (runtime: {cudaRuntimeDetail}, driver: {cudaDriverDetail})";
+
+            var detail = runtimeAvailable && modelInstalled
+                ? "文字起こし実行の前提条件を満たしています。"
+                : "設定画面のモデル管理/依存関係を確認してください。";
+
+            if (options.TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !cudaAvailable)
+            {
+                detail += " CudaPreferred が選択されていますが、現在は CUDA を使用できません。CPU にフォールバックします。";
+            }
+
+            return new WhisperEnvironmentStatus(runtimeAvailable, modelInstalled, runtimeMessage, modelMessage, cudaAvailable, cudaMessage, detail);
+        }
+        catch (Exception ex)
+        {
+            return new WhisperEnvironmentStatus(
+                RuntimeAvailable: false,
+                ModelInstalled: false,
+                RuntimeMessage: "環境チェック中に例外が発生しました。",
+                ModelMessage: "モデル状態を判定できませんでした。",
+                CudaAvailable: false,
+                CudaMessage: "CUDA 判定中に例外が発生しました。",
+                DetailMessage: ex.Message);
+        }
     }
+
+    private static bool TryProbeCudaRuntimeForSettings(out string detail)
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var arch = RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64 => "win-x64",
+                Architecture.X86 => "win-x86",
+                Architecture.Arm64 => "win-arm64",
+                _ => "win-x64"
+            };
+
+            var candidates = new[]
+            {
+                Path.Combine(baseDir, "runtimes", "cuda", arch, "ggml-cuda-whisper.dll"),
+                Path.Combine(baseDir, "runtimes", "cuda", "win-x64", "ggml-cuda-whisper.dll")
+            };
+
+            var found = candidates.FirstOrDefault(File.Exists);
+            if (!string.IsNullOrWhiteSpace(found))
+            {
+                detail = $"native runtime file found: {Path.GetFileName(found)}";
+                return true;
+            }
+
+            detail = "cuda runtime assets not found";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            detail = $"cuda runtime probe failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static bool TryProbeCudaDriverForSettings(out string detail)
+    {
+        try
+        {
+            var system32 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "nvcuda.dll");
+            if (File.Exists(system32))
+            {
+                detail = "nvcuda.dll を検出(System32)";
+                return true;
+            }
+
+            var sysWow64 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SysWOW64", "nvcuda.dll");
+            if (File.Exists(sysWow64))
+            {
+                detail = "nvcuda.dll を検出(SysWOW64)";
+                return true;
+            }
+
+            detail = "nvcuda.dll を検出できません";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            detail = $"nvcuda.dll 判定失敗: {ex.Message}";
+            return false;
+        }
+    }
+
 
     public async Task<string> EnsureModelAsync(TranscriptionModel model, CancellationToken cancellationToken = default)
     {
@@ -72,39 +151,45 @@ public sealed class WhisperTranscriptionService
     public async Task<TranscriptionJobResult> TranscribeAsync(TranscriptionJobRequest request, CancellationToken cancellationToken = default)
     {
         var started = DateTimeOffset.Now;
-        Log($"Transcribe start: file={request.AudioFilePath}, model={request.Options.TranscriptionModel}, lang={request.Options.TranscriptionLanguage}");
-
-        if (!File.Exists(request.AudioFilePath))
-        {
-            Log("Transcribe failed: audio file missing");
-            return Fail("対象ファイルが見つかりません。", started);
-        }
-
-        if (request.Options.TranscriptionOutputFormats == TranscriptionOutputFormats.None)
-        {
-            Log("Transcribe failed: output formats none");
-            return Fail("出力形式が選択されていません。", started);
-        }
-
-        var modelPath = _modelStore.GetModelPath(request.Options.TranscriptionModel);
-        if (!File.Exists(modelPath))
-        {
-            Log($"Transcribe failed: model file missing ({modelPath})");
-            return Fail("モデルが未配置です。設定画面からモデルをダウンロードしてください。", started);
-        }
-
-        if (!TryGetWhisperFactoryType(out var factoryType))
-        {
-            Log("Transcribe failed: Whisper factory type not found");
-            return Fail("Whisper.net ランタイムが利用できません。依存ライブラリを確認してください。", started);
-        }
-
         try
         {
+
+            if (!File.Exists(request.AudioFilePath))
+            {
+                return Fail("対象ファイルが見つかりません。", started);
+            }
+
+            if (request.Options.TranscriptionOutputFormats == TranscriptionOutputFormats.None)
+            {
+                return Fail("出力形式が選択されていません。", started);
+            }
+
+            var modelPath = _modelStore.GetModelPath(request.Options.TranscriptionModel);
+            if (!File.Exists(modelPath))
+            {
+                return Fail("モデルが未配置です。設定画面からモデルをダウンロードしてください。", started);
+            }
+
+            if (!TryGetWhisperFactoryType(out var factoryType))
+            {
+                return Fail("Whisper.net ランタイムが利用できません。依存ライブラリを確認してください。", started);
+            }
+
+            if (request.Options.TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred)
+            {
+
+                // 事前ロードは行わず、存在確認ベースの判定に限定してクラッシュ経路を避ける。
+                var cudaRuntimeAvailable = TryProbeCudaRuntimeForSettings(out var cudaRuntimeDetail);
+                var cudaDriverAvailable = TryProbeCudaDriverForSettings(out var cudaDriverDetail);
+                var cudaReady = cudaRuntimeAvailable && cudaDriverAvailable;
+                if (!cudaReady)
+                {
+                }
+            }
+
             var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cancellationToken);
             var generated = await WriteOutputsAsync(request.AudioFilePath, request.Options.TranscriptionModel, request.Options.TranscriptionOutputFormats, segments, cancellationToken);
 
-            Log($"Transcribe success: segments={segments.Count}, outputs={string.Join(",", generated.Select(Path.GetFileName))}");
             return new TranscriptionJobResult(
                 Succeeded: true,
                 Message: "文字起こしが完了しました。",
@@ -114,8 +199,7 @@ public sealed class WhisperTranscriptionService
         }
         catch (Exception ex)
         {
-            Log("Transcribe exception", ex);
-            return Fail($"文字起こしに失敗しました: {ex.Message} (詳細ログ: {LogFilePath})", started);
+            return Fail($"文字起こしに失敗しました: {ex.Message}", started);
         }
     }
 
@@ -175,6 +259,8 @@ public sealed class WhisperTranscriptionService
 
     private static bool TryGetCudaRuntimeType(out string detail)
     {
+        var pathAdjustDetail = EnsureCudaToolkitBinOnPath();
+
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             var assemblyName = assembly.GetName().Name;
@@ -184,14 +270,14 @@ public sealed class WhisperTranscriptionService
                 continue;
             }
 
-            detail = $"assembly loaded: {assemblyName}";
+            detail = $"assembly loaded: {assemblyName}; {pathAdjustDetail}";
             return true;
         }
 
         try
         {
             var loaded = Assembly.Load("Whisper.net.Runtime.Cuda");
-            detail = $"assembly loaded: {loaded.GetName().Name}";
+            detail = $"assembly loaded: {loaded.GetName().Name}; {pathAdjustDetail}";
             return true;
         }
         catch
@@ -217,11 +303,18 @@ public sealed class WhisperTranscriptionService
         var found = candidates.FirstOrDefault(File.Exists);
         if (!string.IsNullOrWhiteSpace(found))
         {
-            detail = $"native runtime found: {Path.GetFileName(found)}";
-            return true;
+            if (NativeLibrary.TryLoad(found, out var nativeHandle))
+            {
+                NativeLibrary.Free(nativeHandle);
+                detail = $"native runtime loadable: {Path.GetFileName(found)}; {pathAdjustDetail}";
+                return true;
+            }
+
+            detail = BuildNativeLoadFailureDetail(found) + $"; {pathAdjustDetail}";
+            return false;
         }
 
-        detail = "cuda runtime assets not found";
+        detail = $"cuda runtime assets not found; {pathAdjustDetail}";
         return false;
     }
 
@@ -238,6 +331,198 @@ public sealed class WhisperTranscriptionService
         detail = "nvcuda.dll を検出できません";
         return false;
     }
+
+    private static bool TryPreloadCudaRuntimeBinaries(out string detail)
+    {
+        var pathAdjustDetail = EnsureCudaToolkitBinOnPath();
+        var runtimeDir = GetCudaRuntimeDirectory();
+        if (string.IsNullOrWhiteSpace(runtimeDir) || !Directory.Exists(runtimeDir))
+        {
+            detail = $"cuda runtime directory not found; {pathAdjustDetail}";
+            return false;
+        }
+
+        var loadOrder = new[]
+        {
+            "ggml-base-whisper.dll",
+            "ggml-cpu-whisper.dll",
+            "ggml-whisper.dll",
+            "whisper.dll",
+            "ggml-cuda-whisper.dll"
+        };
+
+        lock (CudaNativeLoadSync)
+        {
+            if (CudaNativeHandles.Count > 0)
+            {
+                detail = $"preload already initialized; {pathAdjustDetail}";
+                return true;
+            }
+
+            foreach (var fileName in loadOrder)
+            {
+                var fullPath = Path.Combine(runtimeDir, fileName);
+                if (!File.Exists(fullPath))
+                {
+                    detail = $"missing runtime file: {fileName}; {pathAdjustDetail}";
+                    return false;
+                }
+
+                if (!NativeLibrary.TryLoad(fullPath, out var handle))
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    var message = new Win32Exception(error).Message;
+                    detail = $"failed to preload {fileName} (Win32Error={error}: {message}); {pathAdjustDetail}";
+                    return false;
+                }
+
+                CudaNativeHandles.Add(handle);
+            }
+        }
+
+        detail = $"preload ok; {pathAdjustDetail}";
+        return true;
+    }
+
+    private static string? GetCudaRuntimeDirectory()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var arch = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => "win-x64",
+            Architecture.X86 => "win-x86",
+            Architecture.Arm64 => "win-arm64",
+            _ => "win-x64"
+        };
+
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "runtimes", "cuda", arch),
+            Path.Combine(baseDir, "runtimes", "cuda", "win-x64")
+        };
+
+        return candidates.FirstOrDefault(Directory.Exists);
+    }
+
+    private static string EnsureCudaToolkitBinOnPath()
+    {
+        var paths = new List<string>();
+
+        var cudaPath = Environment.GetEnvironmentVariable("CUDA_PATH");
+        if (!string.IsNullOrWhiteSpace(cudaPath))
+        {
+            paths.Add(Path.Combine(cudaPath, "bin"));
+        }
+
+        foreach (DictionaryEntry item in Environment.GetEnvironmentVariables())
+        {
+            if (item.Key is not string key || item.Value is not string value)
+            {
+                continue;
+            }
+
+            if (!key.StartsWith("CUDA_PATH_V", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            paths.Add(Path.Combine(value, "bin"));
+        }
+
+        var candidates = paths
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            return "no cuda toolkit path found";
+        }
+
+        lock (CudaNativeLoadSync)
+        {
+            var currentPath = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+            var added = new List<string>();
+            foreach (var candidate in candidates)
+            {
+                if (currentPath.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    continue;
+                }
+
+                currentPath = candidate + ";" + currentPath;
+                added.Add(candidate);
+            }
+
+            if (added.Count > 0)
+            {
+                Environment.SetEnvironmentVariable("PATH", currentPath);
+                return "added cuda bin: " + string.Join(" | ", added);
+            }
+        }
+
+        return "cuda bin already on PATH";
+    }
+
+    private static string ProbeCudaDependencyLibraries()
+    {
+        EnsureCudaToolkitBinOnPath();
+
+        var names = new[]
+        {
+            "cudart64_13.dll",
+            "cublas64_13.dll",
+            "cublasLt64_13.dll",
+        };
+
+        var result = new List<string>(names.Length);
+        foreach (var name in names)
+        {
+            var handle = LoadLibraryW(name);
+            if (handle != IntPtr.Zero)
+            {
+                FreeLibrary(handle);
+                result.Add($"{name}=ok");
+                continue;
+            }
+
+            var error = Marshal.GetLastWin32Error();
+            var message = new Win32Exception(error).Message;
+            result.Add($"{name}=ng({error}:{message})");
+        }
+
+        return string.Join(", ", result);
+    }
+
+    private static string BuildNativeLoadFailureDetail(string libraryPath)
+    {
+        var fileName = Path.GetFileName(libraryPath);
+        IntPtr moduleHandle = LoadLibraryW(libraryPath);
+        if (moduleHandle != IntPtr.Zero)
+        {
+            FreeLibrary(moduleHandle);
+            return $"native runtime loadable by LoadLibraryW but failed with NativeLibrary.TryLoad: {fileName}";
+        }
+
+        var error = Marshal.GetLastWin32Error();
+        var message = new Win32Exception(error).Message;
+        if (error == 126)
+        {
+            var deps = ProbeCudaDependencyLibraries();
+            return $"native runtime found but failed to load: {fileName} (Win32Error={error}: {message}); dependencyProbe=[{deps}]";
+        }
+
+        return $"native runtime found but failed to load: {fileName} (Win32Error={error}: {message})";
+    }
+
+    [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr LoadLibraryW(string lpLibFileName);
+
+    [DllImport("kernel32", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FreeLibrary(IntPtr hModule);
+
     private static object? CreateFactoryOptions(Assembly whisperAssembly, TranscriptionExecutionMode mode, out bool? requestedUseGpu)
     {
         requestedUseGpu = mode switch
@@ -272,7 +557,6 @@ public sealed class WhisperTranscriptionService
         TranscriptionJobRequest request,
         CancellationToken cancellationToken)
     {
-        Log($"ExecuteWhisper: factoryType={factoryType.FullName}, modelPath={modelPath}");
 
         var fromPath = factoryType.GetMethods(BindingFlags.Public | BindingFlags.Static)
             .FirstOrDefault(m => m.Name == "FromPath" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string));
@@ -303,12 +587,10 @@ public sealed class WhisperTranscriptionService
             var factoryOptions = CreateFactoryOptions(factoryType.Assembly, request.Options.TranscriptionExecutionMode, out var requestedUseGpu);
             if (fromPathWithOptions is not null && factoryOptions is not null)
             {
-                Log($"ExecuteWhisper options: mode={request.Options.TranscriptionExecutionMode}, useGpu={(requestedUseGpu.HasValue ? requestedUseGpu.Value.ToString() : "default")}");
                 factory = fromPathWithOptions.Invoke(null, new object?[] { modelPath, factoryOptions });
             }
             else
             {
-                Log($"ExecuteWhisper options: mode={request.Options.TranscriptionExecutionMode}, useGpu=default (options overload unavailable)");
                 factory = fromPath?.Invoke(null, new object?[] { modelPath });
             }
 
@@ -316,12 +598,17 @@ public sealed class WhisperTranscriptionService
             {
                 throw new InvalidOperationException("WhisperFactory initialization failed.");
             }
-
+            string? runtimeInfoText = null;
             var runtimeInfoMethod = factory.GetType().GetMethod("GetRuntimeInfo", Type.EmptyTypes);
             if (runtimeInfoMethod?.Invoke(factory, null) is string runtimeInfo && !string.IsNullOrWhiteSpace(runtimeInfo))
             {
-                Log($"Whisper runtime info: {runtimeInfo.Trim()}");
+                runtimeInfoText = runtimeInfo.Trim();
+                if (request.Options.TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred
+                    && !runtimeInfoText.Contains("CUDA", StringComparison.OrdinalIgnoreCase))
+                {
+                }
             }
+
 
             var createBuilder = factory.GetType().GetMethod("CreateBuilder", Type.EmptyTypes)
                 ?? throw new InvalidOperationException("CreateBuilder が見つかりません。");
@@ -366,19 +653,22 @@ public sealed class WhisperTranscriptionService
             var resolvedResult = await UnwrapAwaitableAsync(processResult, cancellationToken)
                 ?? throw new InvalidOperationException("ProcessAsync の解決結果が null です。");
 
-            Log($"ProcessAsync result resolved type: {resolvedResult.GetType().FullName}");
             var segments = await ReadSegmentsAsync(resolvedResult, cancellationToken);
             var probeAfterRead = ProbeCudaUsage();
+            var runtimeCudaFlag = TryParseRuntimeBackendFlag(runtimeInfoText, "CUDA");
+            var runtimeCpuFlag = TryParseRuntimeBackendFlag(runtimeInfoText, "CPU");
+            var computeDetected = probeAfterInvoke.ComputeProcessDetected || probeAfterRead.ComputeProcessDetected;
+            var moduleDetected = probeAfterInvoke.CudaModuleLoaded || probeAfterRead.CudaModuleLoaded;
 
-            var confirmed = probeAfterInvoke.ComputeProcessDetected || probeAfterRead.ComputeProcessDetected;
-            var probable = !confirmed && (probeAfterInvoke.CudaModuleLoaded || probeAfterRead.CudaModuleLoaded);
+            var confirmed = moduleDetected || (runtimeCudaFlag == true && computeDetected);
+            var probable = !confirmed && (runtimeCudaFlag == true || moduleDetected);
             var conclusion = confirmed
                 ? "confirmed"
                 : probable
                     ? "probable"
                     : "not-detected";
 
-            Log($"CUDA usage probe: conclusion={conclusion}, afterInvoke=[module={probeAfterInvoke.CudaModuleLoaded} ({probeAfterInvoke.ModuleDetail}), compute={probeAfterInvoke.ComputeProcessDetected} ({probeAfterInvoke.ComputeDetail})], afterRead=[module={probeAfterRead.CudaModuleLoaded} ({probeAfterRead.ModuleDetail}), compute={probeAfterRead.ComputeProcessDetected} ({probeAfterRead.ComputeDetail})]");
+
             return segments;
         }
         finally
@@ -488,9 +778,23 @@ public sealed class WhisperTranscriptionService
                 }
                 if (string.Equals(parts[0], currentPid, StringComparison.Ordinal))
                 {
-                    detail = $"compute attached: {line.Trim()}";
-                    return true;
+                    var memoryToken = parts.Length >= 3 ? parts[2].Trim().TrimStart('[').TrimEnd(']') : string.Empty;
+                    if (int.TryParse(memoryToken, out var usedMemoryMb) && usedMemoryMb > 0)
+                    {
+                        detail = $"compute attached: {line.Trim()}";
+                        return true;
+                    }
+
+                    if (string.Equals(memoryToken, "N/A", StringComparison.OrdinalIgnoreCase))
+                    {
+                        detail = $"pid matched but used_gpu_memory is N/A: {line.Trim()}";
+                        return false;
+                    }
+
+                    detail = $"pid matched but used_gpu_memory is invalid ('{memoryToken}'): {line.Trim()}";
+                    return false;
                 }
+
             }
             detail = "compute process not listed";
             return false;
@@ -500,6 +804,40 @@ public sealed class WhisperTranscriptionService
             detail = $"nvidia-smi unavailable: {ex.GetType().Name}";
             return false;
         }
+    }
+
+    private static bool? TryParseRuntimeBackendFlag(string? runtimeInfoText, string backendName)
+    {
+        if (string.IsNullOrWhiteSpace(runtimeInfoText))
+        {
+            return null;
+        }
+
+        var token = backendName + " = ";
+        var idx = runtimeInfoText.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0)
+        {
+            return null;
+        }
+
+        var valueIndex = idx + token.Length;
+        if (valueIndex >= runtimeInfoText.Length)
+        {
+            return null;
+        }
+
+        var valueChar = runtimeInfoText[valueIndex];
+        if (valueChar == '1')
+        {
+            return true;
+        }
+
+        if (valueChar == '0')
+        {
+            return false;
+        }
+
+        return null;
     }
     private static object?[] BuildProcessArgs(MethodInfo processAsync, Stream stream, CancellationToken cancellationToken)
     {
@@ -704,12 +1042,10 @@ public sealed class WhisperTranscriptionService
     {
         if (IsWaveFile(audioFilePath))
         {
-            Log("PrepareWaveInput: input is already WAV");
             return new PreparedWaveInput(File.OpenRead(audioFilePath), null);
         }
 
         var tempWavePath = Path.Combine(Path.GetTempPath(), $"voxarchive-whisper-{Guid.NewGuid():N}.wav");
-        Log($"PrepareWaveInput: convert to temp wav => {tempWavePath}");
 
         await Task.Run(() => ConvertAudioToWaveFile(audioFilePath, tempWavePath), cancellationToken);
         return new PreparedWaveInput(File.OpenRead(tempWavePath), tempWavePath);
@@ -870,9 +1206,8 @@ public sealed class WhisperTranscriptionService
             var sb = new StringBuilder();
             sb.AppendLine("WEBVTT");
             sb.AppendLine();
-            for (var i = 0; i < segments.Count; i++)
+            foreach (var seg in segments)
             {
-                var seg = segments[i];
                 sb.AppendLine($"{FormatVtt(seg.Start)} --> {FormatVtt(seg.End)}");
                 sb.AppendLine(seg.Text);
                 sb.AppendLine();
@@ -943,33 +1278,6 @@ public sealed class WhisperTranscriptionService
             FinishedAt: DateTimeOffset.Now);
     }
 
-    private static void Log(string message, Exception? ex = null)
-    {
-        try
-        {
-            var dir = Path.GetDirectoryName(LogFilePath);
-            if (!string.IsNullOrWhiteSpace(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-
-            var sb = new StringBuilder();
-            sb.Append('[').Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")).Append("] ").AppendLine(message);
-            if (ex is not null)
-            {
-                sb.AppendLine(ex.ToString());
-            }
-
-            lock (LogSync)
-            {
-                File.AppendAllText(LogFilePath, sb.ToString(), System.Text.Encoding.UTF8);
-            }
-        }
-        catch
-        {
-            // ログ出力失敗で文字起こし本体を落とさない。
-        }
-    }
 
     private sealed record CudaUsageProbeResult(
         bool CudaModuleLoaded,
@@ -1008,3 +1316,4 @@ public sealed class WhisperTranscriptionService
 
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);
 }
+

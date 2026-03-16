@@ -46,6 +46,9 @@ public sealed class TranscriptionJobQueue : IDisposable
         {
             // no-op
         }
+        catch (Exception)
+        {
+        }
     }
 
     private async Task<TranscriptionJobResult> ProcessAsync(TranscriptionJobRequest request, CancellationToken cancellationToken)
@@ -107,3 +110,5 @@ public sealed class TranscriptionJobQueue : IDisposable
 public sealed record TranscriptionJobCompletedEventArgs(
     TranscriptionJobRequest Request,
     TranscriptionJobResult Result);
+
+
