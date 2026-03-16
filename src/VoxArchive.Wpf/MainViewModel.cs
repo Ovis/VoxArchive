@@ -47,6 +47,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private LibraryViewModel? _libraryViewModel;
 
     private const double MeterFloorDb = -60d;
+    private const double NormalWindowWidth = 510d;
+    private const double RecordingWindowWidth = 590d;
     private const double MeterCeilingDb = 0d;
     private const double MeterDisplayGainDb = 6d;
     private const string SystemDefaultDeviceId = "__system_default__";
@@ -107,6 +109,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsProcessSelectionEnabled));
             OnPropertyChanged(nameof(RecordButtonVisibility));
             OnPropertyChanged(nameof(RecordingControlsVisibility));
+            OnPropertyChanged(nameof(WindowWidth));
             OnPropertyChanged(nameof(PauseGlyphVisibility));
             OnPropertyChanged(nameof(ResumeGlyphVisibility));
             RefreshCommands();
@@ -359,7 +362,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
 
-    public double WindowWidth => IsMiniMode ? 320 : 510;
+    public double WindowWidth => IsMiniMode ? 320 : (_recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused ? RecordingWindowWidth : NormalWindowWidth);
     public double WindowHeight => 100;
     public Visibility NormalMainControlsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
     public Visibility MiniMainControlsVisibility => IsMiniMode ? Visibility.Visible : Visibility.Collapsed;
@@ -952,5 +955,4 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
 
