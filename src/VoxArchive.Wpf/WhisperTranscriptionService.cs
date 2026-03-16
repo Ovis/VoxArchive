@@ -304,12 +304,12 @@ public sealed class WhisperTranscriptionService
             if (fromPathWithOptions is not null && factoryOptions is not null)
             {
                 Log($"ExecuteWhisper options: mode={request.Options.TranscriptionExecutionMode}, useGpu={(requestedUseGpu.HasValue ? requestedUseGpu.Value.ToString() : "default")}");
-                factory = fromPathWithOptions.Invoke(null, [modelPath, factoryOptions]);
+                factory = fromPathWithOptions.Invoke(null, new object?[] { modelPath, factoryOptions });
             }
             else
             {
                 Log($"ExecuteWhisper options: mode={request.Options.TranscriptionExecutionMode}, useGpu=default (options overload unavailable)");
-                factory = fromPath?.Invoke(null, [modelPath]);
+                factory = fromPath?.Invoke(null, new object?[] { modelPath });
             }
 
             if (factory is null)
@@ -338,7 +338,7 @@ public sealed class WhisperTranscriptionService
                     .FirstOrDefault(m => m.Name == "WithLanguage" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string));
                 if (withLanguage is not null)
                 {
-                    builder = withLanguage.Invoke(builder, [language]) ?? builder;
+                    builder = withLanguage.Invoke(builder, new object?[] { language }) ?? builder;
                 }
             }
 
@@ -474,7 +474,7 @@ public sealed class WhisperTranscriptionService
                 detail = "nvidia-smi timeout";
                 return false;
             }
-            var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var line in lines)
             {
                 var parts = line.Split(',');
@@ -506,7 +506,7 @@ public sealed class WhisperTranscriptionService
         var parameters = processAsync.GetParameters();
         if (parameters.Length == 1)
         {
-            return [stream];
+            return new object?[] { stream };
         }
 
         var args = new object?[parameters.Length];
@@ -552,7 +552,7 @@ public sealed class WhisperTranscriptionService
         }
 
         var enumArgs = getAsyncEnumerator.GetParameters().Length == 1
-            ? [cancellationToken]
+            ? new object?[] { cancellationToken }
             : Array.Empty<object?>();
 
         var enumerator = getAsyncEnumerator.Invoke(source, enumArgs);
