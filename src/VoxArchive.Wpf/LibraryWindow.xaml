@@ -520,7 +520,10 @@
                               ItemsSource="{Binding Items}"
                               SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                               AutoGenerateColumns="False"
-                              IsReadOnly="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              RowValidationErrorTemplate="{x:Null}"
                               SelectionMode="Single"
                               SelectionUnit="FullRow"
                               MouseDoubleClick="OnRecordingGridMouseDoubleClick"
@@ -699,6 +702,4 @@
         </Grid>
     </Grid>
 </Window>
-
-
 

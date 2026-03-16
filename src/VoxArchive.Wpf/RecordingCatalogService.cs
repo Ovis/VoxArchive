@@ -308,7 +308,7 @@ ON CONFLICT(file_path) DO UPDATE SET
     private static async Task<IReadOnlyList<LibraryRecordingItem>> GetAllCoreAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT id, file_path, file_name, title, duration_ms, sample_rate, channels, file_size_bytes, last_write_utc FROM recordings ORDER BY last_write_utc DESC;";
+        cmd.CommandText = "SELECT id, file_path, file_name, title, duration_ms, sample_rate, channels, file_size_bytes, last_write_utc FROM recordings WHERE TRIM(file_path) <> '' AND TRIM(file_name) <> '' ORDER BY last_write_utc DESC;";
 
         var list = new List<LibraryRecordingItem>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -331,3 +331,4 @@ ON CONFLICT(file_path) DO UPDATE SET
         return list;
     }
 }
+
