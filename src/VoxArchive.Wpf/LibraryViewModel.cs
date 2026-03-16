@@ -38,6 +38,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private bool _isSeekingByUser;
     private bool _isUpdatingFromPlayer;
     private SeekStepOption? _selectedSeekStepOption = new(10, "10秒");
+    private bool _allItemsChecked;
 
     public LibraryViewModel(
         RecordingCatalogService catalogService,
@@ -90,6 +91,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         RenameCommand = new DelegateCommand(RenameAsync, () => SelectedItem is not null);
         DeleteFileCommand = new DelegateCommand(DeleteFileAsync, () => SelectedItem is not null);
         RemoveFromListCommand = new DelegateCommand(RemoveFromListAsync, () => SelectedItem is not null);
+        RemoveCheckedFromListCommand = new DelegateCommand(RemoveCheckedFromListAsync, CanRemoveCheckedFromList);
+        DeleteCheckedFilesCommand = new DelegateCommand(DeleteCheckedFilesAsync, CanDeleteCheckedFiles);
         OpenInExplorerCommand = new DelegateCommand(OpenInExplorerAsync, () => SelectedItem is not null);
         OpenTranscriptionFileCommand = new DelegateCommand(OpenTranscriptionFileAsync, CanOpenTranscriptionFile);
         TranscribeCommand = new DelegateCommand(TranscribeAsync, CanTranscribe);
@@ -113,6 +116,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public DelegateCommand RenameCommand { get; }
     public DelegateCommand DeleteFileCommand { get; }
     public DelegateCommand RemoveFromListCommand { get; }
+    public DelegateCommand RemoveCheckedFromListCommand { get; }
+    public DelegateCommand DeleteCheckedFilesCommand { get; }
     public DelegateCommand OpenInExplorerCommand { get; }
     public DelegateCommand OpenTranscriptionFileCommand { get; }
     public DelegateCommand TranscribeCommand { get; }
@@ -198,6 +203,25 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public string PositionText { get => _positionText; private set => SetField(ref _positionText, value); }
     public string StatusText { get => _statusText; private set => SetField(ref _statusText, value); }
 
+    public bool AllItemsChecked
+    {
+        get => _allItemsChecked;
+        set
+        {
+            if (!SetField(ref _allItemsChecked, value))
+            {
+                return;
+            }
+
+            foreach (var item in Items)
+            {
+                item.IsChecked = value;
+            }
+
+            RaiseCommands();
+        }
+    }
+
     public SeekStepOption? SelectedSeekStepOption
     {
         get => _selectedSeekStepOption;
@@ -263,11 +287,17 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
+            var oldItems = Items.ToList();
+            foreach (var item in oldItems)
+            {
+                item.PropertyChanged -= OnItemPropertyChanged;
+            }
             var list = await Task.Run(async () => await _catalogService.GetAllAsync());
             Items.Clear();
             foreach (var item in list)
             {
                 Items.Add(item);
+                item.PropertyChanged += OnItemPropertyChanged;
             }
 
             if (SelectedItem is not null)
@@ -275,6 +305,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                 SelectedItem = Items.FirstOrDefault(x => x.FilePath == SelectedItem.FilePath);
             }
 
+            UpdateAllItemsCheckedState();
             StatusText = $"{Items.Count} 件";
         }
         catch (Exception ex)
@@ -767,6 +798,109 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+
+    private List<LibraryRecordingItem> GetCheckedItems()
+    {
+        return Items.Where(x => x.IsChecked).ToList();
+    }
+
+    private bool CanRemoveCheckedFromList() => GetCheckedItems().Count > 0;
+
+    private bool CanDeleteCheckedFiles() => GetCheckedItems().Count > 0;
+
+    private async Task RemoveCheckedFromListAsync()
+    {
+        var checkedItems = GetCheckedItems();
+        if (checkedItems.Count == 0)
+        {
+            return;
+        }
+
+        var result = ModernDialog.Show(
+            $"チェックした {checkedItems.Count} 件を一覧から削除します（ファイルは残ります）。",
+            "一括削除確認",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (result != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var item in checkedItems)
+            {
+                await _catalogService.RemoveFromListAsync(item.FilePath);
+            }
+
+            await RefreshAsync();
+            StatusText = $"{checkedItems.Count} 件を一覧から削除しました（ファイルは残ります）。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"一覧一括削除失敗: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteCheckedFilesAsync()
+    {
+        var checkedItems = GetCheckedItems();
+        if (checkedItems.Count == 0)
+        {
+            return;
+        }
+
+        var result = ModernDialog.Show(
+            $"チェックした {checkedItems.Count} 件のファイルを削除します。",
+            "一括ファイル削除確認",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (result != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var item in checkedItems)
+            {
+                await _catalogService.DeleteFileAsync(item.FilePath);
+            }
+
+            await RefreshAsync();
+            StatusText = $"{checkedItems.Count} 件のファイルを削除しました。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"ファイル一括削除失敗: {ex.Message}";
+        }
+    }
+
+    private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(LibraryRecordingItem.IsChecked))
+        {
+            return;
+        }
+
+        UpdateAllItemsCheckedState();
+        RaiseCommands();
+    }
+
+    private void UpdateAllItemsCheckedState()
+    {
+        var allChecked = Items.Count > 0 && Items.All(x => x.IsChecked);
+        if (_allItemsChecked != allChecked)
+        {
+            _allItemsChecked = allChecked;
+            OnPropertyChanged(nameof(AllItemsChecked));
+        }
+    }
+
     private void UpdatePositionFromPlayer()
     {
         if (_isSeekingByUser)
@@ -808,6 +942,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         RenameCommand.RaiseCanExecuteChanged();
         DeleteFileCommand.RaiseCanExecuteChanged();
         RemoveFromListCommand.RaiseCanExecuteChanged();
+        RemoveCheckedFromListCommand.RaiseCanExecuteChanged();
+        DeleteCheckedFilesCommand.RaiseCanExecuteChanged();
         OpenInExplorerCommand.RaiseCanExecuteChanged();
         OpenTranscriptionFileCommand.RaiseCanExecuteChanged();
         TranscribeCommand.RaiseCanExecuteChanged();
@@ -854,6 +990,10 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _transcriptionQueue.JobCompleted -= OnTranscriptionJobCompleted;
+        foreach (var item in Items)
+        {
+            item.PropertyChanged -= OnItemPropertyChanged;
+        }
         _positionTimer.Stop();
         _playbackService.Dispose();
     }
