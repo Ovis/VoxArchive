@@ -108,6 +108,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(StartStopButtonText));
             OnPropertyChanged(nameof(PauseResumeButtonText));
             OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
+            OnPropertyChanged(nameof(IsSpeakerDeviceSelectionEnabled));
             OnPropertyChanged(nameof(IsStoppedOrError));
             OnPropertyChanged(nameof(IsProcessSelectionEnabled));
             OnPropertyChanged(nameof(RecordButtonVisibility));
@@ -115,6 +116,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(WindowWidth));
             OnPropertyChanged(nameof(PauseGlyphVisibility));
             OnPropertyChanged(nameof(ResumeGlyphVisibility));
+            EnsureSpeakerDevicePopupState();
             RefreshCommands();
         });
 
@@ -339,6 +341,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedOutputMode, value))
             {
                 OnPropertyChanged(nameof(IsProcessSelectionEnabled));
+                OnPropertyChanged(nameof(IsSpeakerDeviceSelectionEnabled));
                 OnPropertyChanged(nameof(SelectedOutputModeName));
                 OnPropertyChanged(nameof(IsProgramMode));
                 OnPropertyChanged(nameof(IsSpeakerMode));
@@ -346,6 +349,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     IsProcessPopupOpenNormal = false;
                 }
+                EnsureSpeakerDevicePopupState();
                 RefreshCommands();
             }
         }
@@ -372,6 +376,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string WindowModeToolTip => IsMiniMode ? "通常モード" : "ミニモード";
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
+    public bool IsSpeakerDeviceSelectionEnabled =>
+        !(SelectedOutputMode == OutputCaptureMode.ProcessLoopback &&
+          _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused);
     public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
     public Visibility RecordButtonVisibility => IsStoppedOrError ? Visibility.Visible : Visibility.Collapsed;
     public Visibility RecordingControlsVisibility => _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused
@@ -934,6 +941,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         System.Windows.Application.Current.Dispatcher.Invoke(action);
     }
 
+    private void EnsureSpeakerDevicePopupState()
+    {
+        if (IsSpeakerDeviceSelectionEnabled)
+        {
+            return;
+        }
+
+        IsSpeakerDevicePopupOpenNormal = false;
+    }
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
@@ -980,4 +997,6 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
+
 

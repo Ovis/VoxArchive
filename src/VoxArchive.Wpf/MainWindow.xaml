@@ -369,7 +369,7 @@
                                 <Line X1="3" Y1="22" X2="21" Y2="4" Stroke="#FFDA5D5D" StrokeThickness="2.8" Visibility="{Binding SpeakerMuteSlashVisibility}" />
                             </Grid>
                         </Button>
-                        <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" />
+                        <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" IsEnabled="{Binding IsSpeakerDeviceSelectionEnabled}" />
                         <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                             <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
                                 <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
@@ -480,4 +480,6 @@
         </Border>
     </Grid>
 </Window>
+
+
 
