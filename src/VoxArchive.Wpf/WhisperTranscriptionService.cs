@@ -238,6 +238,34 @@ public sealed class WhisperTranscriptionService
         detail = "nvcuda.dll を検出できません";
         return false;
     }
+    private static object? CreateFactoryOptions(Assembly whisperAssembly, TranscriptionExecutionMode mode, out bool? requestedUseGpu)
+    {
+        requestedUseGpu = mode switch
+        {
+            TranscriptionExecutionMode.CpuOnly => false,
+            TranscriptionExecutionMode.CudaPreferred => true,
+            _ => null
+        };
+        var optionsType = whisperAssembly.GetType("Whisper.net.WhisperFactoryOptions");
+        if (optionsType is null)
+        {
+            return null;
+        }
+        var options = Activator.CreateInstance(optionsType);
+        if (options is null)
+        {
+            return null;
+        }
+        if (requestedUseGpu.HasValue)
+        {
+            var useGpuProperty = optionsType.GetProperty("UseGpu", BindingFlags.Public | BindingFlags.Instance);
+            if (useGpuProperty?.CanWrite == true)
+            {
+                useGpuProperty.SetValue(options, requestedUseGpu.Value);
+            }
+        }
+        return options;
+    }
     private static async Task<IReadOnlyList<TranscribedSegment>> ExecuteWhisperAsync(
         Type factoryType,
         string modelPath,
@@ -248,7 +276,20 @@ public sealed class WhisperTranscriptionService
 
         var fromPath = factoryType.GetMethods(BindingFlags.Public | BindingFlags.Static)
             .FirstOrDefault(m => m.Name == "FromPath" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string));
-        if (fromPath is null)
+        var fromPathWithOptions = factoryType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(m =>
+            {
+                if (m.Name != "FromPath")
+                {
+                    return false;
+                }
+
+                var parameters = m.GetParameters();
+                return parameters.Length == 2
+                    && parameters[0].ParameterType == typeof(string)
+                    && string.Equals(parameters[1].ParameterType.Name, "WhisperFactoryOptions", StringComparison.Ordinal);
+            });
+        if (fromPath is null && fromPathWithOptions is null)
         {
             throw new InvalidOperationException("WhisperFactory.FromPath が見つかりません。");
         }
@@ -259,10 +300,27 @@ public sealed class WhisperTranscriptionService
 
         try
         {
-            factory = fromPath.Invoke(null, [modelPath]);
+            var factoryOptions = CreateFactoryOptions(factoryType.Assembly, request.Options.TranscriptionExecutionMode, out var requestedUseGpu);
+            if (fromPathWithOptions is not null && factoryOptions is not null)
+            {
+                Log($"ExecuteWhisper options: mode={request.Options.TranscriptionExecutionMode}, useGpu={(requestedUseGpu.HasValue ? requestedUseGpu.Value.ToString() : \"default\")}");
+                factory = fromPathWithOptions.Invoke(null, [modelPath, factoryOptions]);
+            }
+            else
+            {
+                Log($"ExecuteWhisper options: mode={request.Options.TranscriptionExecutionMode}, useGpu=default (options overload unavailable)");
+                factory = fromPath?.Invoke(null, [modelPath]);
+            }
+
             if (factory is null)
             {
-                throw new InvalidOperationException("WhisperFactory の初期化に失敗しました。");
+                throw new InvalidOperationException("WhisperFactory initialization failed.");
+            }
+
+            var runtimeInfoMethod = factory.GetType().GetMethod("GetRuntimeInfo", Type.EmptyTypes);
+            if (runtimeInfoMethod?.Invoke(factory, null) is string runtimeInfo && !string.IsNullOrWhiteSpace(runtimeInfo))
+            {
+                Log($"Whisper runtime info: {runtimeInfo.Trim()}");
             }
 
             var createBuilder = factory.GetType().GetMethod("CreateBuilder", Type.EmptyTypes)
