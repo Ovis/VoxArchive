@@ -247,6 +247,22 @@ public partial class MainWindow : Window
         _viewModel.IsMicDevicePopupOpenNormal = false;
     }
 
+    private void OnProcessListBoxPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var origin = e.OriginalSource as DependencyObject;
+        var listBoxItem = FindAncestor<ListBoxItem>(origin);
+        if (listBoxItem is null)
+        {
+            return;
+        }
+
+        _viewModel.IsProcessPopupOpenNormal = false;
+    }
     private static T? FindAncestor<T>(DependencyObject? start)
         where T : DependencyObject
     {
@@ -375,5 +391,4 @@ public partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 }
-
 

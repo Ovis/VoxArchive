@@ -356,7 +356,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedProcessItem, value))
             {
                 OnPropertyChanged(nameof(SelectedProcessDisplayName));
-                IsProcessPopupOpenNormal = false;
             }
         }
     }

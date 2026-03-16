@@ -437,7 +437,7 @@
                             <Border Background="White" BorderBrush="#64748B" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
                                 <StackPanel>
                                     <Button Margin="0,0,0,4" Padding="8,3" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" Foreground="#111827" Background="#E5E7EB" BorderBrush="#CBD5E1" />
-                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" Width="360" MaxHeight="260" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" Width="360" MaxHeight="260" ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonUp="OnProcessListBoxPreviewMouseLeftButtonUp" />
                                 </StackPanel>
                             </Border>
                         </Popup>
