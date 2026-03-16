@@ -41,7 +41,7 @@ public sealed class OutputCaptureController : IOutputCaptureController
             {
                 await StartSourceAsync(next, options, "Start", cancellationToken);
             }
-            catch when (ReferenceEquals(next, _processSource))
+            catch (Exception ex) when (ReferenceEquals(next, _processSource))
             {
                 var speakerOptions = options with
                 {
@@ -49,7 +49,10 @@ public sealed class OutputCaptureController : IOutputCaptureController
                     TargetProcessId = null
                 };
                 _lastOptions = speakerOptions;
-                await StartSourceAsync(_speakerSource, speakerOptions, "ProcessStartFailedFallback", cancellationToken);
+                var reason = string.IsNullOrWhiteSpace(ex.Message)
+                    ? "ProcessStartFailedFallback"
+                    : $"ProcessStartFailedFallback:{ex.Message}";
+                await StartSourceAsync(_speakerSource, speakerOptions, reason, cancellationToken);
             }
         }
         finally
@@ -139,3 +142,4 @@ public sealed class OutputCaptureController : IOutputCaptureController
         }
     }
 }
+

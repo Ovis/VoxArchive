@@ -33,16 +33,19 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
         _running = true;
 
         _capture = TryCreateProcessLoopbackCapture(targetProcessId);
-        if (_capture is not null)
+        if (_capture is null)
         {
-            _sampleRate = NaudioCaptureUtils.ResolveSampleRate(_capture);
-            (_channels, _bitsPerSample, _isFloat) = NaudioCaptureUtils.ResolveFormat(_capture);
-
-            _dataAvailableEvent = _capture.GetType().GetEvent("DataAvailable");
-            _dataAvailableHandler = NaudioCaptureUtils.CreateDataAvailableDelegate(this, _dataAvailableEvent!, nameof(OnDataAvailable));
-            _dataAvailableEvent.AddEventHandler(_capture, _dataAvailableHandler);
-            NaudioCaptureUtils.StartRecording(_capture);
+            _running = false;
+            throw new InvalidOperationException("Process loopback capture is not available in the current NAudio runtime.");
         }
+
+        _sampleRate = NaudioCaptureUtils.ResolveSampleRate(_capture);
+        (_channels, _bitsPerSample, _isFloat) = NaudioCaptureUtils.ResolveFormat(_capture);
+
+        _dataAvailableEvent = _capture.GetType().GetEvent("DataAvailable");
+        _dataAvailableHandler = NaudioCaptureUtils.CreateDataAvailableDelegate(this, _dataAvailableEvent!, nameof(OnDataAvailable));
+        _dataAvailableEvent.AddEventHandler(_capture, _dataAvailableHandler);
+        NaudioCaptureUtils.StartRecording(_capture);
 
         _monitorCts?.Cancel();
         _monitorCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -131,7 +134,8 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
 
     private static object? TryCreateProcessLoopbackCapture(int processId)
     {
-        var captureType = Type.GetType("NAudio.Wave.WasapiProcessLoopbackCapture, NAudio", throwOnError: false);
+        var captureType = Type.GetType("NAudio.Wave.WasapiProcessLoopbackCapture, NAudio", throwOnError: false)
+            ?? Type.GetType("NAudio.Wave.WasapiProcessLoopbackCapture, NAudio.Wasapi", throwOnError: false);
         if (captureType is null)
         {
             return null;
