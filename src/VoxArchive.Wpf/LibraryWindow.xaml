@@ -541,7 +541,7 @@
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Width="44" CanUserSort="False" IsReadOnly="False">
                                 <DataGridTemplateColumn.Header>
-                                    <CheckBox IsChecked="{Binding AllItemsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    <CheckBox IsChecked="{Binding DataContext.AllItemsChecked, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               Style="{StaticResource GridCheckBoxStyle}" />
                                 </DataGridTemplateColumn.Header>
                                 <DataGridTemplateColumn.CellTemplate>
