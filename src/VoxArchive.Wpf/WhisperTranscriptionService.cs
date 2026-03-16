@@ -444,7 +444,7 @@ public sealed class WhisperTranscriptionService
     {
         try
         {
-            var currentPid = Environment.ProcessId.ToString();
+            var currentPid = Process.GetCurrentProcess().Id.ToString();
             var startInfo = new ProcessStartInfo
             {
                 FileName = "nvidia-smi",
@@ -465,7 +465,7 @@ public sealed class WhisperTranscriptionService
             {
                 try
                 {
-                    process.Kill(true);
+                    process.Kill();
                 }
                 catch
                 {
@@ -477,7 +477,11 @@ public sealed class WhisperTranscriptionService
             var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
             foreach (var line in lines)
             {
-                var parts = line.Split(',', StringSplitOptions.TrimEntries);
+                var parts = line.Split(',');
+                for (var i = 0; i < parts.Length; i++)
+                {
+                    parts[i] = parts[i].Trim();
+                }
                 if (parts.Length == 0)
                 {
                     continue;
