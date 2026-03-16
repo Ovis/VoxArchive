@@ -2,6 +2,7 @@ using System.Collections;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using NAudio.Wave;
@@ -301,12 +302,26 @@ public sealed class WhisperTranscriptionService
             var processArgs = BuildProcessArgs(processAsync, preparedInput.Stream, cancellationToken);
             var processResult = processAsync.Invoke(processor, processArgs)
                 ?? throw new InvalidOperationException("ProcessAsync の戻り値が null です。");
+            var probeAfterInvoke = ProbeCudaUsage();
+
 
             var resolvedResult = await UnwrapAwaitableAsync(processResult, cancellationToken)
                 ?? throw new InvalidOperationException("ProcessAsync の解決結果が null です。");
 
             Log($"ProcessAsync result resolved type: {resolvedResult.GetType().FullName}");
-            return await ReadSegmentsAsync(resolvedResult, cancellationToken);
+            var segments = await ReadSegmentsAsync(resolvedResult, cancellationToken);
+            var probeAfterRead = ProbeCudaUsage();
+
+            var confirmed = probeAfterInvoke.ComputeProcessDetected || probeAfterRead.ComputeProcessDetected;
+            var probable = !confirmed && (probeAfterInvoke.CudaModuleLoaded || probeAfterRead.CudaModuleLoaded);
+            var conclusion = confirmed
+                ? "confirmed"
+                : probable
+                    ? "probable"
+                    : "not-detected";
+
+            Log($"CUDA usage probe: conclusion={conclusion}, afterInvoke=[module={probeAfterInvoke.CudaModuleLoaded} ({probeAfterInvoke.ModuleDetail}), compute={probeAfterInvoke.ComputeProcessDetected} ({probeAfterInvoke.ComputeDetail})], afterRead=[module={probeAfterRead.CudaModuleLoaded} ({probeAfterRead.ModuleDetail}), compute={probeAfterRead.ComputeProcessDetected} ({probeAfterRead.ComputeDetail})]");
+            return segments;
         }
         finally
         {
@@ -332,6 +347,98 @@ public sealed class WhisperTranscriptionService
         }
     }
 
+    private static CudaUsageProbeResult ProbeCudaUsage()
+    {
+        var moduleLoaded = TryDetectLoadedCudaModule(out var moduleDetail);
+        var computeDetected = TryDetectCudaComputeProcess(out var computeDetail);
+        return new CudaUsageProbeResult(moduleLoaded, moduleDetail, computeDetected, computeDetail);
+    }
+    private static bool TryDetectLoadedCudaModule(out string detail)
+    {
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            foreach (ProcessModule module in process.Modules)
+            {
+                var fileName = Path.GetFileName(module.ModuleName);
+                if (string.IsNullOrWhiteSpace(fileName))
+                {
+                    continue;
+                }
+                if (fileName.Contains("ggml-cuda-whisper", StringComparison.OrdinalIgnoreCase)
+                    || fileName.Contains("cudart", StringComparison.OrdinalIgnoreCase)
+                    || fileName.Contains("cublas", StringComparison.OrdinalIgnoreCase))
+                {
+                    detail = $"loaded: {fileName}";
+                    return true;
+                }
+            }
+            detail = "cuda module not loaded";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            detail = $"module detect failed: {ex.GetType().Name}";
+            return false;
+        }
+    }
+    private static bool TryDetectCudaComputeProcess(out string detail)
+    {
+        try
+        {
+            var currentPid = Environment.ProcessId.ToString();
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "nvidia-smi",
+                Arguments = "--query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader,nounits",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(startInfo);
+            if (process is null)
+            {
+                detail = "nvidia-smi process start failed";
+                return false;
+            }
+            var output = process.StandardOutput.ReadToEnd();
+            if (!process.WaitForExit(1500))
+            {
+                try
+                {
+                    process.Kill(true);
+                }
+                catch
+                {
+                    // ignore
+                }
+                detail = "nvidia-smi timeout";
+                return false;
+            }
+            var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var parts = line.Split(',', StringSplitOptions.TrimEntries);
+                if (parts.Length == 0)
+                {
+                    continue;
+                }
+                if (string.Equals(parts[0], currentPid, StringComparison.Ordinal))
+                {
+                    detail = $"compute attached: {line.Trim()}";
+                    return true;
+                }
+            }
+            detail = "compute process not listed";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            detail = $"nvidia-smi unavailable: {ex.GetType().Name}";
+            return false;
+        }
+    }
     private static object?[] BuildProcessArgs(MethodInfo processAsync, Stream stream, CancellationToken cancellationToken)
     {
         var parameters = processAsync.GetParameters();
@@ -802,6 +909,11 @@ public sealed class WhisperTranscriptionService
         }
     }
 
+    private sealed record CudaUsageProbeResult(
+        bool CudaModuleLoaded,
+        string ModuleDetail,
+        bool ComputeProcessDetected,
+        string ComputeDetail);
     private sealed class PreparedWaveInput : IAsyncDisposable
     {
         public PreparedWaveInput(Stream stream, string? temporaryWavePath)
