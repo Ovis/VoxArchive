@@ -234,6 +234,66 @@
             <Setter Property="Background" Value="#223042" />
             <Setter Property="BorderBrush" Value="#3A4E69" />
         </Style>
+        <Style x:Key="PopupScrollThumbStyle" TargetType="Thumb">
+            <Setter Property="Background" Value="#35506E" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Margin="1" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4B6B92" />
+                </Trigger>
+                <Trigger Property="IsDragging" Value="True">
+                    <Setter Property="Background" Value="#5B84B5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PopupScrollButtonStyle" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="{TemplateBinding Background}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PopupScrollBarStyle" TargetType="ScrollBar">
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Background" Value="#0E1724" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True" Margin="1">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource PopupScrollButtonStyle}" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource PopupScrollThumbStyle}" />
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource PopupScrollButtonStyle}" />
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Orientation" Value="Horizontal">
+                                <Setter Property="Width" Value="Auto" />
+                                <Setter Property="Height" Value="12" />
+                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style TargetType="ComboBox">
             <Setter Property="Foreground" Value="#111827" />
             <Setter Property="Background" Value="{StaticResource ControlBg}" />
@@ -393,7 +453,11 @@
                         <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedSpeakerDeviceName}" IsChecked="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" IsEnabled="{Binding IsSpeakerDeviceSelectionEnabled}" />
                         <Popup IsOpen="{Binding IsSpeakerDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SpeakerDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                             <Border Background="{StaticResource ControlBg}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                                <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
+                                <ListBox ItemsSource="{Binding SpeakerDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedSpeakerDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp">
+                                    <ListBox.Resources>
+                                        <Style TargetType="ScrollBar" BasedOn="{StaticResource PopupScrollBarStyle}" />
+                                    </ListBox.Resources>
+                                </ListBox>
                             </Border>
                         </Popup>
                     </Grid>
@@ -427,7 +491,11 @@
                         <ToggleButton Grid.Column="1" Style="{StaticResource DeviceArrowToggleStyle}" Content="▼" ToolTip="{Binding SelectedMicDeviceName}" IsChecked="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" />
                         <Popup IsOpen="{Binding IsMicDevicePopupOpenNormal, Mode=TwoWay}" PlacementTarget="{Binding ElementName=MicDeviceAnchorNormal}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                             <Border Background="{StaticResource ControlBg}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="6" MinWidth="260" Padding="4">
-                                <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp" />
+                                <ListBox ItemsSource="{Binding MicDevices}" DisplayMemberPath="FriendlyName" SelectedValuePath="DeviceId" SelectedValue="{Binding SelectedMicDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" PreviewMouseLeftButtonUp="OnDeviceListBoxPreviewMouseLeftButtonUp">
+                                    <ListBox.Resources>
+                                        <Style TargetType="ScrollBar" BasedOn="{StaticResource PopupScrollBarStyle}" />
+                                    </ListBox.Resources>
+                                </ListBox>
                             </Border>
                         </Popup>
                     </Grid>
@@ -458,7 +526,11 @@
                             <Border Background="{StaticResource ControlBg}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="6" MinWidth="320" Padding="4">
                                 <StackPanel>
                                     <Button Style="{StaticResource PopupActionButtonStyle}" Content="更新" Command="{Binding RefreshProcessesCommand}" IsEnabled="{Binding IsProcessSelectionEnabled}" />
-                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" Width="360" MaxHeight="260" ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonUp="OnProcessListBoxPreviewMouseLeftButtonUp" />
+                                    <ListBox ItemsSource="{Binding ProcessItems}" DisplayMemberPath="DisplayText" SelectedItem="{Binding SelectedProcessItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PopupListBoxStyle}" ItemContainerStyle="{StaticResource PopupListBoxItemStyle}" Width="360" MaxHeight="260" ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonUp="OnProcessListBoxPreviewMouseLeftButtonUp">
+                                        <ListBox.Resources>
+                                            <Style TargetType="ScrollBar" BasedOn="{StaticResource PopupScrollBarStyle}" />
+                                        </ListBox.Resources>
+                                    </ListBox>
                                 </StackPanel>
                             </Border>
                         </Popup>
@@ -501,6 +573,8 @@
         </Border>
     </Grid>
 </Window>
+
+
 
 
 
