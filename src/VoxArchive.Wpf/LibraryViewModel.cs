@@ -12,6 +12,8 @@ namespace VoxArchive.Wpf;
 
 public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 {
+    private static readonly TimeSpan PositionUpdateInterval = TimeSpan.FromMilliseconds(33);
+
     private readonly RecordingCatalogService _catalogService;
     private readonly RecordingPlaybackService _playbackService;
     private readonly DispatcherTimer _positionTimer;
@@ -60,9 +62,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _speakerGainDb = defaultSpeakerGainDb;
         _micGainDb = defaultMicGainDb;
 
-        _positionTimer = new DispatcherTimer
+        _positionTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
-            Interval = TimeSpan.FromMilliseconds(200)
+            Interval = PositionUpdateInterval
         };
         _positionTimer.Tick += (_, _) => UpdatePositionFromPlayer();
 
@@ -787,7 +789,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     {
         var pos = TimeSpan.FromSeconds(SeekSeconds);
         var dur = TimeSpan.FromSeconds(DurationSeconds);
-        PositionText = $"{pos:mm\\:ss} / {dur:mm\\:ss}";
+        var format = dur.TotalHours >= 1d ? @"hh\:mm\:ss" : @"mm\:ss";
+        PositionText = $"{pos.ToString(format)} / {dur.ToString(format)}";
     }
 
     private void StopPlaybackState()
@@ -855,6 +858,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _playbackService.Dispose();
     }
 }
+
 
 
 
