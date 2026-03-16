@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
+using Microsoft.Extensions.Logging;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Runtime;
@@ -12,8 +13,6 @@ namespace VoxArchive.Wpf;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
-    private static readonly object ErrorLogSync = new();
-
     private readonly IRecordingService _recordingService;
 
     private readonly ISettingsService _settingsService;
@@ -45,6 +44,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly WhisperModelStore _whisperModelStore;
     private readonly WhisperTranscriptionService _whisperTranscriptionService;
     private readonly TranscriptionJobQueue _transcriptionQueue;
+    private readonly ILogger<MainViewModel> _logger;
     private string? _lastRecordedFilePath;
     private LibraryWindow? _libraryWindow;
     private LibraryViewModel? _libraryViewModel;
@@ -56,19 +56,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const double MeterDisplayGainDb = 6d;
     private const string SystemDefaultDeviceId = "__system_default__";
 
-    public MainViewModel(RecordingRuntimeContext context)
+    public MainViewModel(
+        RecordingRuntimeContext context,
+        RecordingCatalogService libraryCatalogService,
+        WhisperModelStore whisperModelStore,
+        WhisperTranscriptionService whisperTranscriptionService,
+        TranscriptionJobQueue transcriptionQueue,
+        ILogger<MainViewModel> logger)
     {
         _recordingService = context.RecordingService;
         _settingsService = context.SettingsService;
         _deviceService = context.DeviceService;
         _processCatalogService = context.ProcessCatalogService;
         _options = EnsureDefaults(context.DefaultOptions);
-        var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
-        var dbPath = Path.Combine(appDir, "library.db");
-        _libraryCatalogService = new RecordingCatalogService(dbPath);
-        _whisperModelStore = new WhisperModelStore();
-        _whisperTranscriptionService = new WhisperTranscriptionService(_whisperModelStore);
-        _transcriptionQueue = new TranscriptionJobQueue(_whisperTranscriptionService);
+        _libraryCatalogService = libraryCatalogService;
+        _whisperModelStore = whisperModelStore;
+        _whisperTranscriptionService = whisperTranscriptionService;
+        _transcriptionQueue = transcriptionQueue;
+        _logger = logger;
         _transcriptionQueue.JobCompleted += OnTranscriptionJobCompleted;
 
         SpeakerDevices = new ObservableCollection<AudioDeviceInfo>();
@@ -937,25 +942,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         return new SolidColorBrush(Color.FromRgb(210, 216, 225));
     }
-    private static void WriteAppErrorLog(string message)
-    {
-        try
-        {
-            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
-            Directory.CreateDirectory(appDir);
-            var logPath = Path.Combine(appDir, "app-errors.log");
-            var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}";
-            lock (ErrorLogSync)
-            {
-                File.AppendAllText(logPath, line + Environment.NewLine);
-            }
-        }
-        catch
-        {
-            // ログ出力失敗はアプリ動作を止めない。
-        }
-    }
-
     private static void RunOnUi(Action action)
     {
         if (System.Windows.Application.Current.Dispatcher.CheckAccess())
@@ -988,7 +974,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(propertyName);
         if (propertyName == nameof(LastErrorText) && value is string errorText && !string.IsNullOrWhiteSpace(errorText))
         {
-            WriteAppErrorLog(errorText);
+            _logger.LogWarning("{ErrorText}", errorText);
         }
         if (propertyName is nameof(SelectedOutputMode) or nameof(SelectedProcessItem))
         {
@@ -1023,8 +1009,4 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
-
-
-
 

@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using Microsoft.Extensions.DependencyInjection;
 using VoxArchive.Application;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio;
@@ -31,52 +32,67 @@ public sealed class LocalRecordingBootstrapper
         var defaultMic = await deviceService.GetDefaultMicrophoneDeviceAsync(cancellationToken);
         var options = ApplyDefaults(loaded, defaultSpeaker, defaultMic);
 
-        var speakerCaptureService = NaudioRuntimeSupport.CreateSpeakerCaptureService();
-        var micCaptureService = NaudioRuntimeSupport.CreateMicCaptureService();
-        var processLoopbackCaptureService = new ProcessLoopbackCaptureService();
+        var services = new ServiceCollection();
+        services.AddSingleton<ISettingsService>(settingsService);
+        services.AddSingleton<IDeviceService>(deviceService);
+        services.AddSingleton<IProcessCatalogService>(processCatalogService);
+        services.AddSingleton(options);
 
-        var speakerSource = new SpeakerLoopbackCaptureSource(speakerCaptureService);
-        var processSource = new ProcessLoopbackCaptureSource(processLoopbackCaptureService);
+        services.AddSingleton<ISpeakerCaptureService>(_ => NaudioRuntimeSupport.CreateSpeakerCaptureService());
+        services.AddSingleton<IMicCaptureService>(_ => NaudioRuntimeSupport.CreateMicCaptureService());
+        services.AddSingleton<IProcessLoopbackCaptureService, ProcessLoopbackCaptureService>();
 
-        IOutputCaptureController outputCaptureController = new OutputCaptureController(speakerSource, processSource);
-        IOutputCaptureFailoverCoordinator failoverCoordinator = new OutputCaptureFailoverCoordinator(outputCaptureController);
+        services.AddSingleton<IOutputCaptureController>(sp =>
+        {
+            var speakerSource = new SpeakerLoopbackCaptureSource(sp.GetRequiredService<ISpeakerCaptureService>());
+            var processSource = new ProcessLoopbackCaptureSource(sp.GetRequiredService<IProcessLoopbackCaptureService>());
+            return new OutputCaptureController(speakerSource, processSource);
+        });
 
-        var sampleRate = options.SampleRate > 0 ? options.SampleRate : 48_000;
-        var bufferCapacity = sampleRate * 5;
+        services.AddSingleton<IOutputCaptureFailoverCoordinator, OutputCaptureFailoverCoordinator>();
 
-        IRingBuffer speakerBuffer = new FloatRingBuffer(bufferCapacity);
-        IRingBuffer micBuffer = new FloatRingBuffer(bufferCapacity);
-        IDriftCorrector driftCorrector = new PiDriftCorrector(options.Kp, options.Ki, options.MaxCorrectionPpm);
-        IVariableRateResampler resampler = new LinearVariableRateResampler();
-        IFrameBuilder frameBuilder = new FrameBuilder(speakerBuffer, micBuffer, resampler);
-        IFfmpegFlacEncoder encoder = new FfmpegFlacEncoder();
+        services.AddSingleton<IRecordingService>(sp =>
+        {
+            var recordingOptions = sp.GetRequiredService<RecordingOptions>();
+            var sampleRate = recordingOptions.SampleRate > 0 ? recordingOptions.SampleRate : 48_000;
+            var bufferCapacity = sampleRate * 5;
 
-        var baseDir = Path.GetDirectoryName(_settingsPath) ?? ".";
-        var logPath = Path.Combine(baseDir, "recording.log");
-        var csvPath = Path.Combine(baseDir, "recording-metrics.csv");
-        var jsonlPath = Path.Combine(baseDir, "recording-metrics.jsonl");
+            IRingBuffer speakerBuffer = new FloatRingBuffer(bufferCapacity);
+            IRingBuffer micBuffer = new FloatRingBuffer(bufferCapacity);
+            IDriftCorrector driftCorrector = new PiDriftCorrector(recordingOptions.Kp, recordingOptions.Ki, recordingOptions.MaxCorrectionPpm);
+            IVariableRateResampler resampler = new LinearVariableRateResampler();
+            IFrameBuilder frameBuilder = new FrameBuilder(speakerBuffer, micBuffer, resampler);
+            IFfmpegFlacEncoder encoder = new FfmpegFlacEncoder();
 
-        IRecordingTelemetrySink telemetrySink = new CompositeRecordingTelemetrySink(
-            new FileRecordingTelemetrySink(logPath),
-            new CsvRecordingTelemetrySink(csvPath),
-            new JsonlRecordingTelemetrySink(jsonlPath));
+            var baseDir = Path.GetDirectoryName(_settingsPath) ?? ".";
+            var logPath = Path.Combine(baseDir, "recording.log");
+            var csvPath = Path.Combine(baseDir, "recording-metrics.csv");
+            var jsonlPath = Path.Combine(baseDir, "recording-metrics.jsonl");
 
-        IRecordingService recordingService = new RecordingService(
-            outputCaptureController,
-            failoverCoordinator,
-            micCaptureService,
-            speakerBuffer,
-            micBuffer,
-            driftCorrector,
-            frameBuilder,
-            encoder,
-            telemetrySink);
+            IRecordingTelemetrySink telemetrySink = new CompositeRecordingTelemetrySink(
+                new FileRecordingTelemetrySink(logPath),
+                new CsvRecordingTelemetrySink(csvPath),
+                new JsonlRecordingTelemetrySink(jsonlPath));
+
+            return new RecordingService(
+                sp.GetRequiredService<IOutputCaptureController>(),
+                sp.GetRequiredService<IOutputCaptureFailoverCoordinator>(),
+                sp.GetRequiredService<IMicCaptureService>(),
+                speakerBuffer,
+                micBuffer,
+                driftCorrector,
+                frameBuilder,
+                encoder,
+                telemetrySink);
+        });
+
+        var provider = services.BuildServiceProvider();
 
         return new RecordingRuntimeContext(
-            RecordingService: recordingService,
-            SettingsService: settingsService,
-            DeviceService: deviceService,
-            ProcessCatalogService: processCatalogService,
+            RecordingService: provider.GetRequiredService<IRecordingService>(),
+            SettingsService: provider.GetRequiredService<ISettingsService>(),
+            DeviceService: provider.GetRequiredService<IDeviceService>(),
+            ProcessCatalogService: provider.GetRequiredService<IProcessCatalogService>(),
             DefaultOptions: options);
     }
 
