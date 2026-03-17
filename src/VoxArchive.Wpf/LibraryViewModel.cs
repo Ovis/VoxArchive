@@ -33,8 +33,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private double _durationSeconds;
     private string _positionText = "00:00 / 00:00";
     private string _statusText = "準備完了";
+    private readonly object _transcribingFilesGate = new();
+    private readonly HashSet<string> _transcribingFiles = new(StringComparer.OrdinalIgnoreCase);
     private bool _mixToMonoPlayback = true;
-    private bool _isTranscribing;
     private bool _isSeekingByUser;
     private bool _isUpdatingFromPlayer;
     private SeekStepOption? _selectedSeekStepOption = new(10, "10秒");
@@ -52,6 +53,15 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _optionsProvider = optionsProvider;
 
         _transcriptionQueue.JobCompleted += OnTranscriptionJobCompleted;
+        _transcriptionQueue.JobStateChanged += OnTranscriptionJobStateChanged;
+
+        foreach (var snapshot in _transcriptionQueue.GetStateSnapshot())
+        {
+            lock (_transcribingFilesGate)
+            {
+                _transcribingFiles.Add(NormalizePathKey(snapshot.AudioFilePath));
+            }
+        }
 
         _playbackService = new RecordingPlaybackService();
         _playbackService.PlaybackStopped += (_, _) =>
@@ -137,6 +147,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             EditableTitle = value?.Title ?? string.Empty;
             EditableFileName = value?.FileName ?? string.Empty;
             LoadSelectedForPlayback();
+            OnPropertyChanged(nameof(IsTranscribing));
             RaiseCommands();
         }
     }
@@ -240,17 +251,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public bool IsTranscribing
-    {
-        get => _isTranscribing;
-        private set
-        {
-            if (SetField(ref _isTranscribing, value))
-            {
-                TranscribeCommand.RaiseCanExecuteChanged();
-            }
-        }
-    }
+    public bool IsTranscribing => IsTranscribingForPath(SelectedItem?.FilePath);
 
     public void BeginSeek() => _isSeekingByUser = true;
 
@@ -638,7 +639,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             return false;
         }
         var options = _optionsProvider();
-        return !IsTranscribing
+        return !IsTranscribingForPath(SelectedItem.FilePath)
             && options.TranscriptionEnabled
             && !TryGetExistingTranscriptionFilePath(SelectedItem.FilePath, options.TranscriptionModel, out _);
     }
@@ -674,16 +675,16 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                 Trigger: TranscriptionTrigger.Manual));
             if (!queued)
             {
-                StatusText = "文字起こしキューへの投入に失敗しました。";
+                StatusText = IsTranscribingForPath(SelectedItem.FilePath) ? "このファイルは既に文字起こしキューに投入済みです。" : "文字起こしキューへの投入に失敗しました。";
                 return;
             }
 
-            IsTranscribing = true;
+            OnPropertyChanged(nameof(IsTranscribing));
+            RaiseCommands();
             StatusText = "文字起こしジョブをキューへ追加しました。";
         }
         catch (Exception ex)
         {
-            IsTranscribing = false;
             StatusText = $"文字起こし開始時に例外が発生しました: {ex.Message}";
             ModernDialog.Show(
                 $"文字起こし開始時に例外が発生しました。\n{ex.Message}",
@@ -702,10 +703,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
         app.Dispatcher.Invoke(() =>
         {
-            if (e.Request.Trigger == TranscriptionTrigger.Manual)
-            {
-                IsTranscribing = false;
-            }
             if (e.Result.Succeeded)
             {
                 StatusText = $"文字起こし完了: {Path.GetFileName(e.Request.AudioFilePath)}";
@@ -725,6 +722,59 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             RaiseCommands();
         });
     }
+    private void OnTranscriptionJobStateChanged(object? sender, TranscriptionJobStateChangedEventArgs e)
+    {
+        var key = NormalizePathKey(e.AudioFilePath);
+        lock (_transcribingFilesGate)
+        {
+            if (e.State is null)
+            {
+                _transcribingFiles.Remove(key);
+            }
+            else
+            {
+                _transcribingFiles.Add(key);
+            }
+        }
+
+        var app = System.Windows.Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        app.Dispatcher.Invoke(() =>
+        {
+            OnPropertyChanged(nameof(IsTranscribing));
+            RaiseCommands();
+        });
+    }
+
+    private bool IsTranscribingForPath(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return false;
+        }
+
+        lock (_transcribingFilesGate)
+        {
+            return _transcribingFiles.Contains(NormalizePathKey(filePath));
+        }
+    }
+
+    private static string NormalizePathKey(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path).Trim();
+        }
+        catch
+        {
+            return path.Trim();
+        }
+    }
+
     private Task SeekBackwardAsync() => SeekRelativeAsync(-1);
 
     private Task SeekForwardAsync() => SeekRelativeAsync(1);
@@ -1006,6 +1056,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _transcriptionQueue.JobCompleted -= OnTranscriptionJobCompleted;
+        _transcriptionQueue.JobStateChanged -= OnTranscriptionJobStateChanged;
         foreach (var item in Items)
         {
             item.PropertyChanged -= OnItemPropertyChanged;

@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.IO;
 using System.Threading.Channels;
 using VoxArchive.Domain;
 
@@ -5,10 +7,12 @@ namespace VoxArchive.Wpf;
 
 public sealed class TranscriptionJobQueue : IDisposable
 {
+    private readonly object _stateGate = new();
     private readonly WhisperTranscriptionService _transcriptionService;
     private readonly Channel<TranscriptionJobRequest> _queue;
     private readonly CancellationTokenSource _cts;
     private readonly Task _workerTask;
+    private readonly ConcurrentDictionary<string, TranscriptionJobState> _jobStates = new(StringComparer.OrdinalIgnoreCase);
 
     public TranscriptionJobQueue(WhisperTranscriptionService transcriptionService)
     {
@@ -23,10 +27,35 @@ public sealed class TranscriptionJobQueue : IDisposable
     }
 
     public event EventHandler<TranscriptionJobCompletedEventArgs>? JobCompleted;
+    public event EventHandler<TranscriptionJobStateChangedEventArgs>? JobStateChanged;
 
     public bool TryEnqueue(TranscriptionJobRequest request)
     {
-        return _queue.Writer.TryWrite(request);
+        var key = NormalizePathKey(request.AudioFilePath);
+        lock (_stateGate)
+        {
+            if (_jobStates.ContainsKey(key))
+            {
+                return false;
+            }
+
+            if (!_queue.Writer.TryWrite(request))
+            {
+                return false;
+            }
+
+            _jobStates[key] = TranscriptionJobState.Pending;
+        }
+
+        JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(request.AudioFilePath, TranscriptionJobState.Pending));
+        return true;
+    }
+
+    public IReadOnlyCollection<TranscriptionJobStateSnapshot> GetStateSnapshot()
+    {
+        return _jobStates
+            .Select(kvp => new TranscriptionJobStateSnapshot(kvp.Key, kvp.Value))
+            .ToArray();
     }
 
     private async Task WorkerLoopAsync()
@@ -37,7 +66,9 @@ public sealed class TranscriptionJobQueue : IDisposable
             {
                 while (_queue.Reader.TryRead(out var request))
                 {
+                    SetJobState(request.AudioFilePath, TranscriptionJobState.Running);
                     var result = await ProcessAsync(request, _cts.Token);
+                    ClearJobState(request.AudioFilePath);
                     JobCompleted?.Invoke(this, new TranscriptionJobCompletedEventArgs(request, result));
                 }
             }
@@ -86,6 +117,32 @@ public sealed class TranscriptionJobQueue : IDisposable
         }
     }
 
+    private void SetJobState(string audioFilePath, TranscriptionJobState state)
+    {
+        var key = NormalizePathKey(audioFilePath);
+        _jobStates[key] = state;
+        JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(audioFilePath, state));
+    }
+
+    private void ClearJobState(string audioFilePath)
+    {
+        var key = NormalizePathKey(audioFilePath);
+        _jobStates.TryRemove(key, out _);
+        JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(audioFilePath, null));
+    }
+
+    private static string NormalizePathKey(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path).Trim();
+        }
+        catch
+        {
+            return path.Trim();
+        }
+    }
+
     public void Dispose()
     {
         _queue.Writer.TryComplete();
@@ -111,4 +168,12 @@ public sealed record TranscriptionJobCompletedEventArgs(
     TranscriptionJobRequest Request,
     TranscriptionJobResult Result);
 
+public enum TranscriptionJobState
+{
+    Pending,
+    Running
+}
 
+public sealed record TranscriptionJobStateSnapshot(string AudioFilePath, TranscriptionJobState State);
+
+public sealed record TranscriptionJobStateChangedEventArgs(string AudioFilePath, TranscriptionJobState? State);
