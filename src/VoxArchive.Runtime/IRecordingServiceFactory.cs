@@ -1,6 +1,5 @@
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio.Abstractions;
-using VoxArchive.Domain;
 using VoxArchive.Encoding.Abstractions;
 
 namespace VoxArchive.Runtime;

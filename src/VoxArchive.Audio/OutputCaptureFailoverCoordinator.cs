@@ -29,7 +29,7 @@ public sealed class OutputCaptureFailoverCoordinator : IOutputCaptureFailoverCoo
             return Task.FromResult(OutputCaptureMode.SpeakerLoopback);
         }
 
-        if (options.TargetProcessId is not int pid || !IsProcessAlive(pid))
+        if (options.TargetProcessId is not { } pid || !IsProcessAlive(pid))
         {
             var ev = new OutputSourceChangedEvent(
                 OutputCaptureMode.ProcessLoopback,

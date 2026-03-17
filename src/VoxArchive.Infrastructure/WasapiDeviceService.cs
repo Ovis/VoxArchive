@@ -54,7 +54,7 @@ public sealed class WasapiDeviceService : IDeviceService
                 var state = Enum.Parse(types.DeviceStateType, "Active");
                 var role = Enum.Parse(types.RoleType, "Multimedia");
 
-                string defaultDeviceId = string.Empty;
+                string defaultDeviceId;
                 var defaultDevice = InvokeInstanceMethod(enumerator, "GetDefaultAudioEndpoint", flow, role);
                 try
                 {

@@ -1,25 +1,17 @@
-using System.Linq;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Application;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio.Abstractions;
-using VoxArchive.Domain;
 using VoxArchive.Encoding.Abstractions;
 
 namespace VoxArchive.Runtime;
 
-public sealed class RecordingServiceFactory : IRecordingServiceFactory
+public sealed class RecordingServiceFactory(
+    ILogger<RecordingService> logger,
+    IEnumerable<IRecordingTelemetrySink> telemetrySinks)
+    : IRecordingServiceFactory
 {
-    private readonly ILogger<RecordingService> _logger;
-    private readonly IRecordingTelemetrySink? _telemetrySink;
-
-    public RecordingServiceFactory(
-        ILogger<RecordingService> logger,
-        IEnumerable<IRecordingTelemetrySink> telemetrySinks)
-    {
-        _logger = logger;
-        _telemetrySink = telemetrySinks.FirstOrDefault();
-    }
+    private readonly IRecordingTelemetrySink? _telemetrySink = telemetrySinks.FirstOrDefault();
 
     public IRecordingService Create(
         IOutputCaptureController outputCaptureController,
@@ -41,6 +33,6 @@ public sealed class RecordingServiceFactory : IRecordingServiceFactory
             frameBuilder,
             encoder,
             _telemetrySink,
-            _logger);
+            logger);
     }
 }

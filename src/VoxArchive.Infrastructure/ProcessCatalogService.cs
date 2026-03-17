@@ -39,7 +39,7 @@ public sealed class ProcessCatalogService : IProcessCatalogService
                 }
             }
 
-            return (IReadOnlyList<ProcessInfo>)list
+            return list
                 .OrderBy(x => x.ApplicationName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.ProcessId)
                 .ToList();

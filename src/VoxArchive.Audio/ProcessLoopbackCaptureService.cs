@@ -173,7 +173,7 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
                         var bytesRecorded = Math.Max(0, (int)framesAvailable * _bytesPerFrame);
                         var buffer = new byte[bytesRecorded];
                         Marshal.Copy(dataPointer, buffer, 0, bytesRecorded);
-                        mono = NaudioCaptureUtils.ToMonoFloat(buffer, bytesRecorded, _channels, _bitsPerSample, _isFloat);
+                        mono = NAudioCaptureUtils.ToMonoFloat(buffer, bytesRecorded, _channels, _bitsPerSample, _isFloat);
                     }
 
                     _captureReleaseBuffer!(_captureClientPtr, framesAvailable);

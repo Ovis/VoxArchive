@@ -2,7 +2,7 @@ using VoxArchive.Audio.Abstractions;
 
 namespace VoxArchive.Audio;
 
-public static class NaudioRuntimeSupport
+public static class NAudioRuntimeSupport
 {
     private const string MicCaptureType = "NAudio.CoreAudioApi.WasapiCapture, NAudio.Wasapi";
     private const string SpeakerCaptureType = "NAudio.Wave.WasapiLoopbackCapture, NAudio.Wasapi";
@@ -16,13 +16,13 @@ public static class NaudioRuntimeSupport
     public static ISpeakerCaptureService CreateSpeakerCaptureService()
     {
         EnsureAvailable();
-        return new NaudioSpeakerCaptureService();
+        return new NAudioSpeakerCaptureService();
     }
 
     public static IMicCaptureService CreateMicCaptureService()
     {
         EnsureAvailable();
-        return new NaudioMicCaptureService();
+        return new NAudioMicCaptureService();
     }
 
     private static void EnsureAvailable()

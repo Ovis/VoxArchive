@@ -1,5 +1,3 @@
-using System;
-
 namespace VoxArchive.Domain;
 
 [Flags]

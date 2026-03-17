@@ -4,7 +4,7 @@ namespace VoxArchive.Audio;
 
 public sealed class FloatRingBuffer : IRingBuffer
 {
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
     private readonly float[] _buffer;
     private int _head;
     private int _tail;

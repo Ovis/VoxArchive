@@ -2,23 +2,13 @@ using VoxArchive.Audio.Abstractions;
 
 namespace VoxArchive.Audio;
 
-public sealed class FrameBuilder : IFrameBuilder
+public sealed class FrameBuilder(IRingBuffer speakerBuffer, IRingBuffer micBuffer, IVariableRateResampler resampler)
+    : IFrameBuilder
 {
-    private readonly IRingBuffer _speakerBuffer;
-    private readonly IRingBuffer _micBuffer;
-    private readonly IVariableRateResampler _resampler;
-
     private float[] _speakerFrame = Array.Empty<float>();
     private float[] _micRawFrame = Array.Empty<float>();
     private float[] _micFrame = Array.Empty<float>();
     private byte[] _pcm16Interleaved = Array.Empty<byte>();
-
-    public FrameBuilder(IRingBuffer speakerBuffer, IRingBuffer micBuffer, IVariableRateResampler resampler)
-    {
-        _speakerBuffer = speakerBuffer;
-        _micBuffer = micBuffer;
-        _resampler = resampler;
-    }
 
     public FrameBuildResult BuildFrame(int frameSamples, double micRatio)
     {
@@ -29,19 +19,19 @@ public sealed class FrameBuilder : IFrameBuilder
 
         EnsureCapacity(frameSamples);
 
-        var speakerRead = _speakerBuffer.Read(_speakerFrame);
+        var speakerRead = speakerBuffer.Read(_speakerFrame);
         if (speakerRead < frameSamples)
         {
             _speakerFrame.AsSpan(speakerRead).Clear();
         }
 
-        var micRead = _micBuffer.Read(_micRawFrame);
+        var micRead = micBuffer.Read(_micRawFrame);
         if (micRead < frameSamples)
         {
             _micRawFrame.AsSpan(micRead).Clear();
         }
 
-        _resampler.Resample(_micRawFrame, _micFrame, micRatio, out _);
+        resampler.Resample(_micRawFrame, _micFrame, micRatio, out _);
         InterleaveToPcm16(_speakerFrame, _micFrame, _pcm16Interleaved);
 
         return new FrameBuildResult(

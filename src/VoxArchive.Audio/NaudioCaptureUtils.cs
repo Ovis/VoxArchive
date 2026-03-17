@@ -1,10 +1,9 @@
 using System.Linq.Expressions;
 using System.Reflection;
-using VoxArchive.Audio.Abstractions;
 
 namespace VoxArchive.Audio;
 
-internal static class NaudioCaptureUtils
+internal static class NAudioCaptureUtils
 {
     public static object CreateCapture(string captureTypeName, string? deviceId)
     {

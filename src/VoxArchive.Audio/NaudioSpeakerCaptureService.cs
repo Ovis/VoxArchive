@@ -3,7 +3,7 @@ using VoxArchive.Audio.Abstractions;
 
 namespace VoxArchive.Audio;
 
-public sealed class NaudioSpeakerCaptureService : ISpeakerCaptureService
+public sealed class NAudioSpeakerCaptureService : ISpeakerCaptureService
 {
     private object? _capture;
     private EventInfo? _dataAvailableEvent;
@@ -17,15 +17,15 @@ public sealed class NaudioSpeakerCaptureService : ISpeakerCaptureService
 
     public Task StartAsync(string speakerDeviceId, int sampleRate, CancellationToken cancellationToken = default)
     {
-        _capture = NaudioCaptureUtils.CreateCapture("NAudio.Wave.WasapiLoopbackCapture, NAudio.Wasapi", speakerDeviceId);
-        _sampleRate = NaudioCaptureUtils.ResolveSampleRate(_capture);
-        (_channels, _bitsPerSample, _isFloat) = NaudioCaptureUtils.ResolveFormat(_capture);
+        _capture = NAudioCaptureUtils.CreateCapture("NAudio.Wave.WasapiLoopbackCapture, NAudio.Wasapi", speakerDeviceId);
+        _sampleRate = NAudioCaptureUtils.ResolveSampleRate(_capture);
+        (_channels, _bitsPerSample, _isFloat) = NAudioCaptureUtils.ResolveFormat(_capture);
 
         _dataAvailableEvent = _capture.GetType().GetEvent("DataAvailable");
-        _dataAvailableHandler = NaudioCaptureUtils.CreateDataAvailableDelegate(this, _dataAvailableEvent!, nameof(OnDataAvailable));
+        _dataAvailableHandler = NAudioCaptureUtils.CreateDataAvailableDelegate(this, _dataAvailableEvent!, nameof(OnDataAvailable));
         _dataAvailableEvent.AddEventHandler(_capture, _dataAvailableHandler);
 
-        NaudioCaptureUtils.StartRecording(_capture);
+        NAudioCaptureUtils.StartRecording(_capture);
         return Task.CompletedTask;
     }
 
@@ -41,8 +41,8 @@ public sealed class NaudioSpeakerCaptureService : ISpeakerCaptureService
             _dataAvailableEvent.RemoveEventHandler(_capture, _dataAvailableHandler);
         }
 
-        NaudioCaptureUtils.StopRecording(_capture);
-        NaudioCaptureUtils.DisposeCapture(_capture);
+        NAudioCaptureUtils.StopRecording(_capture);
+        NAudioCaptureUtils.DisposeCapture(_capture);
         _capture = null;
         return Task.CompletedTask;
     }
@@ -58,7 +58,7 @@ public sealed class NaudioSpeakerCaptureService : ISpeakerCaptureService
             return;
         }
 
-        var mono = NaudioCaptureUtils.ToMonoFloat(buffer, bytesRecorded, _channels, _bitsPerSample, _isFloat);
+        var mono = NAudioCaptureUtils.ToMonoFloat(buffer, bytesRecorded, _channels, _bitsPerSample, _isFloat);
         if (mono.Length == 0)
         {
             return;

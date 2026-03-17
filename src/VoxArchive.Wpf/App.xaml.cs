@@ -2,7 +2,6 @@ using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using VoxArchive.Application;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio;
 using VoxArchive.Audio.Abstractions;
@@ -50,8 +49,8 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<ISettingsService>(_ => new JsonSettingsService(settingsPath));
                     services.AddSingleton<IDeviceService, WasapiDeviceService>();
                     services.AddSingleton<IProcessCatalogService, ProcessCatalogService>();
-                    services.AddSingleton<ISpeakerCaptureService>(_ => NaudioRuntimeSupport.CreateSpeakerCaptureService());
-                    services.AddSingleton<IMicCaptureService>(_ => NaudioRuntimeSupport.CreateMicCaptureService());
+                    services.AddSingleton<ISpeakerCaptureService>(_ => NAudioRuntimeSupport.CreateSpeakerCaptureService());
+                    services.AddSingleton<IMicCaptureService>(_ => NAudioRuntimeSupport.CreateMicCaptureService());
                     services.AddSingleton<IProcessLoopbackCaptureService, ProcessLoopbackCaptureService>();
                     services.AddSingleton<IRecordingServiceFactory, RecordingServiceFactory>();
                     services.AddSingleton<LocalRecordingBootstrapper>();

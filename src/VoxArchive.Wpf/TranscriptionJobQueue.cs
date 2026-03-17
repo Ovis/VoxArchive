@@ -7,7 +7,7 @@ namespace VoxArchive.Wpf;
 
 public sealed class TranscriptionJobQueue : IDisposable
 {
-    private readonly object _stateGate = new();
+    private readonly Lock _stateGate = new();
     private readonly WhisperTranscriptionService _transcriptionService;
     private readonly Channel<TranscriptionJobRequest> _queue;
     private readonly CancellationTokenSource _cts;

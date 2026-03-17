@@ -2,23 +2,15 @@ using System.Windows.Input;
 
 namespace VoxArchive.Wpf;
 
-public sealed class DelegateCommand : ICommand
+public sealed class DelegateCommand(Func<Task> executeAsync, Func<bool>? canExecute = null) : ICommand
 {
-    private readonly Func<bool>? _canExecute;
-    private readonly Func<Task> _executeAsync;
     private bool _executing;
-
-    public DelegateCommand(Func<Task> executeAsync, Func<bool>? canExecute = null)
-    {
-        _executeAsync = executeAsync;
-        _canExecute = canExecute;
-    }
 
     public event EventHandler? CanExecuteChanged;
 
     public bool CanExecute(object? parameter)
     {
-        return !_executing && (_canExecute?.Invoke() ?? true);
+        return !_executing && (canExecute?.Invoke() ?? true);
     }
 
     public async void Execute(object? parameter)
@@ -32,7 +24,7 @@ public sealed class DelegateCommand : ICommand
         RaiseCanExecuteChanged();
         try
         {
-            await _executeAsync();
+            await executeAsync();
         }
         finally
         {

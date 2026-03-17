@@ -12,25 +12,18 @@ using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
-public sealed class WhisperTranscriptionService
+public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
 {
 
-    private static readonly object CudaNativeLoadSync = new();
+    private static readonly Lock CudaNativeLoadSync = new();
     private static readonly List<IntPtr> CudaNativeHandles = new();
-
-    private readonly WhisperModelStore _modelStore;
-
-    public WhisperTranscriptionService(WhisperModelStore modelStore)
-    {
-        _modelStore = modelStore;
-    }
 
     public WhisperEnvironmentStatus CheckEnvironment(RecordingOptions options)
     {
         try
         {
             var runtimeAvailable = TryGetWhisperFactoryType(out _);
-            var modelInstalled = _modelStore.IsInstalled(options.TranscriptionModel);
+            var modelInstalled = modelStore.IsInstalled(options.TranscriptionModel);
 
             // 設定画面の環境チェックではネイティブDLLのロードを避け、存在確認ベースで安全に判定する。
             var cudaRuntimeAvailable = TryProbeCudaRuntimeForSettings(out var cudaRuntimeDetail);
@@ -140,12 +133,12 @@ public sealed class WhisperTranscriptionService
 
     public async Task<string> EnsureModelAsync(TranscriptionModel model, CancellationToken cancellationToken = default)
     {
-        if (_modelStore.IsInstalled(model))
+        if (modelStore.IsInstalled(model))
         {
-            return _modelStore.GetModelPath(model);
+            return modelStore.GetModelPath(model);
         }
 
-        return await _modelStore.DownloadAsync(model, cancellationToken);
+        return await modelStore.DownloadAsync(model, cancellationToken);
     }
 
     public async Task<TranscriptionJobResult> TranscribeAsync(TranscriptionJobRequest request, CancellationToken cancellationToken = default)
@@ -164,7 +157,7 @@ public sealed class WhisperTranscriptionService
                 return Fail("出力形式が選択されていません。", started);
             }
 
-            var modelPath = _modelStore.GetModelPath(request.Options.TranscriptionModel);
+            var modelPath = modelStore.GetModelPath(request.Options.TranscriptionModel);
             if (!File.Exists(modelPath))
             {
                 return Fail("モデルが未配置です。設定画面からモデルをダウンロードしてください。", started);

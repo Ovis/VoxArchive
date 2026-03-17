@@ -2,15 +2,10 @@ using VoxArchive.Domain;
 
 namespace VoxArchive.Application;
 
-public sealed class RecordingStateMachine
+public sealed class RecordingStateMachine(RecordingState initialState = RecordingState.Stopped)
 {
-    private readonly object _gate = new();
-    private RecordingState _state;
-
-    public RecordingStateMachine(RecordingState initialState = RecordingState.Stopped)
-    {
-        _state = initialState;
-    }
+    private readonly Lock _gate = new();
+    private RecordingState _state = initialState;
 
     public RecordingState CurrentState
     {
