@@ -300,7 +300,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="10" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
@@ -409,6 +409,11 @@
                                 Click="OnBrowseOutputDirectoryClick" />
                     </Grid>
 
+
+                    <StackPanel Grid.Row="9" Margin="0,8,0,6">
+                        <CheckBox x:Name="RecordingMetricsLogCheckBox" Content="録音メトリクスをログに保存" />
+                        <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="有効時は AppData\\Local\\VoxArchive\\logs に録音メトリクスを出力します。" />
+                    </StackPanel>
                     <Border Grid.Row="10" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                         <Grid>
                             <Grid.ColumnDefinitions>

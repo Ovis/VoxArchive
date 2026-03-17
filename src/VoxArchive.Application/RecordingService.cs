@@ -423,7 +423,10 @@ public sealed class RecordingService : IRecordingService
     private void TransitionTo(RecordingState next)
     {
         _stateMachine.Transition(next);
-        _telemetrySink?.OnStateChanged(next);
+        if (IsTelemetryEnabled())
+        {
+            _telemetrySink?.OnStateChanged(next);
+        }
         StateChanged?.Invoke(this, next);
     }
 
@@ -431,11 +434,17 @@ public sealed class RecordingService : IRecordingService
     {
         if (_stateMachine.TryTransition(RecordingState.Error, out _))
         {
-            _telemetrySink?.OnStateChanged(RecordingState.Error);
+            if (IsTelemetryEnabled())
+            {
+                _telemetrySink?.OnStateChanged(RecordingState.Error);
+            }
             StateChanged?.Invoke(this, RecordingState.Error);
         }
 
-        _telemetrySink?.OnError(message);
+        if (IsTelemetryEnabled())
+        {
+            _telemetrySink?.OnError(message);
+        }
         ErrorOccurred?.Invoke(this, message);
     }
 
@@ -461,8 +470,16 @@ public sealed class RecordingService : IRecordingService
             MicLevel = _lastMicLevel
         };
 
-        _telemetrySink?.OnStatistics(statistics);
+        if (IsTelemetryEnabled())
+        {
+            _telemetrySink?.OnStatistics(statistics);
+        }
         StatisticsUpdated?.Invoke(this, statistics);
+    }
+
+    private bool IsTelemetryEnabled()
+    {
+        return _activeOptions?.RecordingMetricsLogEnabled == true;
     }
 
 
@@ -534,4 +551,5 @@ public sealed class RecordingService : IRecordingService
         return (samples * 1000d) / _activeOptions.SampleRate;
     }
 }
+
 

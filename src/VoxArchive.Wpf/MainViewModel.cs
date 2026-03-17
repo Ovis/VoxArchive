@@ -684,6 +684,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 AlignmentMilliseconds = _options.ChannelAlignmentMilliseconds,
                 StartStopHotkeyText = _options.StartStopHotkey,
                 OutputDirectory = _options.OutputDirectory,
+                RecordingMetricsLogEnabled = _options.RecordingMetricsLogEnabled,
                 DefaultSpeakerPlaybackGainDb = _options.DefaultSpeakerPlaybackGainDb,
                 DefaultMicPlaybackGainDb = _options.DefaultMicPlaybackGainDb,
                 TranscriptionEnabled = _options.TranscriptionEnabled,
@@ -729,6 +730,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 StartStopHotkey = normalizedHotkey,
                 DefaultSpeakerPlaybackGainDb = normalizedSpeakerGain,
                 DefaultMicPlaybackGainDb = normalizedMicGain,
+                RecordingMetricsLogEnabled = dialog.RecordingMetricsLogEnabled,
                 TranscriptionEnabled = dialog.TranscriptionEnabled,
                 AutoTranscriptionAfterRecord = dialog.AutoTranscriptionAfterRecord,
                 TranscriptionExecutionMode = dialog.TranscriptionExecutionMode,
@@ -976,5 +978,6 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
 
 

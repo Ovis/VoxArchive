@@ -100,6 +100,12 @@ public partial class SettingsWindow : Window
         set => OutputDirectoryTextBox.Text = value;
     }
 
+    public bool RecordingMetricsLogEnabled
+    {
+        get => RecordingMetricsLogCheckBox.IsChecked == true;
+        set => RecordingMetricsLogCheckBox.IsChecked = value;
+    }
+
     public bool TranscriptionEnabled
     {
         get => TranscriptionEnabledCheckBox.IsChecked == true;
@@ -557,5 +563,6 @@ public partial class SettingsWindow : Window
         };
     }
 }
+
 
 

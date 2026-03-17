@@ -65,9 +65,10 @@ public sealed class LocalRecordingBootstrapper
             IFfmpegFlacEncoder encoder = new FfmpegFlacEncoder();
 
             var baseDir = Path.GetDirectoryName(_settingsPath) ?? ".";
-            var logPath = Path.Combine(baseDir, "recording.log");
+            var logsDir = Path.Combine(baseDir, "logs");
 
-            IRecordingTelemetrySink telemetrySink = new FileRecordingTelemetrySink(logPath);
+            IRecordingTelemetrySink telemetrySink = new ZLoggerRecordingTelemetrySink(logsDir);
+
             return new RecordingService(
                 sp.GetRequiredService<IOutputCaptureController>(),
                 sp.GetRequiredService<IOutputCaptureFailoverCoordinator>(),
@@ -108,3 +109,4 @@ public sealed class LocalRecordingBootstrapper
         };
     }
 }
+
