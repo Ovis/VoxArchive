@@ -53,6 +53,7 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<ISpeakerCaptureService>(_ => NaudioRuntimeSupport.CreateSpeakerCaptureService());
                     services.AddSingleton<IMicCaptureService>(_ => NaudioRuntimeSupport.CreateMicCaptureService());
                     services.AddSingleton<IProcessLoopbackCaptureService, ProcessLoopbackCaptureService>();
+                    services.AddSingleton<IRecordingServiceFactory, RecordingServiceFactory>();
                     services.AddSingleton<LocalRecordingBootstrapper>();
 
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
@@ -111,3 +112,5 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
+
+
