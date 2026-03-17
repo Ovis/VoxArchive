@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Runtime;
+using ZLogger;
 
 namespace VoxArchive.Wpf;
 
@@ -19,8 +20,11 @@ public partial class App : System.Windows.Application
             "VoxArchive");
         Directory.CreateDirectory(appData);
 
+        var logsDir = Path.Combine(appData, "logs");
+        Directory.CreateDirectory(logsDir);
+
         var settingsPath = Path.Combine(appData, "settings.json");
-        var appErrorLogPath = Path.Combine(appData, "app-errors.log");
+        var appErrorLogPath = Path.Combine(logsDir, "app-errors.log");
 
         try
         {
@@ -32,7 +36,12 @@ public partial class App : System.Windows.Application
                 {
                     builder.ClearProviders();
                     builder.SetMinimumLevel(LogLevel.Information);
-                    builder.AddProvider(new AppFileLoggerProvider(appErrorLogPath));
+                    builder.AddZLoggerRollingFile(options =>
+                    {
+                        options.FilePathSelector = (timestamp, sequenceNumber) =>
+                            Path.Combine(logsDir, $"app-{timestamp.ToLocalTime():yyyyMMdd}-{sequenceNumber:000}.log");
+                        options.RollingSizeKB = 1024;
+                    });
                 })
                 .ConfigureServices(services =>
                 {
@@ -90,4 +99,3 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
-

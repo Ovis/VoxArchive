@@ -447,8 +447,9 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
         try
         {
             var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
-            Directory.CreateDirectory(appDir);
-            var logPath = Path.Combine(appDir, "app-errors.log");
+            var logsDir = Path.Combine(appDir, "logs");
+            Directory.CreateDirectory(logsDir);
+            var logPath = Path.Combine(logsDir, "app-errors.log");
             var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}";
             lock (ErrorLogSync)
             {
@@ -628,3 +629,4 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
         }
     }
 }
+
