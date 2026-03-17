@@ -252,7 +252,9 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        _ = RefreshEnvironmentStatusAsync();
+        // 自動実行は行わず、明示的な「環境チェック」押下時のみ判定する。
+        TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
+        TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
     }
 
     private async Task RefreshEnvironmentStatusAsync()
@@ -555,4 +557,5 @@ public partial class SettingsWindow : Window
         };
     }
 }
+
 
