@@ -92,7 +92,6 @@
                                            Text="▼"
                                            FontSize="10"
                                            Foreground="{TemplateBinding Foreground}"
-                                           HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
                             <ToggleButton Focusable="False"
@@ -142,8 +141,7 @@
 
 
 
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Style TargetType="CheckBox" BasedOn="{StaticResource CommonLabeledCheckBoxStyle}">
             <Setter Property="Margin" Value="0,2,0,2" />
         </Style>
 
@@ -338,7 +336,7 @@
                     <Grid Grid.Row="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="10" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
@@ -415,7 +413,7 @@
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="10" />
                                 <ColumnDefinition Width="3*" />
                             </Grid.ColumnDefinitions>
 
@@ -525,6 +523,13 @@
         </Grid>
     </Grid>
 </Window>
+
+
+
+
+
+
+
 
 
 

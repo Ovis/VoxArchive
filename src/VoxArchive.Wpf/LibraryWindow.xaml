@@ -102,57 +102,9 @@
             <Setter Property="Foreground" Value="White" />
         </Style>
 
-        <Style x:Key="GridCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="CheckBox">
-                        <Grid Width="18" Height="18">
-                            <Border x:Name="Box"
-                                    Background="#0F1A29"
-                                    BorderBrush="#35506E"
-                                    BorderThickness="1"
-                                    CornerRadius="4" />
-                            <Path x:Name="Mark"
-                                  Data="M 4 9 L 7 12 L 13 6"
-                                  Stroke="White"
-                                  StrokeThickness="2"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
-                                  StrokeLineJoin="Round"
-                                  Visibility="Collapsed" />
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Box" Property="Background" Value="#2F6FD8" />
-                                <Setter TargetName="Box" Property="BorderBrush" Value="#4B86E6" />
-                                <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Box" Property="BorderBrush" Value="#4B86E6" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Box" Property="Background" Value="#162131" />
-                                <Setter TargetName="Box" Property="BorderBrush" Value="#25364C" />
-                                <Setter TargetName="Box" Property="Opacity" Value="0.8" />
-                                <Setter TargetName="Mark" Property="Opacity" Value="0.7" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Foreground" Value="#7F8CA3" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <Style x:Key="GridCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource CommonGridCheckBoxStyle}" />
+
+        <Style x:Key="LabeledCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource CommonLabeledCheckBoxStyle}" />
 
         <Style TargetType="TextBox">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
@@ -715,7 +667,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="128" />
                         </Grid.ColumnDefinitions>
-                        <CheckBox Grid.Column="0" Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" Margin="0,2,0,0" />
+                        <CheckBox Grid.Column="0" Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" Style="{StaticResource LabeledCheckBoxStyle}" Margin="0,2,0,0" />
                         <Button Grid.Column="1" Content="モノラル保存" Command="{Binding SaveMonoMixCommand}" Style="{StaticResource FlatButtonStyle}" Margin="8,0,0,0" Height="30" MinHeight="30" FontSize="12" Padding="10,4" />
                     </Grid>
 
@@ -782,6 +734,7 @@
 
     </Grid>
 </Window>
+
 
 
 
