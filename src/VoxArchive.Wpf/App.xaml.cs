@@ -59,6 +59,7 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<WhisperModelStore>();
                     services.AddSingleton<WhisperTranscriptionService>();
                     services.AddSingleton<TranscriptionJobQueue>();
+                    services.AddTransient<IRecordingPlaybackService, RecordingPlaybackService>();
                     services.AddTransient<MainWindow>();
                 })
                 .Build();

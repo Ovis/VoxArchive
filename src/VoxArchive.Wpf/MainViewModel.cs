@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
@@ -39,6 +40,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly WhisperTranscriptionService _whisperTranscriptionService;
     private readonly TranscriptionJobQueue _transcriptionQueue;
     private readonly ILogger<MainViewModel> _logger;
+    private readonly IServiceProvider _serviceProvider;
     private string? _lastRecordedFilePath;
     private LibraryWindow? _libraryWindow;
     private LibraryViewModel? _libraryViewModel;
@@ -56,7 +58,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         WhisperModelStore whisperModelStore,
         WhisperTranscriptionService whisperTranscriptionService,
         TranscriptionJobQueue transcriptionQueue,
-        ILogger<MainViewModel> logger)
+        ILogger<MainViewModel> logger,
+        IServiceProvider serviceProvider)
     {
         _recordingService = context.RecordingService;
         _settingsService = context.SettingsService;
@@ -68,6 +71,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _whisperTranscriptionService = whisperTranscriptionService;
         _transcriptionQueue = transcriptionQueue;
         _logger = logger;
+        _serviceProvider = serviceProvider;
         _transcriptionQueue.JobCompleted += OnTranscriptionJobCompleted;
 
         SpeakerDevices = new ObservableCollection<AudioDeviceInfo>();
@@ -578,7 +582,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
-            var vm = new LibraryViewModel(
+            var vm = ActivatorUtilities.CreateInstance<LibraryViewModel>(
+                _serviceProvider,
                 _libraryCatalogService,
                 _transcriptionQueue,
                 () => _options,
@@ -978,6 +983,7 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
 
 
 

@@ -3,7 +3,7 @@ using NAudio.Wave;
 
 namespace VoxArchive.Wpf;
 
-public sealed class RecordingPlaybackService : IDisposable
+public sealed class RecordingPlaybackService : IRecordingPlaybackService
 {
     private WasapiOut? _output;
     private AudioFileReader? _reader;
@@ -137,3 +137,4 @@ public sealed class RecordingPlaybackService : IDisposable
         DisposeCore();
     }
 }
+

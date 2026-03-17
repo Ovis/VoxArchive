@@ -16,7 +16,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     private readonly RecordingCatalogService _catalogService;
     private readonly IDisposable _catalogSession;
-    private readonly RecordingPlaybackService _playbackService;
+    private readonly IRecordingPlaybackService _playbackService;
     private readonly DispatcherTimer _positionTimer;
     private readonly TranscriptionJobQueue _transcriptionQueue;
     private readonly Func<RecordingOptions> _optionsProvider;
@@ -48,6 +48,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         RecordingCatalogService catalogService,
         TranscriptionJobQueue transcriptionQueue,
         Func<RecordingOptions> optionsProvider,
+        IRecordingPlaybackService playbackService,
         double defaultSpeakerGainDb = 0d,
         double defaultMicGainDb = 0d)
     {
@@ -67,7 +68,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             }
         }
 
-        _playbackService = new RecordingPlaybackService();
+        _playbackService = playbackService;
         _playbackService.PlaybackStopped += (_, _) =>
         {
             IsPlaying = false;
@@ -1278,4 +1279,5 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _catalogSession.Dispose();
     }
 }
+
 
