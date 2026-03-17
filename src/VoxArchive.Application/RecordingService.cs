@@ -25,6 +25,8 @@ public sealed class RecordingService : IRecordingService
     private RecordingOptions? _activeOptions;
     private string? _outputPath;
     private DateTimeOffset _startedAt;
+    private TimeSpan _accumulatedPausedDuration;
+    private DateTimeOffset? _pauseStartedAt;
     private bool _isPaused;
     private long _underflowCount;
     private long _overflowCount;
@@ -96,6 +98,8 @@ public sealed class RecordingService : IRecordingService
             _activeOptions = effectiveOptions;
             _outputPath = BuildOutputFilePath(effectiveOptions.OutputDirectory);
             _startedAt = DateTimeOffset.UtcNow;
+            _accumulatedPausedDuration = TimeSpan.Zero;
+            _pauseStartedAt = null;
             _isPaused = false;
             _speakerCaptureEnabled = true;
             _micCaptureEnabled = true;
@@ -140,6 +144,7 @@ public sealed class RecordingService : IRecordingService
         try
         {
             TransitionTo(RecordingState.Pausing);
+            _pauseStartedAt ??= DateTimeOffset.UtcNow;
             _isPaused = true;
             await StopCaptureAsync(cancellationToken);
             TransitionTo(RecordingState.Paused);
@@ -166,6 +171,7 @@ public sealed class RecordingService : IRecordingService
             }
 
             await StartCaptureAsync(_activeOptions, cancellationToken);
+            AccumulatePauseDuration();
             _isPaused = false;
             TransitionTo(RecordingState.Recording);
         }
@@ -187,6 +193,7 @@ public sealed class RecordingService : IRecordingService
         {
             TransitionTo(RecordingState.Stopping);
             await TryStopInternalsAsync(cancellationToken);
+            AccumulatePauseDuration();
             TransitionTo(RecordingState.Stopped);
             RaiseStatistics();
         }
@@ -435,7 +442,11 @@ public sealed class RecordingService : IRecordingService
     private void RaiseStatistics()
     {
         var startedAt = _startedAt == default ? DateTimeOffset.UtcNow : _startedAt;
-        var elapsed = DateTimeOffset.UtcNow - startedAt;
+        var elapsed = DateTimeOffset.UtcNow - startedAt - GetCurrentPausedDuration();
+        if (elapsed < TimeSpan.Zero)
+        {
+            elapsed = TimeSpan.Zero;
+        }
 
         var statistics = new RecordingStatistics
         {
@@ -454,6 +465,36 @@ public sealed class RecordingService : IRecordingService
         StatisticsUpdated?.Invoke(this, statistics);
     }
 
+
+    private void AccumulatePauseDuration()
+    {
+        if (_pauseStartedAt is not DateTimeOffset pauseStartedAt)
+        {
+            return;
+        }
+
+        var pauseDuration = DateTimeOffset.UtcNow - pauseStartedAt;
+        if (pauseDuration > TimeSpan.Zero)
+        {
+            _accumulatedPausedDuration += pauseDuration;
+        }
+
+        _pauseStartedAt = null;
+    }
+
+    private TimeSpan GetCurrentPausedDuration()
+    {
+        if (_pauseStartedAt is DateTimeOffset pauseStartedAt)
+        {
+            var inProgressPause = DateTimeOffset.UtcNow - pauseStartedAt;
+            if (inProgressPause > TimeSpan.Zero)
+            {
+                return _accumulatedPausedDuration + inProgressPause;
+            }
+        }
+
+        return _accumulatedPausedDuration;
+    }
     private static void ValidateOptions(RecordingOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.OutputDirectory))
@@ -493,3 +534,4 @@ public sealed class RecordingService : IRecordingService
         return (samples * 1000d) / _activeOptions.SampleRate;
     }
 }
+
