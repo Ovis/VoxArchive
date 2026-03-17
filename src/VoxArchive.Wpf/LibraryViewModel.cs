@@ -40,6 +40,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private bool _isUpdatingFromPlayer;
     private SeekStepOption? _selectedSeekStepOption = new(10, "10秒");
     private bool _allItemsChecked;
+    private bool _isSavingMonoMix;
 
     public LibraryViewModel(
         RecordingCatalogService catalogService,
@@ -108,6 +109,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         TranscribeCommand = new DelegateCommand(TranscribeAsync, CanTranscribe);
         SeekBackwardCommand = new DelegateCommand(SeekBackwardAsync, () => SelectedItem is not null);
         SeekForwardCommand = new DelegateCommand(SeekForwardAsync, () => SelectedItem is not null);
+        SaveMonoMixCommand = new DelegateCommand(SaveMonoMixAsync, CanSaveMonoMix);
 
         _ = RefreshAsync();
     }
@@ -133,6 +135,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public DelegateCommand TranscribeCommand { get; }
     public DelegateCommand SeekBackwardCommand { get; }
     public DelegateCommand SeekForwardCommand { get; }
+    public DelegateCommand SaveMonoMixCommand { get; }
 
     public LibraryRecordingItem? SelectedItem
     {
@@ -830,6 +833,79 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+
+    private bool CanSaveMonoMix()
+    {
+        return SelectedItem is not null && !_isSavingMonoMix;
+    }
+
+    private async Task SaveMonoMixAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        if (!await EnsureFileExistsOrPromptRemoveAsync("\u30E2\u30CE\u30E9\u30EB\u4FDD\u5B58", SelectedItem.FilePath))
+        {
+            return;
+        }
+
+        var inputPath = SelectedItem.FilePath;
+        var format = MonoMixdownOutputFormat.Wav;
+        var initialFileName = BuildDefaultMonoMixFileName(inputPath, format);
+        var initialDirectory = Path.GetDirectoryName(inputPath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "\u30E2\u30CE\u30E9\u30EB\u5909\u63DB\u30D5\u30A1\u30A4\u30EB\u306E\u4FDD\u5B58\u5148",
+            Filter = "WAV (*.wav)|*.wav|MP3 (*.mp3)|*.mp3|FLAC (*.flac)|*.flac",
+            FilterIndex = 1,
+            FileName = initialFileName,
+            InitialDirectory = initialDirectory,
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        format = dialog.FilterIndex switch
+        {
+            2 => MonoMixdownOutputFormat.Mp3,
+            3 => MonoMixdownOutputFormat.Flac,
+            _ => MonoMixdownOutputFormat.Wav
+        };
+
+        var outputPath = EnsureOutputExtension(dialog.FileName, format);
+
+        try
+        {
+            _isSavingMonoMix = true;
+            RaiseCommands();
+            StatusText = "\u30E2\u30CE\u30E9\u30EB\u5909\u63DB\u30D5\u30A1\u30A4\u30EB\u3092\u66F8\u304D\u51FA\u3057\u4E2D...";
+
+            await MonoMixdownExportService.ExportAsync(
+                inputPath,
+                outputPath,
+                SpeakerGainDb,
+                MicGainDb,
+                format);
+
+            StatusText = $"\u30E2\u30CE\u30E9\u30EB\u5909\u63DB\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F: {Path.GetFileName(outputPath)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"\u30E2\u30CE\u30E9\u30EB\u4FDD\u5B58\u5931\u6557: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingMonoMix = false;
+            RaiseCommands();
+        }
+    }
     private async Task<bool> EnsureFileExistsOrPromptRemoveAsync(string actionName, string filePath)
     {
         if (File.Exists(filePath))
@@ -1019,6 +1095,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         TranscribeCommand.RaiseCanExecuteChanged();
         SeekBackwardCommand.RaiseCanExecuteChanged();
         SeekForwardCommand.RaiseCanExecuteChanged();
+        SaveMonoMixCommand.RaiseCanExecuteChanged();
     }
 
     private static bool TryGetExistingTranscriptionFilePath(string audioFilePath, TranscriptionModel model, out string? outputPath)
@@ -1038,6 +1115,37 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         return false;
     }
+
+    private static string BuildDefaultMonoMixFileName(string sourcePath, MonoMixdownOutputFormat format)
+    {
+        var baseName = Path.GetFileNameWithoutExtension(sourcePath);
+        var extension = format switch
+        {
+            MonoMixdownOutputFormat.Mp3 => ".mp3",
+            MonoMixdownOutputFormat.Flac => ".flac",
+            _ => ".wav"
+        };
+
+        return $"{baseName}-mono{extension}";
+    }
+
+    private static string EnsureOutputExtension(string path, MonoMixdownOutputFormat format)
+    {
+        var wantedExtension = format switch
+        {
+            MonoMixdownOutputFormat.Mp3 => ".mp3",
+            MonoMixdownOutputFormat.Flac => ".flac",
+            _ => ".wav"
+        };
+
+        if (string.Equals(Path.GetExtension(path), wantedExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            return path;
+        }
+
+        return Path.ChangeExtension(path, wantedExtension);
+    }
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))

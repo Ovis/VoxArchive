@@ -704,7 +704,14 @@
                         </Border>
                     </Grid>
 
-                    <CheckBox Grid.Row="7" Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" Margin="0,2,0,0" />
+                    <Grid Grid.Row="7" Margin="0,2,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="128" />
+                        </Grid.ColumnDefinitions>
+                        <CheckBox Grid.Column="0" Content="ミックスしてモノラル再生" IsChecked="{Binding MixToMonoPlayback, Mode=TwoWay}" Margin="0,2,0,0" />
+                        <Button Grid.Column="1" Content="モノラル保存" Command="{Binding SaveMonoMixCommand}" Style="{StaticResource FlatButtonStyle}" Margin="8,0,0,0" Height="30" MinHeight="30" FontSize="12" Padding="10,4" />
+                    </Grid>
 
                     <StackPanel Grid.Row="9">
                         <TextBlock Text="編集" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,8" />
@@ -769,6 +776,7 @@
 
     </Grid>
 </Window>
+
 
 
 
