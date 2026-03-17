@@ -66,14 +66,8 @@ public sealed class LocalRecordingBootstrapper
 
             var baseDir = Path.GetDirectoryName(_settingsPath) ?? ".";
             var logPath = Path.Combine(baseDir, "recording.log");
-            var csvPath = Path.Combine(baseDir, "recording-metrics.csv");
-            var jsonlPath = Path.Combine(baseDir, "recording-metrics.jsonl");
 
-            IRecordingTelemetrySink telemetrySink = new CompositeRecordingTelemetrySink(
-                new FileRecordingTelemetrySink(logPath),
-                new CsvRecordingTelemetrySink(csvPath),
-                new JsonlRecordingTelemetrySink(jsonlPath));
-
+            IRecordingTelemetrySink telemetrySink = new FileRecordingTelemetrySink(logPath);
             return new RecordingService(
                 sp.GetRequiredService<IOutputCaptureController>(),
                 sp.GetRequiredService<IOutputCaptureFailoverCoordinator>(),
