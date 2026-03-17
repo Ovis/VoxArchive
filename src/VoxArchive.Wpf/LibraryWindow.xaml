@@ -538,6 +538,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="8" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12">
@@ -737,10 +739,6 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="一覧から削除" Command="{Binding RemoveFromListCommand}" Style="{StaticResource FlatButtonStyle}" Margin="0,0,8,0" />
-                            <Button Content="ファイル削除" Command="{Binding DeleteFileCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0" />
-                        </StackPanel>
                     </StackPanel>
 
                     <Border Grid.RowSpan="10" Background="#C0111823" CornerRadius="10" IsHitTestVisible="False">
@@ -764,7 +762,11 @@
                 </Grid>
             </Border>
         </Grid>
+        <Border Grid.Row="4" Style="{StaticResource CardBorderStyle}" Padding="10,6">
+            <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMuted}" FontSize="12" TextTrimming="CharacterEllipsis" />
+        </Border>
         </Grid>
+
     </Grid>
 </Window>
 

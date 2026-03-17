@@ -19,18 +19,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IDeviceService _deviceService;
     private readonly IProcessCatalogService _processCatalogService;
     private RecordingOptions _options;
-
-    private string _stateText = "状態: Stopped";
-    private string _outputPathText = "出力: -";
-    private string _metricsText = "統計: -";
-    private string _lastErrorText = string.Empty;
     private string _selectedSpeakerDeviceId = string.Empty;
     private string _selectedMicDeviceId = string.Empty;
     private OutputCaptureMode _selectedOutputMode;
     private string _elapsedText = "00:00:00";
     private double _speakerLevelPercent;
     private double _micLevelPercent;
-    private string _alignmentMillisecondsText = "0";
     private string _startStopHotkeyText = KeyboardShortcutHelper.DefaultStartStopHotkey;
     private ProcessListItem? _selectedProcessItem;
     private bool _isSpeakerCaptureEnabled = true;
@@ -83,7 +77,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _selectedSpeakerDeviceId = _options.SpeakerDeviceId;
         _selectedMicDeviceId = _options.MicDeviceId;
         _selectedOutputMode = _options.OutputCaptureMode;
-        _alignmentMillisecondsText = _options.ChannelAlignmentMilliseconds.ToString();
         _startStopHotkeyText = _options.StartStopHotkey;
         _isSpeakerCaptureEnabled = _recordingService.IsSpeakerCaptureEnabled;
         _isMicCaptureEnabled = _recordingService.IsMicCaptureEnabled;
@@ -100,7 +93,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         _recordingService.StateChanged += (_, s) => RunOnUi(() =>
         {
-            StateText = $"状態: {s}";
             if (s is RecordingState.Stopped or RecordingState.Error)
             {
                 ResetLevelMeters();
@@ -110,8 +102,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 _ = RegisterLatestRecordingAsync();
             }
-            OnPropertyChanged(nameof(StartStopButtonText));
-            OnPropertyChanged(nameof(PauseResumeButtonText));
             OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
             OnPropertyChanged(nameof(IsSpeakerDeviceSelectionEnabled));
             OnPropertyChanged(nameof(IsStoppedOrError));
@@ -125,11 +115,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             RefreshCommands();
         });
 
-        _recordingService.ErrorOccurred += (_, e) => RunOnUi(() => LastErrorText = $"エラー: {e}");
-        _recordingService.OutputSourceChanged += (_, e) => RunOnUi(() => LastErrorText = $"出力切替: {e.Previous} -> {e.Current} ({e.Reason})");
+        _recordingService.ErrorOccurred += (_, e) => RunOnUi(() => _logger.LogWarning($"エラー: {e}"));
+        _recordingService.OutputSourceChanged += (_, e) => RunOnUi(() => _logger.LogWarning($"出力切替: {e.Previous} -> {e.Current} ({e.Reason})"));
         _recordingService.StatisticsUpdated += (_, st) => RunOnUi(() =>
         {
-            OutputPathText = $"出力: {st.OutputFilePath ?? "-"}";
             if (!string.IsNullOrWhiteSpace(st.OutputFilePath))
             {
                 _lastRecordedFilePath = st.OutputFilePath;
@@ -137,7 +126,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ElapsedText = st.ElapsedTime.ToString(@"hh\:mm\:ss");
             SpeakerLevelPercent = IsSpeakerCaptureEnabled ? ConvertLevelToPercent(st.SpeakerLevel) : 0;
             MicLevelPercent = IsMicCaptureEnabled ? ConvertLevelToPercent(st.MicLevel) : 0;
-            MetricsText = $"Drift {st.DriftCorrectionPpm:F1} ppm / MicBuf {st.MicBufferMilliseconds:F0}ms / SpkBuf {st.SpeakerBufferMilliseconds:F0}ms / UF {st.UnderflowCount} / OF {st.OverflowCount}";
         });
 
         _ = LoadDevicesAsync();
@@ -159,11 +147,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<AudioDeviceInfo> SpeakerDevices { get; }
     public ObservableCollection<AudioDeviceInfo> MicDevices { get; }
     public ObservableCollection<ProcessListItem> ProcessItems { get; }
-
-    public string StateText { get => _stateText; private set => SetField(ref _stateText, value); }
-    public string OutputPathText { get => _outputPathText; private set => SetField(ref _outputPathText, value); }
-    public string MetricsText { get => _metricsText; private set => SetField(ref _metricsText, value); }
-    public string LastErrorText { get => _lastErrorText; private set => SetField(ref _lastErrorText, value); }
     public string ElapsedText { get => _elapsedText; private set => SetField(ref _elapsedText, value); }
     public double SpeakerLevelPercent
     {
@@ -222,8 +205,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
         }
     }
-
-    public string AlignmentMillisecondsText { get => _alignmentMillisecondsText; set => SetField(ref _alignmentMillisecondsText, value); }
     public string StartStopHotkeyText { get => _startStopHotkeyText; private set => SetField(ref _startStopHotkeyText, value); }
 
     public bool IsSpeakerCaptureEnabled
@@ -402,9 +383,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ? Visibility.Visible
         : Visibility.Collapsed;
 
-    public string StartStopButtonText => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error ? "録音開始" : "停止";
-    public string PauseResumeButtonText => _recordingService.CurrentState == RecordingState.Paused ? "再開" : "一時停止";
-
     private async Task LoadDevicesAsync()
     {
         try
@@ -452,7 +430,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            RunOnUi(() => LastErrorText = $"デバイス列挙失敗: {ex.Message}");
+            RunOnUi(() => _logger.LogWarning($"デバイス列挙失敗: {ex.Message}"));
         }
     }
 
@@ -478,7 +456,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            RunOnUi(() => LastErrorText = $"プロセス列挙失敗: {ex.Message}");
+            RunOnUi(() => _logger.LogWarning($"プロセス列挙失敗: {ex.Message}"));
         }
     }
 
@@ -486,8 +464,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (_recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error)
         {
-            LastErrorText = string.Empty;
-
+            
             var mode = SelectedOutputMode;
             var targetPid = SelectedProcessItem?.ProcessId;
 
@@ -504,7 +481,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                     if (result != MessageBoxResult.OK)
                     {
-                        LastErrorText = "録音開始をキャンセルしました。";
+                        _logger.LogWarning("録音開始をキャンセルしました。");
                         return;
                     }
 
@@ -514,15 +491,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
 
-            if (!int.TryParse(AlignmentMillisecondsText, out var alignmentMs))
-            {
-                LastErrorText = "オフセット(ms)は整数で入力してください。";
-                return;
-            }
-
-            alignmentMs = Math.Clamp(alignmentMs, -1000, 1000);
-            AlignmentMillisecondsText = alignmentMs.ToString();
-
+            var alignmentMs = Math.Clamp(_options.ChannelAlignmentMilliseconds, -1000, 1000);
             _options = EnsureDefaults(_options) with
             {
                 SpeakerDeviceId = SelectedSpeakerDeviceId,
@@ -536,7 +505,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var resolvedMicDeviceId = await ResolveDeviceIdAsync(_options.MicDeviceId, DeviceKind.Microphone);
             if (string.IsNullOrWhiteSpace(resolvedSpeakerDeviceId) || string.IsNullOrWhiteSpace(resolvedMicDeviceId))
             {
-                LastErrorText = "システム既定のデバイス解決に失敗しました。デバイス設定を確認してください。";
+                _logger.LogWarning("システム既定のデバイス解決に失敗しました。デバイス設定を確認してください。");
                 return;
             }
 
@@ -551,7 +520,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _lastRecordedFilePath = path;
             _recordingService.SetSpeakerCaptureEnabled(IsSpeakerCaptureEnabled);
             _recordingService.SetMicCaptureEnabled(IsMicCaptureEnabled);
-            OutputPathText = $"出力: {path}";
             return;
         }
 
@@ -628,7 +596,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            LastErrorText = $"ライブラリ起動失敗: {ex.Message}";
+            _logger.LogWarning($"ライブラリ起動失敗: {ex.Message}");
             ModernDialog.Show(
                 $"ライブラリウィンドウの表示に失敗しました。\n{ex.Message}",
                 "ライブラリ起動失敗",
@@ -674,12 +642,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
             catch (Exception ex)
             {
-                LastErrorText = $"ライブラリ登録失敗: {ex.Message}";
+                _logger.LogWarning($"ライブラリ登録失敗: {ex.Message}");
                 return;
             }
         }
 
-        LastErrorText = "ライブラリ登録失敗: 録音ファイルが見つかりません。";
+        _logger.LogWarning("ライブラリ登録失敗: 録音ファイルが見つかりません。");
     }
 
 
@@ -697,7 +665,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (!enqueued)
         {
-            LastErrorText = "文字起こしキューへの投入に失敗しました。";
+            _logger.LogWarning("文字起こしキューへの投入に失敗しました。");
             return;
         }
 
@@ -771,16 +739,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ManualTranscriptionPriority = dialog.ManualTranscriptionPriority,
                 TranscriptionToastNotificationEnabled = dialog.TranscriptionToastNotificationEnabled
             };
-
-            AlignmentMillisecondsText = normalizedOffset.ToString();
             StartStopHotkeyText = normalizedHotkey;
             await _settingsService.SaveRecordingOptionsAsync(_options);
             _libraryViewModel?.NotifyOptionsChanged();
-            LastErrorText = string.Empty;
         }
         catch (Exception ex)
         {
-            LastErrorText = $"設定画面起動失敗: {ex.Message}";
+            _logger.LogWarning($"設定画面起動失敗: {ex.Message}");
             ModernDialog.Show(
                 $"設定画面の表示に失敗しました。\n{ex.Message}",
                 "設定画面起動失敗",
@@ -853,7 +818,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
-            LastErrorText = $"文字起こし失敗: {e.Result.Message}";
+            _logger.LogWarning($"文字起こし失敗: {e.Result.Message}");
             if (e.Request.Options.TranscriptionToastNotificationEnabled)
             {
                 AppNotificationHub.Notify("VoxArchive", $"自動文字起こし失敗: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
@@ -978,10 +943,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         field = value;
         OnPropertyChanged(propertyName);
-        if (propertyName == nameof(LastErrorText) && value is string errorText && !string.IsNullOrWhiteSpace(errorText))
-        {
-            _logger.LogWarning("{ErrorText}", errorText);
-        }
         if (propertyName is nameof(SelectedOutputMode) or nameof(SelectedProcessItem))
         {
             RefreshCommands();
@@ -1015,4 +976,5 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
 
