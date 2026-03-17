@@ -15,6 +15,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private static readonly TimeSpan PositionUpdateInterval = TimeSpan.FromMilliseconds(33);
 
     private readonly RecordingCatalogService _catalogService;
+    private readonly IDisposable _catalogSession;
     private readonly RecordingPlaybackService _playbackService;
     private readonly DispatcherTimer _positionTimer;
     private readonly TranscriptionJobQueue _transcriptionQueue;
@@ -51,6 +52,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         double defaultMicGainDb = 0d)
     {
         _catalogService = catalogService;
+        _catalogSession = _catalogService.AcquireInteractiveSession();
         _transcriptionQueue = transcriptionQueue;
         _optionsProvider = optionsProvider;
 
@@ -1273,17 +1275,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
         _positionTimer.Stop();
         _playbackService.Dispose();
+        _catalogSession.Dispose();
     }
 }
-
-
-
-
-
-
-
-
-
-
-
 

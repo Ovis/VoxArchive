@@ -37,7 +37,7 @@ public partial class App : System.Windows.Application
                 .ConfigureServices(services =>
                 {
                     services.AddSingleton(context);
-                    services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.db")));
+                    services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
                     services.AddSingleton<WhisperModelStore>();
                     services.AddSingleton<WhisperTranscriptionService>();
                     services.AddSingleton<TranscriptionJobQueue>();
@@ -90,3 +90,4 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
+
