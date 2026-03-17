@@ -98,8 +98,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         RemoveMissingFromListCommand = new DelegateCommand(RemoveMissingFromListAsync);
         TogglePlaybackCommand = new DelegateCommand(TogglePlaybackAsync, () => SelectedItem is not null);
         StopCommand = new DelegateCommand(StopAsync, () => _playbackService.IsLoaded);
-        SaveTitleCommand = new DelegateCommand(SaveTitleAsync, () => SelectedItem is not null);
-        RenameCommand = new DelegateCommand(RenameAsync, () => SelectedItem is not null);
+        SaveTitleCommand = new DelegateCommand(SaveTitleAsync, CanSaveTitle);
+        RenameCommand = new DelegateCommand(RenameAsync, CanRename);
         DeleteFileCommand = new DelegateCommand(DeleteFileAsync, () => SelectedItem is not null);
         RemoveFromListCommand = new DelegateCommand(RemoveFromListAsync, () => SelectedItem is not null);
         RemoveCheckedFromListCommand = new DelegateCommand(RemoveCheckedFromListAsync, CanRemoveCheckedFromList);
@@ -155,8 +155,28 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public string EditableTitle { get => _editableTitle; set => SetField(ref _editableTitle, value); }
-    public string EditableFileName { get => _editableFileName; set => SetField(ref _editableFileName, value); }
+    public string EditableTitle
+    {
+        get => _editableTitle;
+        set
+        {
+            if (SetField(ref _editableTitle, value))
+            {
+                RaiseCommands();
+            }
+        }
+    }
+    public string EditableFileName
+    {
+        get => _editableFileName;
+        set
+        {
+            if (SetField(ref _editableFileName, value))
+            {
+                RaiseCommands();
+            }
+        }
+    }
 
     public bool IsPlaying
     {
@@ -463,6 +483,18 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+
+    private bool CanSaveTitle()
+    {
+        if (SelectedItem is null)
+        {
+            return false;
+        }
+
+        var current = EditableTitle.Trim();
+        var original = (SelectedItem.Title ?? string.Empty).Trim();
+        return !string.Equals(current, original, StringComparison.Ordinal);
+    }
     private async Task RenameAsync()
     {
         if (SelectedItem is null)
@@ -504,6 +536,18 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+
+    private bool CanRename()
+    {
+        if (SelectedItem is null)
+        {
+            return false;
+        }
+
+        var current = EditableFileName.Trim();
+        var original = (SelectedItem.FileName ?? string.Empty).Trim();
+        return !string.Equals(current, original, StringComparison.Ordinal);
+    }
     private async Task DeleteFileAsync()
     {
         if (SelectedItem is null)
