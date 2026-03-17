@@ -9,7 +9,7 @@ namespace VoxArchive.LongRunTests;
 
 public sealed class RecordingServiceLongRunTests
 {
-    [Fact(Timeout = 30000)]
+    [Test, Timeout(30000)]
     public async Task ContinuousRun_ForTenSeconds_DoesNotFailAndProducesFrames()
     {
         using var fixture = new LongRunFixture();
@@ -24,9 +24,9 @@ public sealed class RecordingServiceLongRunTests
         await Task.Delay(TimeSpan.FromSeconds(10));
         await sut.StopAsync();
 
-        Assert.Empty(errors);
-        Assert.Equal(RecordingState.Stopped, sut.CurrentState);
-        Assert.True(fixture.Encoder.Writes >= 500, $"Expected many frame writes, actual={fixture.Encoder.Writes}");
+        Assert.That(errors, Is.Empty);
+        Assert.That(sut.CurrentState, Is.EqualTo(RecordingState.Stopped));
+        Assert.That(fixture.Encoder.Writes, Is.GreaterThanOrEqualTo(500), $"Expected many frame writes, actual={fixture.Encoder.Writes}");
     }
 
     private sealed class LongRunFixture : IDisposable
@@ -241,3 +241,4 @@ public sealed class RecordingServiceLongRunTests
         return arr;
     }
 }
+

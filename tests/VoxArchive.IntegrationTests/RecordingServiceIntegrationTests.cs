@@ -9,7 +9,7 @@ namespace VoxArchive.IntegrationTests;
 
 public sealed class RecordingServiceIntegrationTests
 {
-    [Fact]
+    [Test]
     public async Task StartAndStop_TransitionsAndEmitsOutputPath()
     {
         var fixture = new RecordingFixture();
@@ -23,17 +23,17 @@ public sealed class RecordingServiceIntegrationTests
         await Task.Delay(80);
         await sut.StopAsync();
 
-        Assert.Matches(new Regex(@"\d{14}\.flac$"), outputPath);
-        Assert.Contains(RecordingState.Starting, states);
-        Assert.Contains(RecordingState.Recording, states);
-        Assert.Contains(RecordingState.Stopping, states);
-        Assert.Contains(RecordingState.Stopped, states);
-        Assert.True(fixture.Encoder.StartCalled);
-        Assert.True(fixture.Encoder.StopCalled);
-        Assert.True(fixture.Encoder.Writes > 0);
+        Assert.That(outputPath, Does.Match(@"\d{14}\.flac$"));
+        Assert.That(states, Contains.Item(RecordingState.Starting));
+        Assert.That(states, Contains.Item(RecordingState.Recording));
+        Assert.That(states, Contains.Item(RecordingState.Stopping));
+        Assert.That(states, Contains.Item(RecordingState.Stopped));
+        Assert.That(fixture.Encoder.StartCalled, Is.True);
+        Assert.That(fixture.Encoder.StopCalled, Is.True);
+        Assert.That(fixture.Encoder.Writes, Is.GreaterThan(0));
     }
 
-    [Fact]
+    [Test]
     public async Task PauseResume_ChangesState()
     {
         var fixture = new RecordingFixture();
@@ -43,15 +43,15 @@ public sealed class RecordingServiceIntegrationTests
 
         await sut.StartAsync(options);
         await sut.PauseAsync();
-        Assert.Equal(RecordingState.Paused, sut.CurrentState);
+        Assert.That(sut.CurrentState, Is.EqualTo(RecordingState.Paused));
 
         await sut.ResumeAsync();
-        Assert.Equal(RecordingState.Recording, sut.CurrentState);
+        Assert.That(sut.CurrentState, Is.EqualTo(RecordingState.Recording));
 
         await sut.StopAsync();
     }
 
-    [Fact]
+    [Test]
     public async Task OutputSourceChanged_IsForwarded()
     {
         var fixture = new RecordingFixture();
@@ -74,10 +74,10 @@ public sealed class RecordingServiceIntegrationTests
 
         await sut.StopAsync();
 
-        Assert.Contains(events, x => x.Reason == "TargetProcessExited");
+        Assert.That(events.Any(x => x.Reason == "TargetProcessExited"), Is.True);
     }
 
-    [Fact]
+    [Test]
     public async Task Start_WithProcessModeWithoutPid_Throws()
     {
         var fixture = new RecordingFixture();
@@ -89,7 +89,7 @@ public sealed class RecordingServiceIntegrationTests
             TargetProcessId = null
         };
 
-        await Assert.ThrowsAsync<ArgumentException>(() => sut.StartAsync(options));
+        Assert.ThrowsAsync<ArgumentException>(async () => await sut.StartAsync(options));
     }
 
     private sealed class RecordingFixture
@@ -343,3 +343,4 @@ public sealed class RecordingServiceIntegrationTests
         }
     }
 }
+
