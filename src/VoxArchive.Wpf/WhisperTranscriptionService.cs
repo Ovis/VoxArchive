@@ -576,7 +576,7 @@ public sealed class WhisperTranscriptionService
             });
         if (fromPath is null && fromPathWithOptions is null)
         {
-            throw new InvalidOperationException("WhisperFactory.FromPath が見つかりません。");
+            throw new InvalidOperationException("WhisperFactory.FromPath was not found.");
         }
 
         object? factory = null;
@@ -599,23 +599,19 @@ public sealed class WhisperTranscriptionService
             {
                 throw new InvalidOperationException("WhisperFactory initialization failed.");
             }
+
             string? runtimeInfoText = null;
             var runtimeInfoMethod = factory.GetType().GetMethod("GetRuntimeInfo", Type.EmptyTypes);
             if (runtimeInfoMethod?.Invoke(factory, null) is string runtimeInfo && !string.IsNullOrWhiteSpace(runtimeInfo))
             {
                 runtimeInfoText = runtimeInfo.Trim();
-                if (request.Options.TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred
-                    && !runtimeInfoText.Contains("CUDA", StringComparison.OrdinalIgnoreCase))
-                {
-                }
             }
 
-
             var createBuilder = factory.GetType().GetMethod("CreateBuilder", Type.EmptyTypes)
-                ?? throw new InvalidOperationException("CreateBuilder が見つかりません。");
+                ?? throw new InvalidOperationException("CreateBuilder was not found.");
 
             builder = createBuilder.Invoke(factory, null)
-                ?? throw new InvalidOperationException("Builder の生成に失敗しました。");
+                ?? throw new InvalidOperationException("Builder creation failed.");
 
             var language = string.IsNullOrWhiteSpace(request.Options.TranscriptionLanguage)
                 ? "auto"
@@ -631,46 +627,68 @@ public sealed class WhisperTranscriptionService
             }
 
             var build = builder.GetType().GetMethod("Build", Type.EmptyTypes)
-                ?? throw new InvalidOperationException("Builder.Build が見つかりません。");
+                ?? throw new InvalidOperationException("Builder.Build was not found.");
             processor = build.Invoke(builder, null)
-                ?? throw new InvalidOperationException("Processor 生成に失敗しました。");
+                ?? throw new InvalidOperationException("Processor creation failed.");
 
             await using var preparedInput = await PrepareWaveInputAsync(request.AudioFilePath, request.Options, cancellationToken);
-
             var processAsync = processor.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
                 .FirstOrDefault(m => m.Name == "ProcessAsync" && m.GetParameters().Length >= 1 && typeof(Stream).IsAssignableFrom(m.GetParameters()[0].ParameterType));
 
             if (processAsync is null)
             {
-                throw new InvalidOperationException("Processor.ProcessAsync が見つかりません。");
+                throw new InvalidOperationException("Processor.ProcessAsync was not found.");
             }
 
-            var processArgs = BuildProcessArgs(processAsync, preparedInput.Stream, cancellationToken);
-            var processResult = processAsync.Invoke(processor, processArgs)
-                ?? throw new InvalidOperationException("ProcessAsync の戻り値が null です。");
-            var probeAfterInvoke = ProbeCudaUsage();
+            if (!string.IsNullOrWhiteSpace(preparedInput.TemporaryWavePath) && File.Exists(preparedInput.TemporaryWavePath))
+            {
+                var speechRegions = await DetectSpeechRegionsAsync(preparedInput.TemporaryWavePath!, cancellationToken);
+                if (speechRegions.Count == 0)
+                {
+                    return Array.Empty<TranscribedSegment>();
+                }
 
+                var collected = new List<TranscribedSegment>();
+                foreach (var region in speechRegions)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var segmentWavePath = CreateTemporarySegmentWavePath();
+                    try
+                    {
+                        WriteMonoWaveSegment(preparedInput.TemporaryWavePath!, segmentWavePath, region);
+                        await using var segmentStream = File.OpenRead(segmentWavePath);
 
-            var resolvedResult = await UnwrapAwaitableAsync(processResult, cancellationToken)
-                ?? throw new InvalidOperationException("ProcessAsync の解決結果が null です。");
+                        var args = BuildProcessArgs(processAsync, segmentStream, cancellationToken);
+                        var result = processAsync.Invoke(processor, args)
+                            ?? throw new InvalidOperationException("ProcessAsync returned null.");
 
-            var segments = await ReadSegmentsAsync(resolvedResult, cancellationToken);
-            var probeAfterRead = ProbeCudaUsage();
-            var runtimeCudaFlag = TryParseRuntimeBackendFlag(runtimeInfoText, "CUDA");
-            var runtimeCpuFlag = TryParseRuntimeBackendFlag(runtimeInfoText, "CPU");
-            var computeDetected = probeAfterInvoke.ComputeProcessDetected || probeAfterRead.ComputeProcessDetected;
-            var moduleDetected = probeAfterInvoke.CudaModuleLoaded || probeAfterRead.CudaModuleLoaded;
+                        var resolved = await UnwrapAwaitableAsync(result, cancellationToken)
+                            ?? throw new InvalidOperationException("ProcessAsync resolved to null.");
 
-            var confirmed = moduleDetected || (runtimeCudaFlag == true && computeDetected);
-            var probable = !confirmed && (runtimeCudaFlag == true || moduleDetected);
-            var conclusion = confirmed
-                ? "confirmed"
-                : probable
-                    ? "probable"
-                    : "not-detected";
+                        var segments = await ReadSegmentsAsync(resolved, cancellationToken);
+                        if (segments.Count == 0)
+                        {
+                            continue;
+                        }
 
+                        collected.AddRange(OffsetSegments(segments, region.Start));
+                    }
+                    finally
+                    {
+                        TryDeleteFile(segmentWavePath);
+                    }
+                }
 
-            return segments;
+                return MergeAdjacentSegments(collected);
+            }
+
+            var fallbackArgs = BuildProcessArgs(processAsync, preparedInput.Stream, cancellationToken);
+            var fallbackResult = processAsync.Invoke(processor, fallbackArgs)
+                ?? throw new InvalidOperationException("ProcessAsync returned null.");
+            var fallbackResolved = await UnwrapAwaitableAsync(fallbackResult, cancellationToken)
+                ?? throw new InvalidOperationException("ProcessAsync resolved to null.");
+
+            return await ReadSegmentsAsync(fallbackResolved, cancellationToken);
         }
         finally
         {
@@ -696,6 +714,261 @@ public sealed class WhisperTranscriptionService
         }
     }
 
+
+    private static async Task<IReadOnlyList<SpeechRegion>> DetectSpeechRegionsAsync(string monoWavePath, CancellationToken cancellationToken)
+    {
+        return await Task.Run(() =>
+        {
+            using var reader = new AudioFileReader(monoWavePath);
+            if (reader.WaveFormat.Channels != 1)
+            {
+                return (IReadOnlyList<SpeechRegion>)new[]
+                {
+                    new SpeechRegion(TimeSpan.Zero, reader.TotalTime)
+                };
+            }
+
+            var sampleRate = reader.WaveFormat.SampleRate;
+            var frameSamples = Math.Max(1, (int)Math.Round(sampleRate * (VadFrameMilliseconds / 1000d)));
+            var minSpeechFrames = Math.Max(1, (int)Math.Ceiling(VadMinSpeechMilliseconds / VadFrameMilliseconds));
+            var minSilenceFrames = Math.Max(1, (int)Math.Ceiling(VadMinSilenceMilliseconds / VadFrameMilliseconds));
+            var paddingFrames = Math.Max(0, (int)Math.Ceiling(VadSpeechPaddingMilliseconds / VadFrameMilliseconds));
+            var mergeGapFrames = Math.Max(0, (int)Math.Ceiling(VadMergeGapMilliseconds / VadFrameMilliseconds));
+
+            var dbFrames = new List<double>(4096);
+            var buffer = new float[frameSamples];
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var read = reader.Read(buffer, 0, frameSamples);
+                if (read <= 0)
+                {
+                    break;
+                }
+
+                var sum = 0d;
+                for (var i = 0; i < read; i++)
+                {
+                    var sample = buffer[i];
+                    sum += sample * sample;
+                }
+
+                var rms = Math.Sqrt(sum / Math.Max(1, read));
+                dbFrames.Add(ToDecibel(rms));
+            }
+
+            if (dbFrames.Count == 0)
+            {
+                return (IReadOnlyList<SpeechRegion>)Array.Empty<SpeechRegion>();
+            }
+
+            var noiseFloorDb = Percentile(dbFrames, 0.2);
+            var speechThresholdDb = Math.Max(-50d, noiseFloorDb + 12d);
+
+            var ranges = new List<(int StartFrame, int EndFrame)>();
+            var inSpeech = false;
+            var speechStart = 0;
+            var trailingSilence = 0;
+
+            for (var i = 0; i < dbFrames.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var isSpeechFrame = dbFrames[i] >= speechThresholdDb;
+                if (!inSpeech)
+                {
+                    if (isSpeechFrame)
+                    {
+                        inSpeech = true;
+                        speechStart = i;
+                        trailingSilence = 0;
+                    }
+
+                    continue;
+                }
+
+                if (isSpeechFrame)
+                {
+                    trailingSilence = 0;
+                    continue;
+                }
+
+                trailingSilence++;
+                if (trailingSilence < minSilenceFrames)
+                {
+                    continue;
+                }
+
+                var speechEnd = i - trailingSilence;
+                if (speechEnd - speechStart + 1 >= minSpeechFrames)
+                {
+                    ranges.Add((speechStart, speechEnd));
+                }
+
+                inSpeech = false;
+                trailingSilence = 0;
+            }
+
+            if (inSpeech)
+            {
+                var speechEnd = dbFrames.Count - 1;
+                if (speechEnd - speechStart + 1 >= minSpeechFrames)
+                {
+                    ranges.Add((speechStart, speechEnd));
+                }
+            }
+
+            if (ranges.Count == 0)
+            {
+                return (IReadOnlyList<SpeechRegion>)Array.Empty<SpeechRegion>();
+            }
+
+            for (var i = 0; i < ranges.Count; i++)
+            {
+                var start = Math.Max(0, ranges[i].StartFrame - paddingFrames);
+                var end = Math.Min(dbFrames.Count - 1, ranges[i].EndFrame + paddingFrames);
+                ranges[i] = (start, end);
+            }
+
+            var merged = new List<(int StartFrame, int EndFrame)> { ranges[0] };
+            for (var i = 1; i < ranges.Count; i++)
+            {
+                var current = ranges[i];
+                var last = merged[^1];
+                if (current.StartFrame - last.EndFrame <= mergeGapFrames)
+                {
+                    merged[^1] = (last.StartFrame, Math.Max(last.EndFrame, current.EndFrame));
+                    continue;
+                }
+
+                merged.Add(current);
+            }
+
+            var result = new List<SpeechRegion>(merged.Count);
+            foreach (var range in merged)
+            {
+                var start = TimeSpan.FromSeconds((range.StartFrame * VadFrameMilliseconds) / 1000d);
+                var end = TimeSpan.FromSeconds(((range.EndFrame + 1) * VadFrameMilliseconds) / 1000d);
+                if (end > reader.TotalTime)
+                {
+                    end = reader.TotalTime;
+                }
+
+                if (end > start)
+                {
+                    result.Add(new SpeechRegion(start, end));
+                }
+            }
+
+            return (IReadOnlyList<SpeechRegion>)result;
+        }, cancellationToken);
+    }
+
+    private static void WriteMonoWaveSegment(string sourceWavePath, string segmentWavePath, SpeechRegion region)
+    {
+        using var reader = new AudioFileReader(sourceWavePath);
+        var segmentProvider = new OffsetSampleProvider(reader)
+        {
+            SkipOver = region.Start,
+            Take = region.Duration
+        };
+
+        WaveFileWriter.CreateWaveFile16(segmentWavePath, segmentProvider);
+    }
+
+    private static IReadOnlyList<TranscribedSegment> OffsetSegments(IReadOnlyList<TranscribedSegment> segments, TimeSpan offset)
+    {
+        if (segments.Count == 0)
+        {
+            return segments;
+        }
+
+        var shifted = new List<TranscribedSegment>(segments.Count);
+        foreach (var segment in segments)
+        {
+            shifted.Add(segment with
+            {
+                Start = segment.Start + offset,
+                End = segment.End + offset
+            });
+        }
+
+        return shifted;
+    }
+
+    private static IReadOnlyList<TranscribedSegment> MergeAdjacentSegments(IReadOnlyList<TranscribedSegment> segments)
+    {
+        if (segments.Count <= 1)
+        {
+            return segments;
+        }
+
+        var ordered = segments.OrderBy(x => x.Start).ToList();
+        var merged = new List<TranscribedSegment>(ordered.Count) { ordered[0] };
+        for (var i = 1; i < ordered.Count; i++)
+        {
+            var current = ordered[i];
+            var last = merged[^1];
+
+            if ((current.Start - last.End).TotalMilliseconds <= VadMergeGapMilliseconds
+                && string.Equals(last.SpeakerLabel, current.SpeakerLabel, StringComparison.OrdinalIgnoreCase))
+            {
+                var text = string.IsNullOrWhiteSpace(last.Text)
+                    ? current.Text
+                    : string.IsNullOrWhiteSpace(current.Text)
+                        ? last.Text
+                        : $"{last.Text} {current.Text}";
+                merged[^1] = last with
+                {
+                    End = current.End > last.End ? current.End : last.End,
+                    Text = text
+                };
+                continue;
+            }
+
+            merged.Add(current);
+        }
+
+        return merged;
+    }
+
+    private static string CreateTemporarySegmentWavePath()
+    {
+        return Path.Combine(Path.GetTempPath(), $"voxarchive-whisper-seg-{Guid.NewGuid():N}.wav");
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(path);
+        }
+        catch
+        {
+        }
+    }
+
+    private static double ToDecibel(double rms)
+    {
+        return 20d * Math.Log10(Math.Max(rms, 1e-9d));
+    }
+
+    private static double Percentile(IReadOnlyList<double> values, double percentile)
+    {
+        if (values.Count == 0)
+        {
+            return -120d;
+        }
+
+        var ordered = values.OrderBy(x => x).ToArray();
+        var clamped = Math.Clamp(percentile, 0d, 1d);
+        var index = (int)Math.Floor((ordered.Length - 1) * clamped);
+        return ordered[index];
+    }
     private static CudaUsageProbeResult ProbeCudaUsage()
     {
         var moduleLoaded = TryDetectLoadedCudaModule(out var moduleDetail);
@@ -1040,6 +1313,11 @@ public sealed class WhisperTranscriptionService
     }
 
     private const float TranscriptionSafePeak = 0.98f;
+    private const double VadFrameMilliseconds = 30d;
+    private const double VadMinSpeechMilliseconds = 250d;
+    private const double VadMinSilenceMilliseconds = 600d;
+    private const double VadSpeechPaddingMilliseconds = 200d;
+    private const double VadMergeGapMilliseconds = 300d;
 
     private static async Task<PreparedWaveInput> PrepareWaveInputAsync(string audioFilePath, RecordingOptions options, CancellationToken cancellationToken)
     {
@@ -1518,6 +1796,11 @@ public sealed class WhisperTranscriptionService
 
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed record SpeechRegion(TimeSpan Start, TimeSpan End)
+    {
+        public TimeSpan Duration => End - Start;
     }
 
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
