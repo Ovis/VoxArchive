@@ -1,5 +1,5 @@
 using System.Runtime.Versioning;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using VoxArchive.Application;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio;
@@ -19,7 +19,7 @@ public sealed class LocalRecordingBootstrapper
     private readonly ISpeakerCaptureService _speakerCaptureService;
     private readonly IMicCaptureService _micCaptureService;
     private readonly IProcessLoopbackCaptureService _processLoopbackCaptureService;
-    private readonly ILogger<RecordingService> _recordingLogger;
+    private readonly IServiceProvider _serviceProvider;
 
     public LocalRecordingBootstrapper(
         ISettingsService settingsService,
@@ -28,7 +28,7 @@ public sealed class LocalRecordingBootstrapper
         ISpeakerCaptureService speakerCaptureService,
         IMicCaptureService micCaptureService,
         IProcessLoopbackCaptureService processLoopbackCaptureService,
-        ILogger<RecordingService> recordingLogger)
+        IServiceProvider serviceProvider)
     {
         _settingsService = settingsService;
         _deviceService = deviceService;
@@ -36,7 +36,7 @@ public sealed class LocalRecordingBootstrapper
         _speakerCaptureService = speakerCaptureService;
         _micCaptureService = micCaptureService;
         _processLoopbackCaptureService = processLoopbackCaptureService;
-        _recordingLogger = recordingLogger;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<RecordingRuntimeContext> InitializeAsync(CancellationToken cancellationToken = default)
@@ -61,7 +61,8 @@ public sealed class LocalRecordingBootstrapper
         IOutputCaptureController outputCaptureController = new OutputCaptureController(speakerSource, processSource);
         IOutputCaptureFailoverCoordinator failoverCoordinator = new OutputCaptureFailoverCoordinator(outputCaptureController);
 
-        IRecordingService recordingService = new RecordingService(
+        IRecordingService recordingService = ActivatorUtilities.CreateInstance<RecordingService>(
+            _serviceProvider,
             outputCaptureController,
             failoverCoordinator,
             _micCaptureService,
@@ -70,8 +71,7 @@ public sealed class LocalRecordingBootstrapper
             driftCorrector,
             frameBuilder,
             encoder,
-            telemetrySink: null,
-            logger: _recordingLogger);
+            null);
 
         return new RecordingRuntimeContext(
             RecordingService: recordingService,
@@ -99,4 +99,3 @@ public sealed class LocalRecordingBootstrapper
         };
     }
 }
-
