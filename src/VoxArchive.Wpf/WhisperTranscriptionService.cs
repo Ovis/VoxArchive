@@ -634,7 +634,7 @@ public sealed class WhisperTranscriptionService
             processor = build.Invoke(builder, null)
                 ?? throw new InvalidOperationException("Processor 生成に失敗しました。");
 
-            await using var preparedInput = await PrepareWaveInputAsync(request.AudioFilePath, cancellationToken);
+            await using var preparedInput = await PrepareWaveInputAsync(request.AudioFilePath, request.Options, cancellationToken);
 
             var processAsync = processor.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
                 .FirstOrDefault(m => m.Name == "ProcessAsync" && m.GetParameters().Length >= 1 && typeof(Stream).IsAssignableFrom(m.GetParameters()[0].ParameterType));
@@ -1038,71 +1038,139 @@ public sealed class WhisperTranscriptionService
         throw new InvalidOperationException("MoveNextAsync の戻り値型に対応していません。");
     }
 
-    private static async Task<PreparedWaveInput> PrepareWaveInputAsync(string audioFilePath, CancellationToken cancellationToken)
-    {
-        if (IsWaveFile(audioFilePath))
-        {
-            return new PreparedWaveInput(File.OpenRead(audioFilePath), null);
-        }
+    private const float TranscriptionSafePeak = 0.98f;
 
+    private static async Task<PreparedWaveInput> PrepareWaveInputAsync(string audioFilePath, RecordingOptions options, CancellationToken cancellationToken)
+    {
         var tempWavePath = Path.Combine(Path.GetTempPath(), $"voxarchive-whisper-{Guid.NewGuid():N}.wav");
 
-        await Task.Run(() => ConvertAudioToWaveFile(audioFilePath, tempWavePath), cancellationToken);
+        await Task.Run(() => ConvertAudioToWaveFile(audioFilePath, tempWavePath, options), cancellationToken);
         return new PreparedWaveInput(File.OpenRead(tempWavePath), tempWavePath);
     }
 
-    private static void ConvertAudioToWaveFile(string sourcePath, string destinationPath)
+    private static void ConvertAudioToWaveFile(string sourcePath, string destinationPath, RecordingOptions options)
     {
-        using var reader = new AudioFileReader(sourcePath);
-        ISampleProvider sampleProvider = reader;
-
-        if (sampleProvider.WaveFormat.Channels == 2)
-        {
-            var mono = new StereoToMonoSampleProvider(sampleProvider)
-            {
-                LeftVolume = 0.5f,
-                RightVolume = 0.5f
-            };
-            sampleProvider = mono;
-        }
-
-        if (sampleProvider.WaveFormat.SampleRate != 16000)
-        {
-            sampleProvider = new WdlResamplingSampleProvider(sampleProvider, 16000);
-        }
-
-        WaveFileWriter.CreateWaveFile16(destinationPath, sampleProvider);
-    }
-
-    private static bool IsWaveFile(string filePath)
-    {
-        if (!string.Equals(Path.GetExtension(filePath), ".wav", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
+        var tempRawWavePath = destinationPath + ".raw.tmp";
         try
         {
-            using var stream = File.OpenRead(filePath);
-            Span<byte> header = stackalloc byte[12];
-            if (stream.Read(header) < 12)
+            using var reader = new AudioFileReader(sourcePath);
+            var sampleProvider = BuildTranscriptionSampleProvider(reader, options);
+            var firstPassPeak = WriteSampleProviderAsPcm16Wave(sampleProvider, tempRawWavePath, 1f);
+
+            if (firstPassPeak <= TranscriptionSafePeak)
             {
-                return false;
+                File.Move(tempRawWavePath, destinationPath, true);
+                return;
             }
 
-            return header[0] == (byte)'R'
-                && header[1] == (byte)'I'
-                && header[2] == (byte)'F'
-                && header[3] == (byte)'F'
-                && header[8] == (byte)'W'
-                && header[9] == (byte)'A'
-                && header[10] == (byte)'V'
-                && header[11] == (byte)'E';
+            var safeScale = (float)Math.Clamp(TranscriptionSafePeak / firstPassPeak, 0f, 1f);
+            using var normalizationReader = new AudioFileReader(tempRawWavePath);
+            WriteSampleProviderAsPcm16Wave(normalizationReader, destinationPath, safeScale);
+            File.Delete(tempRawWavePath);
         }
-        catch
+        finally
         {
-            return false;
+            if (File.Exists(tempRawWavePath))
+            {
+                File.Delete(tempRawWavePath);
+            }
         }
+    }
+
+    private static ISampleProvider BuildTranscriptionSampleProvider(ISampleProvider source, RecordingOptions options)
+    {
+        ISampleProvider provider = source;
+
+        var speakerGain = (float)Math.Clamp(DbToLinearGain(options.DefaultSpeakerPlaybackGainDb), 0.01d, 8d);
+        var micGain = (float)Math.Clamp(DbToLinearGain(options.DefaultMicPlaybackGainDb), 0.01d, 8d);
+
+        if (provider.WaveFormat.Channels == 2)
+        {
+            provider = new StereoToMonoSampleProvider(provider)
+            {
+                LeftVolume = 0.5f * speakerGain,
+                RightVolume = 0.5f * micGain
+            };
+        }
+        else if (provider.WaveFormat.Channels > 2)
+        {
+            var firstTwoChannels = new MultiplexingSampleProvider(new[] { provider }, 2);
+            firstTwoChannels.ConnectInputToOutput(0, 0);
+            firstTwoChannels.ConnectInputToOutput(1, 1);
+            provider = new StereoToMonoSampleProvider(firstTwoChannels)
+            {
+                LeftVolume = 0.5f * speakerGain,
+                RightVolume = 0.5f * micGain
+            };
+        }
+        else
+        {
+            var monoGain = (float)Math.Clamp(DbToLinearGain((options.DefaultSpeakerPlaybackGainDb + options.DefaultMicPlaybackGainDb) / 2d), 0.01d, 8d);
+            if (Math.Abs(monoGain - 1f) > 0.0001f)
+            {
+                provider = new VolumeSampleProvider(provider) { Volume = monoGain };
+            }
+        }
+
+        if (provider.WaveFormat.SampleRate != 16000)
+        {
+            provider = new WdlResamplingSampleProvider(provider, 16000);
+        }
+
+        if (provider.WaveFormat.Channels != 1)
+        {
+            throw new InvalidOperationException($"Whisper input must be mono. Actual channels: {provider.WaveFormat.Channels}");
+        }
+
+        return provider;
+    }
+
+    private static float WriteSampleProviderAsPcm16Wave(ISampleProvider provider, string destinationPath, float outputScale)
+    {
+        if (provider.WaveFormat.Channels != 1)
+        {
+            throw new InvalidOperationException($"PCM16 writer expects mono input. Actual channels: {provider.WaveFormat.Channels}");
+        }
+
+        var peak = 0f;
+        var sampleBuffer = new float[Math.Max(4096, provider.WaveFormat.SampleRate / 2)];
+        var pcmBuffer = new byte[sampleBuffer.Length * 2];
+
+        using var writer = new WaveFileWriter(destinationPath, new WaveFormat(provider.WaveFormat.SampleRate, 16, 1));
+
+        while (true)
+        {
+            var read = provider.Read(sampleBuffer, 0, sampleBuffer.Length);
+            if (read <= 0)
+            {
+                break;
+            }
+
+            var offset = 0;
+            for (var i = 0; i < read; i++)
+            {
+                var scaled = sampleBuffer[i] * outputScale;
+                var abs = Math.Abs(scaled);
+                if (abs > peak)
+                {
+                    peak = abs;
+                }
+
+                var clamped = Math.Clamp(scaled, -1f, 1f);
+                var pcm = (short)Math.Round(clamped * short.MaxValue);
+                pcmBuffer[offset++] = (byte)(pcm & 0xFF);
+                pcmBuffer[offset++] = (byte)((pcm >> 8) & 0xFF);
+            }
+
+            writer.Write(pcmBuffer, 0, read * 2);
+        }
+
+        return peak;
+    }
+
+    private static double DbToLinearGain(double gainDb)
+    {
+        return Math.Pow(10d, gainDb / 20d);
     }
 
     private static TimeSpan GetTimeSpan(object target, params string[] names)
@@ -1316,4 +1384,6 @@ public sealed class WhisperTranscriptionService
 
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);
 }
+
+
 
