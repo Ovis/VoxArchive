@@ -188,7 +188,8 @@ public sealed class WhisperTranscriptionService
             }
 
             var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cancellationToken);
-            var generated = await WriteOutputsAsync(request.AudioFilePath, request.Options.TranscriptionModel, request.Options.TranscriptionOutputFormats, segments, cancellationToken);
+            var labeledSegments = await Task.Run(() => ApplySpeakerLabelsByChannelEnergy(request.AudioFilePath, segments, cancellationToken), cancellationToken);
+            var generated = await WriteOutputsAsync(request.AudioFilePath, request.Options.TranscriptionModel, request.Options.TranscriptionOutputFormats, labeledSegments, cancellationToken);
 
             return new TranscriptionJobResult(
                 Succeeded: true,
@@ -1246,7 +1247,7 @@ public sealed class WhisperTranscriptionService
         if (formats.HasFlag(TranscriptionOutputFormats.Txt))
         {
             var path = basePath + ".txt";
-            var text = string.Join(Environment.NewLine, segments.Select(x => x.Text).Where(x => !string.IsNullOrWhiteSpace(x)));
+            var text = string.Join(Environment.NewLine, segments.Select(FormatSegmentText).Where(x => !string.IsNullOrWhiteSpace(x)));
             await File.WriteAllTextAsync(path, text, System.Text.Encoding.UTF8, cancellationToken);
             generated.Add(path);
         }
@@ -1260,7 +1261,7 @@ public sealed class WhisperTranscriptionService
                 var seg = segments[i];
                 sb.AppendLine((i + 1).ToString());
                 sb.AppendLine($"{FormatSrt(seg.Start)} --> {FormatSrt(seg.End)}");
-                sb.AppendLine(seg.Text);
+                sb.AppendLine(FormatSegmentText(seg));
                 sb.AppendLine();
             }
 
@@ -1277,7 +1278,7 @@ public sealed class WhisperTranscriptionService
             foreach (var seg in segments)
             {
                 sb.AppendLine($"{FormatVtt(seg.Start)} --> {FormatVtt(seg.End)}");
-                sb.AppendLine(seg.Text);
+                sb.AppendLine(FormatSegmentText(seg));
                 sb.AppendLine();
             }
 
@@ -1294,6 +1295,7 @@ public sealed class WhisperTranscriptionService
                 {
                     start = x.Start.TotalSeconds,
                     end = x.End.TotalSeconds,
+                    speaker = x.SpeakerLabel,
                     text = x.Text
                 })
             };
@@ -1306,6 +1308,142 @@ public sealed class WhisperTranscriptionService
     }
 
 
+
+    private static IReadOnlyList<TranscribedSegment> ApplySpeakerLabelsByChannelEnergy(
+        string audioFilePath,
+        IReadOnlyList<TranscribedSegment> segments,
+        CancellationToken cancellationToken)
+    {
+        if (segments.Count == 0)
+        {
+            return segments;
+        }
+
+        try
+        {
+            using var reader = new AudioFileReader(audioFilePath);
+            if (reader.WaveFormat.Channels < 2)
+            {
+                return segments;
+            }
+
+            var sampleRate = reader.WaveFormat.SampleRate;
+            var channels = reader.WaveFormat.Channels;
+            var ranges = BuildSegmentFrameRanges(segments, sampleRate);
+            var leftEnergy = new double[segments.Count];
+            var rightEnergy = new double[segments.Count];
+            var buffer = new float[Math.Max(4096, sampleRate / 4) * channels];
+
+            var segmentIndex = 0;
+            long frameIndex = 0;
+
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var read = reader.Read(buffer, 0, buffer.Length);
+                if (read <= 0)
+                {
+                    break;
+                }
+
+                var frames = read / channels;
+                for (var frame = 0; frame < frames; frame++, frameIndex++)
+                {
+                    while (segmentIndex < ranges.Count && frameIndex >= ranges[segmentIndex].EndFrame)
+                    {
+                        segmentIndex++;
+                    }
+
+                    if (segmentIndex >= ranges.Count)
+                    {
+                        break;
+                    }
+
+                    var range = ranges[segmentIndex];
+                    if (frameIndex < range.StartFrame)
+                    {
+                        continue;
+                    }
+
+                    var sampleIndex = frame * channels;
+                    var left = buffer[sampleIndex];
+                    var right = buffer[sampleIndex + 1];
+                    leftEnergy[segmentIndex] += left * left;
+                    rightEnergy[segmentIndex] += right * right;
+                }
+
+                if (segmentIndex >= ranges.Count)
+                {
+                    break;
+                }
+            }
+
+            var labeled = new List<TranscribedSegment>(segments.Count);
+            for (var i = 0; i < segments.Count; i++)
+            {
+                var label = ResolveSpeakerLabel(leftEnergy[i], rightEnergy[i]);
+                labeled.Add(segments[i] with { SpeakerLabel = label });
+            }
+
+            return labeled;
+        }
+        catch
+        {
+            // 話者ラベル付与に失敗しても文字起こし自体は継続する。
+            return segments;
+        }
+    }
+
+    private static IReadOnlyList<SegmentFrameRange> BuildSegmentFrameRanges(IReadOnlyList<TranscribedSegment> segments, int sampleRate)
+    {
+        var ranges = new List<SegmentFrameRange>(segments.Count);
+        for (var i = 0; i < segments.Count; i++)
+        {
+            var startSeconds = Math.Max(0d, segments[i].Start.TotalSeconds);
+            var endSeconds = Math.Max(startSeconds + 0.02d, segments[i].End.TotalSeconds);
+            var startFrame = (long)Math.Floor(startSeconds * sampleRate);
+            var endFrame = (long)Math.Ceiling(endSeconds * sampleRate);
+            if (endFrame <= startFrame)
+            {
+                endFrame = startFrame + 1;
+            }
+
+            ranges.Add(new SegmentFrameRange(startFrame, endFrame));
+        }
+
+        return ranges;
+    }
+
+    private static string ResolveSpeakerLabel(double leftEnergy, double rightEnergy)
+    {
+        const double epsilon = 1e-10;
+        const double sameLevelThresholdDb = 2.5;
+
+        var diffDb = 10d * Math.Log10((rightEnergy + epsilon) / (leftEnergy + epsilon));
+        if (Math.Abs(diffDb) < sameLevelThresholdDb)
+        {
+            return "Mixed";
+        }
+
+        return diffDb > 0 ? "Mic" : "Speaker";
+    }
+
+    private static string FormatSegmentText(TranscribedSegment segment)
+    {
+        var text = segment.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(segment.SpeakerLabel))
+        {
+            return text;
+        }
+
+        return $"[{segment.SpeakerLabel}] {text}";
+    }
     private static string BuildOutputBasePath(string audioFilePath, TranscriptionModel model)
     {
         var directory = Path.GetDirectoryName(audioFilePath) ?? string.Empty;
@@ -1382,8 +1520,13 @@ public sealed class WhisperTranscriptionService
         }
     }
 
-    private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text);
+    private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
+    private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
+
+
+
+
 
 
 
