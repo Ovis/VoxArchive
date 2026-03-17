@@ -698,6 +698,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (!enqueued)
         {
             LastErrorText = "文字起こしキューへの投入に失敗しました。";
+            return;
+        }
+
+        if (_options.TranscriptionToastNotificationEnabled)
+        {
+            AppNotificationHub.Notify("VoxArchive", $"自動文字起こし開始: {Path.GetFileName(filePath)}", System.Windows.Forms.ToolTipIcon.Info);
         }
     }
     private async Task OpenSettingsAsync()

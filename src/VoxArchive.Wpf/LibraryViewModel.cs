@@ -681,6 +681,10 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
             OnPropertyChanged(nameof(IsTranscribing));
             RaiseCommands();
+            if (options.TranscriptionToastNotificationEnabled)
+            {
+                AppNotificationHub.Notify("VoxArchive", $"文字起こし開始: {Path.GetFileName(SelectedItem.FilePath)}", System.Windows.Forms.ToolTipIcon.Info);
+            }
             StatusText = "文字起こしジョブをキューへ追加しました。";
         }
         catch (Exception ex)
