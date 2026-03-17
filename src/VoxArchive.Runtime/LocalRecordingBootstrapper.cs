@@ -1,5 +1,5 @@
 using System.Runtime.Versioning;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using VoxArchive.Application;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio;
@@ -7,87 +7,77 @@ using VoxArchive.Audio.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Encoding;
 using VoxArchive.Encoding.Abstractions;
-using VoxArchive.Infrastructure;
 
 namespace VoxArchive.Runtime;
 
 [SupportedOSPlatform("windows")]
 public sealed class LocalRecordingBootstrapper
 {
-    private readonly string _settingsPath;
+    private readonly ISettingsService _settingsService;
+    private readonly IDeviceService _deviceService;
+    private readonly IProcessCatalogService _processCatalogService;
+    private readonly ISpeakerCaptureService _speakerCaptureService;
+    private readonly IMicCaptureService _micCaptureService;
+    private readonly IProcessLoopbackCaptureService _processLoopbackCaptureService;
+    private readonly ILogger<RecordingService> _recordingLogger;
 
-    public LocalRecordingBootstrapper(string settingsPath)
+    public LocalRecordingBootstrapper(
+        ISettingsService settingsService,
+        IDeviceService deviceService,
+        IProcessCatalogService processCatalogService,
+        ISpeakerCaptureService speakerCaptureService,
+        IMicCaptureService micCaptureService,
+        IProcessLoopbackCaptureService processLoopbackCaptureService,
+        ILogger<RecordingService> recordingLogger)
     {
-        _settingsPath = settingsPath;
+        _settingsService = settingsService;
+        _deviceService = deviceService;
+        _processCatalogService = processCatalogService;
+        _speakerCaptureService = speakerCaptureService;
+        _micCaptureService = micCaptureService;
+        _processLoopbackCaptureService = processLoopbackCaptureService;
+        _recordingLogger = recordingLogger;
     }
 
     public async Task<RecordingRuntimeContext> InitializeAsync(CancellationToken cancellationToken = default)
     {
-        ISettingsService settingsService = new JsonSettingsService(_settingsPath);
-        IDeviceService deviceService = new WasapiDeviceService();
-        IProcessCatalogService processCatalogService = new ProcessCatalogService();
-
-        var loaded = await settingsService.LoadRecordingOptionsAsync(cancellationToken);
-        var defaultSpeaker = await deviceService.GetDefaultSpeakerDeviceAsync(cancellationToken);
-        var defaultMic = await deviceService.GetDefaultMicrophoneDeviceAsync(cancellationToken);
+        var loaded = await _settingsService.LoadRecordingOptionsAsync(cancellationToken);
+        var defaultSpeaker = await _deviceService.GetDefaultSpeakerDeviceAsync(cancellationToken);
+        var defaultMic = await _deviceService.GetDefaultMicrophoneDeviceAsync(cancellationToken);
         var options = ApplyDefaults(loaded, defaultSpeaker, defaultMic);
 
-        var services = new ServiceCollection();
-        services.AddSingleton<ISettingsService>(settingsService);
-        services.AddSingleton<IDeviceService>(deviceService);
-        services.AddSingleton<IProcessCatalogService>(processCatalogService);
-        services.AddSingleton(options);
+        var sampleRate = options.SampleRate > 0 ? options.SampleRate : 48_000;
+        var bufferCapacity = sampleRate * 5;
 
-        services.AddSingleton<ISpeakerCaptureService>(_ => NaudioRuntimeSupport.CreateSpeakerCaptureService());
-        services.AddSingleton<IMicCaptureService>(_ => NaudioRuntimeSupport.CreateMicCaptureService());
-        services.AddSingleton<IProcessLoopbackCaptureService, ProcessLoopbackCaptureService>();
+        IRingBuffer speakerBuffer = new FloatRingBuffer(bufferCapacity);
+        IRingBuffer micBuffer = new FloatRingBuffer(bufferCapacity);
+        IDriftCorrector driftCorrector = new PiDriftCorrector(options.Kp, options.Ki, options.MaxCorrectionPpm);
+        IVariableRateResampler resampler = new LinearVariableRateResampler();
+        IFrameBuilder frameBuilder = new FrameBuilder(speakerBuffer, micBuffer, resampler);
+        IFfmpegFlacEncoder encoder = new FfmpegFlacEncoder();
 
-        services.AddSingleton<IOutputCaptureController>(sp =>
-        {
-            var speakerSource = new SpeakerLoopbackCaptureSource(sp.GetRequiredService<ISpeakerCaptureService>());
-            var processSource = new ProcessLoopbackCaptureSource(sp.GetRequiredService<IProcessLoopbackCaptureService>());
-            return new OutputCaptureController(speakerSource, processSource);
-        });
+        var speakerSource = new SpeakerLoopbackCaptureSource(_speakerCaptureService);
+        var processSource = new ProcessLoopbackCaptureSource(_processLoopbackCaptureService);
+        IOutputCaptureController outputCaptureController = new OutputCaptureController(speakerSource, processSource);
+        IOutputCaptureFailoverCoordinator failoverCoordinator = new OutputCaptureFailoverCoordinator(outputCaptureController);
 
-        services.AddSingleton<IOutputCaptureFailoverCoordinator, OutputCaptureFailoverCoordinator>();
-
-        services.AddSingleton<IRecordingService>(sp =>
-        {
-            var recordingOptions = sp.GetRequiredService<RecordingOptions>();
-            var sampleRate = recordingOptions.SampleRate > 0 ? recordingOptions.SampleRate : 48_000;
-            var bufferCapacity = sampleRate * 5;
-
-            IRingBuffer speakerBuffer = new FloatRingBuffer(bufferCapacity);
-            IRingBuffer micBuffer = new FloatRingBuffer(bufferCapacity);
-            IDriftCorrector driftCorrector = new PiDriftCorrector(recordingOptions.Kp, recordingOptions.Ki, recordingOptions.MaxCorrectionPpm);
-            IVariableRateResampler resampler = new LinearVariableRateResampler();
-            IFrameBuilder frameBuilder = new FrameBuilder(speakerBuffer, micBuffer, resampler);
-            IFfmpegFlacEncoder encoder = new FfmpegFlacEncoder();
-
-            var baseDir = Path.GetDirectoryName(_settingsPath) ?? ".";
-            var logsDir = Path.Combine(baseDir, "logs");
-
-            IRecordingTelemetrySink telemetrySink = new ZLoggerRecordingTelemetrySink(logsDir);
-
-            return new RecordingService(
-                sp.GetRequiredService<IOutputCaptureController>(),
-                sp.GetRequiredService<IOutputCaptureFailoverCoordinator>(),
-                sp.GetRequiredService<IMicCaptureService>(),
-                speakerBuffer,
-                micBuffer,
-                driftCorrector,
-                frameBuilder,
-                encoder,
-                telemetrySink);
-        });
-
-        var provider = services.BuildServiceProvider();
+        IRecordingService recordingService = new RecordingService(
+            outputCaptureController,
+            failoverCoordinator,
+            _micCaptureService,
+            speakerBuffer,
+            micBuffer,
+            driftCorrector,
+            frameBuilder,
+            encoder,
+            telemetrySink: null,
+            logger: _recordingLogger);
 
         return new RecordingRuntimeContext(
-            RecordingService: provider.GetRequiredService<IRecordingService>(),
-            SettingsService: provider.GetRequiredService<ISettingsService>(),
-            DeviceService: provider.GetRequiredService<IDeviceService>(),
-            ProcessCatalogService: provider.GetRequiredService<IProcessCatalogService>(),
+            RecordingService: recordingService,
+            SettingsService: _settingsService,
+            DeviceService: _deviceService,
+            ProcessCatalogService: _processCatalogService,
             DefaultOptions: options);
     }
 

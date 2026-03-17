@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio.Abstractions;
 using VoxArchive.Domain;
@@ -19,6 +20,7 @@ public sealed class RecordingService : IRecordingService
     private readonly IFrameBuilder _frameBuilder;
     private readonly IFfmpegFlacEncoder _encoder;
     private readonly IRecordingTelemetrySink? _telemetrySink;
+    private readonly ILogger<RecordingService>? _logger;
 
     private CancellationTokenSource? _processingCts;
     private Task? _processingTask;
@@ -34,6 +36,7 @@ public sealed class RecordingService : IRecordingService
     private double _lastMicLevel;
     private volatile bool _speakerCaptureEnabled = true;
     private volatile bool _micCaptureEnabled = true;
+    private DateTimeOffset _lastStatisticsLogAt = DateTimeOffset.MinValue;
 
     public RecordingService(
         IOutputCaptureController outputCaptureController,
@@ -44,7 +47,8 @@ public sealed class RecordingService : IRecordingService
         IDriftCorrector driftCorrector,
         IFrameBuilder frameBuilder,
         IFfmpegFlacEncoder encoder,
-        IRecordingTelemetrySink? telemetrySink = null)
+        IRecordingTelemetrySink? telemetrySink = null,
+        ILogger<RecordingService>? logger = null)
     {
         _outputCaptureController = outputCaptureController;
         _failoverCoordinator = failoverCoordinator;
@@ -55,6 +59,7 @@ public sealed class RecordingService : IRecordingService
         _frameBuilder = frameBuilder;
         _encoder = encoder;
         _telemetrySink = telemetrySink;
+        _logger = logger;
 
         _outputCaptureController.ChunkCaptured += OnSpeakerChunkCaptured;
         _outputCaptureController.SourceChanged += (_, e) => OutputSourceChanged?.Invoke(this, e);
@@ -426,6 +431,7 @@ public sealed class RecordingService : IRecordingService
         if (IsTelemetryEnabled())
         {
             _telemetrySink?.OnStateChanged(next);
+            _logger?.LogInformation("state={State}", next);
         }
         StateChanged?.Invoke(this, next);
     }
@@ -437,6 +443,7 @@ public sealed class RecordingService : IRecordingService
             if (IsTelemetryEnabled())
             {
                 _telemetrySink?.OnStateChanged(RecordingState.Error);
+                _logger?.LogWarning("state={State}", RecordingState.Error);
             }
             StateChanged?.Invoke(this, RecordingState.Error);
         }
@@ -444,6 +451,7 @@ public sealed class RecordingService : IRecordingService
         if (IsTelemetryEnabled())
         {
             _telemetrySink?.OnError(message);
+            _logger?.LogWarning("error={Message}", message);
         }
         ErrorOccurred?.Invoke(this, message);
     }
@@ -473,6 +481,22 @@ public sealed class RecordingService : IRecordingService
         if (IsTelemetryEnabled())
         {
             _telemetrySink?.OnStatistics(statistics);
+
+            var now = DateTimeOffset.UtcNow;
+            if ((now - _lastStatisticsLogAt).TotalSeconds >= 1)
+            {
+                _lastStatisticsLogAt = now;
+                _logger?.LogInformation(
+                    "stats elapsed={Elapsed} spkBufMs={SpeakerBufferMs:F0} micBufMs={MicBufferMs:F0} ppm={DriftPpm:F1} uf={Underflow} of={Overflow} spkLv={SpeakerLevel:F3} micLv={MicLevel:F3}",
+                    statistics.ElapsedTime,
+                    statistics.SpeakerBufferMilliseconds,
+                    statistics.MicBufferMilliseconds,
+                    statistics.DriftCorrectionPpm,
+                    statistics.UnderflowCount,
+                    statistics.OverflowCount,
+                    statistics.SpeakerLevel,
+                    statistics.MicLevel);
+            }
         }
         StatisticsUpdated?.Invoke(this, statistics);
     }
@@ -551,5 +575,4 @@ public sealed class RecordingService : IRecordingService
         return (samples * 1000d) / _activeOptions.SampleRate;
     }
 }
-
 

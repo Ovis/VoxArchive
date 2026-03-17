@@ -2,6 +2,11 @@ using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using VoxArchive.Application;
+using VoxArchive.Application.Abstractions;
+using VoxArchive.Audio;
+using VoxArchive.Audio.Abstractions;
+using VoxArchive.Infrastructure;
 using VoxArchive.Runtime;
 using ZLogger;
 
@@ -28,9 +33,6 @@ public partial class App : System.Windows.Application
 
         try
         {
-            var bootstrapper = new LocalRecordingBootstrapper(settingsPath);
-            var context = await bootstrapper.InitializeAsync();
-
             _host = Host.CreateDefaultBuilder()
                 .ConfigureLogging(builder =>
                 {
@@ -45,23 +47,32 @@ public partial class App : System.Windows.Application
                 })
                 .ConfigureServices(services =>
                 {
-                    services.AddSingleton(context);
+                    services.AddSingleton<ISettingsService>(_ => new JsonSettingsService(settingsPath));
+                    services.AddSingleton<IDeviceService, WasapiDeviceService>();
+                    services.AddSingleton<IProcessCatalogService, ProcessCatalogService>();
+                    services.AddSingleton<ISpeakerCaptureService>(_ => NaudioRuntimeSupport.CreateSpeakerCaptureService());
+                    services.AddSingleton<IMicCaptureService>(_ => NaudioRuntimeSupport.CreateMicCaptureService());
+                    services.AddSingleton<IProcessLoopbackCaptureService, ProcessLoopbackCaptureService>();
+                    services.AddSingleton<LocalRecordingBootstrapper>();
+
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
                     services.AddSingleton<WhisperModelStore>();
                     services.AddSingleton<WhisperTranscriptionService>();
                     services.AddSingleton<TranscriptionJobQueue>();
-                    services.AddSingleton<MainViewModel>();
                     services.AddTransient<MainWindow>();
                 })
                 .Build();
 
             await _host.StartAsync();
 
+            var bootstrapper = _host.Services.GetRequiredService<LocalRecordingBootstrapper>();
+            var context = await bootstrapper.InitializeAsync();
+
             var logger = _host.Services.GetRequiredService<ILogger<App>>();
             logger.LogInformation("Application startup completed.");
 
             var window = _host.Services.GetRequiredService<MainWindow>();
-            window.DataContext = _host.Services.GetRequiredService<MainViewModel>();
+            window.DataContext = ActivatorUtilities.CreateInstance<MainViewModel>(_host.Services, context);
             window.Show();
         }
         catch (Exception ex)
