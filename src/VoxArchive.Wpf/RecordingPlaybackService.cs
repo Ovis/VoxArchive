@@ -8,6 +8,8 @@ public sealed class RecordingPlaybackService : IDisposable
     private WasapiOut? _output;
     private AudioFileReader? _reader;
     private StereoGainSampleProvider? _gainProvider;
+    private PlaybackRateSampleProvider? _rateProvider;
+    private double _playbackSpeed = 1.0;
 
     public event EventHandler? PlaybackStopped;
 
@@ -15,6 +17,7 @@ public sealed class RecordingPlaybackService : IDisposable
     public bool IsPlaying => _output?.PlaybackState == PlaybackState.Playing;
     public TimeSpan Position => _reader?.CurrentTime ?? TimeSpan.Zero;
     public TimeSpan Duration => _reader?.TotalTime ?? TimeSpan.Zero;
+    public double PlaybackSpeed => _playbackSpeed;
 
     public void Load(string filePath)
     {
@@ -23,10 +26,14 @@ public sealed class RecordingPlaybackService : IDisposable
 
         _reader = new AudioFileReader(filePath);
         _gainProvider = new StereoGainSampleProvider(_reader);
+        _rateProvider = new PlaybackRateSampleProvider(_gainProvider)
+        {
+            PlaybackRate = (float)_playbackSpeed
+        };
 
         _output = new WasapiOut(AudioClientShareMode.Shared, 100);
         _output.PlaybackStopped += OnPlaybackStopped;
-        _output.Init(_gainProvider);
+        _output.Init(_rateProvider);
     }
 
     public void Play()
@@ -89,6 +96,16 @@ public sealed class RecordingPlaybackService : IDisposable
 
         _gainProvider.MixToMono = enabled;
     }
+
+    public void SetPlaybackSpeed(double speed)
+    {
+        _playbackSpeed = Math.Clamp(speed, 0.5d, 4.0d);
+        if (_rateProvider is not null)
+        {
+            _rateProvider.PlaybackRate = (float)_playbackSpeed;
+        }
+    }
+
     private static float DbToLinear(double db)
     {
         var linear = Math.Pow(10d, db / 20d);
@@ -112,6 +129,7 @@ public sealed class RecordingPlaybackService : IDisposable
         _reader?.Dispose();
         _reader = null;
         _gainProvider = null;
+        _rateProvider = null;
     }
 
     public void Dispose()

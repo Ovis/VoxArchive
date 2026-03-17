@@ -39,6 +39,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private bool _isSeekingByUser;
     private bool _isUpdatingFromPlayer;
     private SeekStepOption? _selectedSeekStepOption = new(10, "10秒");
+    private PlaybackSpeedOption? _selectedPlaybackSpeedOption = new(1.0, "1.0x");
     private bool _allItemsChecked;
     private bool _isSavingMonoMix;
 
@@ -93,6 +94,20 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         };
         SelectedSeekStepOption = SeekStepOptions[1];
 
+        PlaybackSpeedOptions = new[]
+        {
+            new PlaybackSpeedOption(0.5, "0.5x"),
+            new PlaybackSpeedOption(0.8, "0.8x"),
+            new PlaybackSpeedOption(1.0, "1.0x"),
+            new PlaybackSpeedOption(1.2, "1.2x"),
+            new PlaybackSpeedOption(1.5, "1.5x"),
+            new PlaybackSpeedOption(2.0, "2.0x"),
+            new PlaybackSpeedOption(2.5, "2.5x"),
+            new PlaybackSpeedOption(3.0, "3.0x"),
+            new PlaybackSpeedOption(4.0, "4.0x")
+        };
+        SelectedPlaybackSpeedOption = PlaybackSpeedOptions.First(x => Math.Abs(x.Rate - 1.0) < 0.0001);
+
         RefreshCommand = new DelegateCommand(RefreshAsync);
         AddFileCommand = new DelegateCommand(AddFileAsync);
         RemoveMissingFromListCommand = new DelegateCommand(RemoveMissingFromListAsync);
@@ -110,6 +125,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         SeekBackwardCommand = new DelegateCommand(SeekBackwardAsync, () => SelectedItem is not null);
         SeekForwardCommand = new DelegateCommand(SeekForwardAsync, () => SelectedItem is not null);
         SaveMonoMixCommand = new DelegateCommand(SaveMonoMixAsync, CanSaveMonoMix);
+        ResetPlaybackSpeedCommand = new DelegateCommand(ResetPlaybackSpeedAsync, CanResetPlaybackSpeed);
 
         _ = RefreshAsync();
     }
@@ -118,6 +134,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     public ObservableCollection<LibraryRecordingItem> Items { get; }
     public IReadOnlyList<SeekStepOption> SeekStepOptions { get; }
+    public IReadOnlyList<PlaybackSpeedOption> PlaybackSpeedOptions { get; }
 
     public DelegateCommand RefreshCommand { get; }
     public DelegateCommand AddFileCommand { get; }
@@ -136,6 +153,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public DelegateCommand SeekBackwardCommand { get; }
     public DelegateCommand SeekForwardCommand { get; }
     public DelegateCommand SaveMonoMixCommand { get; }
+    public DelegateCommand ResetPlaybackSpeedCommand { get; }
 
     public LibraryRecordingItem? SelectedItem
     {
@@ -262,6 +280,22 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         set => SetField(ref _selectedSeekStepOption, value);
     }
 
+
+    public PlaybackSpeedOption? SelectedPlaybackSpeedOption
+    {
+        get => _selectedPlaybackSpeedOption;
+        set
+        {
+            if (!SetField(ref _selectedPlaybackSpeedOption, value))
+            {
+                return;
+            }
+
+            var speed = value?.Rate ?? 1.0;
+            _playbackService.SetPlaybackSpeed(speed);
+            RaiseCommands();
+        }
+    }
     public bool MixToMonoPlayback
     {
         get => _mixToMonoPlayback;
@@ -391,6 +425,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             _playbackService.Load(SelectedItem.FilePath);
             _playbackService.SetGains(SpeakerGainDb, MicGainDb);
             _playbackService.SetMixToMono(MixToMonoPlayback);
+            _playbackService.SetPlaybackSpeed(SelectedPlaybackSpeedOption?.Rate ?? 1.0);
             DurationSeconds = Math.Max(0, _playbackService.Duration.TotalSeconds);
             SeekSeconds = 0;
             UpdatePositionText();
@@ -878,6 +913,23 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     }
 
 
+
+    private bool CanResetPlaybackSpeed()
+    {
+        var rate = SelectedPlaybackSpeedOption?.Rate ?? 1.0;
+        return Math.Abs(rate - 1.0) > 0.0001;
+    }
+
+    private Task ResetPlaybackSpeedAsync()
+    {
+        var normal = PlaybackSpeedOptions.FirstOrDefault(x => Math.Abs(x.Rate - 1.0) < 0.0001);
+        if (normal is not null)
+        {
+            SelectedPlaybackSpeedOption = normal;
+        }
+
+        return Task.CompletedTask;
+    }
     private bool CanSaveMonoMix()
     {
         return SelectedItem is not null && !_isSavingMonoMix;
@@ -1140,6 +1192,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         SeekBackwardCommand.RaiseCanExecuteChanged();
         SeekForwardCommand.RaiseCanExecuteChanged();
         SaveMonoMixCommand.RaiseCanExecuteChanged();
+        ResetPlaybackSpeedCommand.RaiseCanExecuteChanged();
     }
 
     private static bool TryGetExistingTranscriptionFilePath(string audioFilePath, TranscriptionModel model, out string? outputPath)
@@ -1208,6 +1261,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     }
 
     public sealed record SeekStepOption(int Seconds, string Label);
+    public sealed record PlaybackSpeedOption(double Rate, string Label);
 
     public void Dispose()
     {
@@ -1221,6 +1275,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _playbackService.Dispose();
     }
 }
+
+
+
 
 
 
