@@ -342,16 +342,20 @@ public sealed class RecordingCatalogService
         using var stream = new FileStream(_opsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
 
-        while (!reader.EndOfStream)
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var line = await reader.ReadLineAsync(cancellationToken);
+            if (line is null)
+            {
+                break;
+            }
+
             if (string.IsNullOrWhiteSpace(line))
             {
                 continue;
             }
-
             try
             {
                 var op = JsonSerializer.Deserialize<CatalogOperationDto>(line, JsonOptions);
