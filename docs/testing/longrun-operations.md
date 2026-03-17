@@ -1,35 +1,24 @@
-# LongRun 運用
+# 長時間試験運用メモ
 
-## セッション初期化
+最終更新: 2026-03-17
 
-```powershell
-pwsh -File scripts/longrun/Initialize-LongRunSession.ps1
-```
+## 目的
+- 長時間録音で停止・クラッシュ・リークがないことを確認する
 
-実行後に `logs/longrun/session-YYYYMMDD-HHMMSS/` が生成される。
+## 手順
+1. スピーカーモードで 30分以上録音
+2. 途中で 3 回以上、一時停止/再開
+3. 停止後にライブラリ反映と再生を確認
+4. 自動文字起こし ON で完了まで確認
 
-## 実施フロー
+## 観測ポイント
+- 経過時間表示の連続性
+- 停止時ハングの有無
+- pp-errors.log への例外出力有無
+- 文字起こしキュー詰まりの有無
 
-1. 生成された `README.md` の paths を確認
-2. WPF アプリの保存先を `metrics` ディレクトリへ設定
-3. 1h 録音を実施
-4. 3h 録音を実施
-5. CSV 集計
-
-```powershell
-pwsh -File scripts/Analyze-RecordingMetrics.ps1 -MetricsCsv <metrics/recording-metrics.csv>
-```
-
-6. `report/longrun-report.md` へ結果を転記
-7. 以下の証跡ファイルを更新し、`status: PASS` または `status: FAIL` を明記
-   - `report/evidence-1h.md`
-   - `report/evidence-3h.md`
-   - `report/evidence-channels.md`
-   - `report/evidence-process-fallback.md`
-8. 仕様完了証跡サマリを生成
-
-```powershell
-pwsh -File scripts/release/Validate-SpecCompletionEvidence.ps1 -SessionId <session-id>
-```
-
-9. `docs/release/spec-completion-checklist.md` の PENDING 項目を PASS 化
+## 失敗時記録
+- 発生時刻
+- モード（Speaker / Process）
+- 操作手順
+- ログ抜粋
