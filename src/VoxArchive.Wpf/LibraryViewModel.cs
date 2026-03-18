@@ -1050,9 +1050,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         return Items.Where(x => x.IsChecked).ToList();
     }
 
-    private bool CanRemoveCheckedFromList() => GetCheckedItems().Count > 0;
+    private bool CanRemoveCheckedFromList() => Items.Any(x => x.IsChecked);
 
-    private bool CanDeleteCheckedFiles() => GetCheckedItems().Count > 0;
+    private bool CanDeleteCheckedFiles() => Items.Any(x => x.IsChecked);
 
     private async Task RemoveCheckedFromListAsync()
     {
