@@ -946,7 +946,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        if (!await EnsureFileExistsOrPromptRemoveAsync("\u30E2\u30CE\u30E9\u30EB\u4FDD\u5B58", SelectedItem.FilePath))
+        if (!await EnsureFileExistsOrPromptRemoveAsync("モノラル保存", SelectedItem.FilePath))
         {
             return;
         }
@@ -958,7 +958,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         var dialog = new SaveFileDialog
         {
-            Title = "\u30E2\u30CE\u30E9\u30EB\u5909\u63DB\u30D5\u30A1\u30A4\u30EB\u306E\u4FDD\u5B58\u5148",
+            Title = "モノラル変換ファイルの保存先",
             Filter = "WAV (*.wav)|*.wav|MP3 (*.mp3)|*.mp3|FLAC (*.flac)|*.flac",
             FilterIndex = 1,
             FileName = initialFileName,
@@ -985,7 +985,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             _isSavingMonoMix = true;
             RaiseCommands();
-            StatusText = "\u30E2\u30CE\u30E9\u30EB\u5909\u63DB\u30D5\u30A1\u30A4\u30EB\u3092\u66F8\u304D\u51FA\u3057\u4E2D...";
+            StatusText = "モノラル変換ファイルを書き出し中...";
 
             await MonoMixdownExportService.ExportAsync(
                 inputPath,
@@ -994,11 +994,11 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                 MicGainDb,
                 format);
 
-            StatusText = $"\u30E2\u30CE\u30E9\u30EB\u5909\u63DB\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F: {Path.GetFileName(outputPath)}";
+            StatusText = $"モノラル変換ファイルを保存しました: {Path.GetFileName(outputPath)}";
         }
         catch (Exception ex)
         {
-            StatusText = $"\u30E2\u30CE\u30E9\u30EB\u4FDD\u5B58\u5931\u6557: {ex.Message}";
+            StatusText = $"モノラル保存失敗: {ex.Message}";
         }
         finally
         {
