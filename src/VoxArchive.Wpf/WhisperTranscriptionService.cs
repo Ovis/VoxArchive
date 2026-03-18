@@ -815,16 +815,10 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             return GetTaskResult(task);
         }
 
-        var type = value.GetType();
-        var asTask = type.GetMethod("AsTask", Type.EmptyTypes);
-        if (asTask is not null && typeof(Task).IsAssignableFrom(asTask.ReturnType))
+        if (TryConvertToTask(value, out var convertedTask))
         {
-            var taskValue = asTask.Invoke(value, null) as Task;
-            if (taskValue is not null)
-            {
-                await taskValue.WaitAsync(cancellationToken);
-                return GetTaskResult(taskValue);
-            }
+            await convertedTask.WaitAsync(cancellationToken);
+            return GetTaskResult(convertedTask);
         }
 
         return value;
@@ -853,28 +847,41 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             return await taskBool;
         }
 
-        var type = awaitable.GetType();
-        var asTask = type.GetMethod("AsTask", Type.EmptyTypes);
-        if (asTask is not null && typeof(Task).IsAssignableFrom(asTask.ReturnType))
+        if (TryConvertToTask(awaitable, out var convertedTask))
         {
-            var task = (Task?)asTask.Invoke(awaitable, null);
-            if (task is Task<bool> booleanTask)
+            if (convertedTask is Task<bool> convertedBoolTask)
             {
-                return await booleanTask;
+                return await convertedBoolTask;
             }
 
-            if (task is not null)
+            await convertedTask;
+            if (GetTaskResult(convertedTask) is bool boolResult)
             {
-                await task;
-                var resultProperty = task.GetType().GetProperty("Result");
-                if (resultProperty?.GetValue(task) is bool boolResult)
-                {
-                    return boolResult;
-                }
+                return boolResult;
             }
         }
 
         throw new InvalidOperationException("MoveNextAsync の戻り値型に対応していません。");
+    }
+
+    private static bool TryConvertToTask(object source, out Task convertedTask)
+    {
+        convertedTask = null!;
+
+        var asTask = source.GetType().GetMethod("AsTask", Type.EmptyTypes);
+        if (asTask is null || !typeof(Task).IsAssignableFrom(asTask.ReturnType))
+        {
+            return false;
+        }
+
+        var task = asTask.Invoke(source, null) as Task;
+        if (task is null)
+        {
+            return false;
+        }
+
+        convertedTask = task;
+        return true;
     }
 
     private const float TranscriptionSafePeak = 0.98f;
