@@ -56,18 +56,30 @@ public sealed class WhisperModelStore
             File.Delete(tmpPath);
         }
 
-        var url = BuildModelDownloadUrl(model);
-        using var response = await HttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken))
-        await using (var output = File.Create(tmpPath))
+        try
         {
-            await input.CopyToAsync(output, cancellationToken);
-        }
+            var url = BuildModelDownloadUrl(model);
+            using var response = await HttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
 
-        File.Move(tmpPath, destinationPath, overwrite: true);
-        return destinationPath;
+            await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var output = File.Create(tmpPath))
+            {
+                await input.CopyToAsync(output, cancellationToken);
+            }
+
+            File.Move(tmpPath, destinationPath, overwrite: true);
+            return destinationPath;
+        }
+        catch
+        {
+            if (File.Exists(tmpPath))
+            {
+                File.Delete(tmpPath);
+            }
+
+            throw;
+        }
     }
 
     public static string GetModelFileName(TranscriptionModel model)
