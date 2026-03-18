@@ -92,9 +92,11 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
             }
             catch (OperationCanceledException)
             {
+                // 停止要求で待機が中断された場合は正常系として扱う。
             }
             catch
             {
+                // 既に停止済み/解放済みの場合があるため握りつぶす。
             }
 
             _captureTask = null;
@@ -108,6 +110,7 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
             }
             catch
             {
+                // 既に停止済み/解放済みの場合があるため握りつぶす。
             }
         }
 
@@ -129,6 +132,7 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
             }
             catch (OperationCanceledException)
             {
+                // 停止要求で待機が中断された場合は正常系として扱う。
             }
 
             _monitorTask = null;
@@ -332,6 +336,7 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
         }
         catch
         {
+            // 既に停止済み/解放済みの場合があるため握りつぶす。
         }
         finally
         {
@@ -361,6 +366,7 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
         }
         catch
         {
+            // QueryInterface に失敗する環境では null を返して上位でフォールバックする。
             return null;
         }
         finally
@@ -433,6 +439,7 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
         }
         catch (OperationCanceledException)
         {
+            // 停止要求で待機が中断された場合は正常系として扱う。
         }
         finally
         {
@@ -470,6 +477,7 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
         }
         catch
         {
+            // 既に停止済み/解放済みの場合があるため握りつぶす。
         }
         finally
         {
@@ -608,8 +616,3 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
         }
     }
 }
-
-
-
-
-

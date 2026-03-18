@@ -245,6 +245,7 @@ public sealed class RecordingService : IRecordingService
             }
             catch (OperationCanceledException)
             {
+                // 停止要求で処理ループ待機が中断された場合は正常系として扱う。
             }
 
             _processingTask = null;
