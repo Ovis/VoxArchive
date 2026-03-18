@@ -69,11 +69,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
 
         _playbackService = playbackService;
-        _playbackService.PlaybackStopped += (_, _) =>
-        {
-            IsPlaying = false;
-            PlaybackButtonText = "再生";
-        };
+        _playbackService.PlaybackStopped += OnPlaybackStopped;
 
         _speakerGainDb = defaultSpeakerGainDb;
         _micGainDb = defaultMicGainDb;
@@ -1151,6 +1147,12 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private void OnPlaybackStopped(object? sender, EventArgs e)
+    {
+        IsPlaying = false;
+        PlaybackButtonText = "再生";
+    }
+
     private void UpdatePositionFromPlayer()
     {
         if (_isSeekingByUser)
@@ -1280,10 +1282,12 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             item.PropertyChanged -= OnItemPropertyChanged;
         }
         _positionTimer.Stop();
+        _playbackService.PlaybackStopped -= OnPlaybackStopped;
         _playbackService.Dispose();
         _catalogSession.Dispose();
     }
 }
+
 
 
 
