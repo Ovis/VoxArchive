@@ -153,29 +153,41 @@ public sealed class RecordingCatalogService
 
         File.Move(filePath, newPath);
 
-        await _gate.WaitAsync(cancellationToken);
         try
         {
-            var state = await GetWritableStateAsync(cancellationToken);
-            var oldKey = NormalizePath(filePath);
-            var newKey = NormalizePath(newPath);
-            var id = state.TryGetValue(oldKey, out var existing)
-                ? existing.Id
-                : Guid.NewGuid().ToString("N");
+            await _gate.WaitAsync(cancellationToken);
+            try
+            {
+                var state = await GetWritableStateAsync(cancellationToken);
+                var oldKey = NormalizePath(filePath);
+                var newKey = NormalizePath(newPath);
+                var id = state.TryGetValue(oldKey, out var existing)
+                    ? existing.Id
+                    : Guid.NewGuid().ToString("N");
 
-            var renamed = await BuildEntryAsync(newPath, id, cancellationToken);
-            renamed.Title = existing?.Title ?? renamed.Title;
-            renamed.UpdatedUtc = DateTime.UtcNow;
-            state.Remove(oldKey);
-            state[newKey] = renamed;
+                var renamed = await BuildEntryAsync(newPath, id, cancellationToken);
+                renamed.Title = existing?.Title ?? renamed.Title;
+                renamed.UpdatedUtc = DateTime.UtcNow;
+                state.Remove(oldKey);
+                state[newKey] = renamed;
 
-            await AppendOperationAsync(CatalogOperationDto.Rename(filePath, renamed), cancellationToken);
-            await MaybeCompactAsync(state, cancellationToken);
-            return newPath;
+                await AppendOperationAsync(CatalogOperationDto.Rename(filePath, renamed), cancellationToken);
+                await MaybeCompactAsync(state, cancellationToken);
+                return newPath;
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
-        finally
+        catch
         {
-            _gate.Release();
+            if (!File.Exists(filePath) && File.Exists(newPath))
+            {
+                File.Move(newPath, filePath);
+            }
+
+            throw;
         }
     }
 
