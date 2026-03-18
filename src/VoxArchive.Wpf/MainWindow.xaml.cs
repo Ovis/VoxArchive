@@ -392,3 +392,4 @@ public partial class MainWindow : Window
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 }
 
+
