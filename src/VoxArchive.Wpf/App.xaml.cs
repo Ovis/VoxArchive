@@ -1,5 +1,5 @@
-using System.IO;
 using System.Diagnostics;
+using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -16,10 +16,14 @@ public partial class App : System.Windows.Application
 {
     private IHost? _host;
 
-    protected override async void OnStartup(System.Windows.StartupEventArgs e)
+    protected override void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
+        _ = OnStartupAsync();
+    }
 
+    private async Task OnStartupAsync()
+    {
         var appData = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "VoxArchive");
@@ -115,4 +119,3 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
-
