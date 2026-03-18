@@ -224,9 +224,9 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
 
 
 
-    private static object? CreateFactoryOptions(Assembly whisperAssembly, TranscriptionExecutionMode mode, out bool? requestedUseGpu)
+    private static object? CreateFactoryOptions(Assembly whisperAssembly, TranscriptionExecutionMode mode)
     {
-        requestedUseGpu = mode switch
+        bool? requestedUseGpu = mode switch
         {
             TranscriptionExecutionMode.CpuOnly => false,
             TranscriptionExecutionMode.CudaPreferred => true,
@@ -285,7 +285,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
 
         try
         {
-            var factoryOptions = CreateFactoryOptions(factoryType.Assembly, request.Options.TranscriptionExecutionMode, out var requestedUseGpu);
+            var factoryOptions = CreateFactoryOptions(factoryType.Assembly, request.Options.TranscriptionExecutionMode);
             if (fromPathWithOptions is not null && factoryOptions is not null)
             {
                 factory = fromPathWithOptions.Invoke(null, new object?[] { modelPath, factoryOptions });
@@ -298,13 +298,6 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             if (factory is null)
             {
                 throw new InvalidOperationException("WhisperFactory initialization failed.");
-            }
-
-            string? runtimeInfoText = null;
-            var runtimeInfoMethod = factory.GetType().GetMethod("GetRuntimeInfo", Type.EmptyTypes);
-            if (runtimeInfoMethod?.Invoke(factory, null) is string runtimeInfo && !string.IsNullOrWhiteSpace(runtimeInfo))
-            {
-                runtimeInfoText = runtimeInfo.Trim();
             }
 
             var createBuilder = factory.GetType().GetMethod("CreateBuilder", Type.EmptyTypes)
@@ -1357,6 +1350,10 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
+
+
+
+
 
 
 
