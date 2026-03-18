@@ -1341,12 +1341,17 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     }
     private static string FormatSrt(TimeSpan time)
     {
-        return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00},{time.Milliseconds:000}";
+        return FormatTimestamp(time, ',');
     }
 
     private static string FormatVtt(TimeSpan time)
     {
-        return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}.{time.Milliseconds:000}";
+        return FormatTimestamp(time, '.');
+    }
+
+    private static string FormatTimestamp(TimeSpan time, char millisecondSeparator)
+    {
+        return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}{millisecondSeparator}{time.Milliseconds:000}";
     }
 
     private static TranscriptionJobResult Fail(string message, DateTimeOffset started)
