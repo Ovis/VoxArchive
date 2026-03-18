@@ -258,21 +258,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         CancellationToken cancellationToken)
     {
 
-        var fromPath = factoryType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .FirstOrDefault(m => m.Name == "FromPath" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string));
-        var fromPathWithOptions = factoryType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .FirstOrDefault(m =>
-            {
-                if (m.Name != "FromPath")
-                {
-                    return false;
-                }
-
-                var parameters = m.GetParameters();
-                return parameters.Length == 2
-                    && parameters[0].ParameterType == typeof(string)
-                    && string.Equals(parameters[1].ParameterType.Name, "WhisperFactoryOptions", StringComparison.Ordinal);
-            });
+        var (fromPath, fromPathWithOptions) = FindFactoryFromPathMethods(factoryType);
         if (fromPath is null && fromPathWithOptions is null)
         {
             throw new InvalidOperationException("WhisperFactory.FromPath was not found.");
@@ -310,8 +296,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
                 : request.Options.TranscriptionLanguage.Trim();
             if (!string.Equals(language, "auto", StringComparison.OrdinalIgnoreCase))
             {
-                var withLanguage = builder.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                    .FirstOrDefault(m => m.Name == "WithLanguage" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string));
+                var withLanguage = FindStringInstanceMethod(builder.GetType(), "WithLanguage");
                 if (withLanguage is not null)
                 {
                     builder = withLanguage.Invoke(builder, new object?[] { language }) ?? builder;
@@ -324,13 +309,8 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
                 ?? throw new InvalidOperationException("Processor creation failed.");
 
             await using var preparedInput = await PrepareWaveInputAsync(request.AudioFilePath, request.Options, cancellationToken);
-            var processAsync = processor.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .FirstOrDefault(m => m.Name == "ProcessAsync" && m.GetParameters().Length >= 1 && typeof(Stream).IsAssignableFrom(m.GetParameters()[0].ParameterType));
-
-            if (processAsync is null)
-            {
-                throw new InvalidOperationException("Processor.ProcessAsync was not found.");
-            }
+            var processAsync = FindProcessAsyncMethod(processor.GetType())
+                ?? throw new InvalidOperationException("Processor.ProcessAsync was not found.");
 
             if (!string.IsNullOrWhiteSpace(preparedInput.TemporaryWavePath) && File.Exists(preparedInput.TemporaryWavePath))
             {
@@ -657,6 +637,52 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         var clamped = Math.Clamp(percentile, 0d, 1d);
         var index = (int)Math.Floor((ordered.Length - 1) * clamped);
         return ordered[index];
+    }
+
+    private static (MethodInfo? FromPath, MethodInfo? FromPathWithOptions) FindFactoryFromPathMethods(Type factoryType)
+    {
+        MethodInfo? fromPath = null;
+        MethodInfo? fromPathWithOptions = null;
+
+        foreach (var method in factoryType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+        {
+            if (!string.Equals(method.Name, "FromPath", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
+            {
+                fromPath = method;
+                continue;
+            }
+
+            if (parameters.Length == 2
+                && parameters[0].ParameterType == typeof(string)
+                && string.Equals(parameters[1].ParameterType.Name, "WhisperFactoryOptions", StringComparison.Ordinal))
+            {
+                fromPathWithOptions = method;
+            }
+        }
+
+        return (fromPath, fromPathWithOptions);
+    }
+
+    private static MethodInfo? FindStringInstanceMethod(Type type, string methodName)
+    {
+        return type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .FirstOrDefault(m => m.Name == methodName
+                                 && m.GetParameters().Length == 1
+                                 && m.GetParameters()[0].ParameterType == typeof(string));
+    }
+
+    private static MethodInfo? FindProcessAsyncMethod(Type processorType)
+    {
+        return processorType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .FirstOrDefault(m => m.Name == "ProcessAsync"
+                                 && m.GetParameters().Length >= 1
+                                 && typeof(Stream).IsAssignableFrom(m.GetParameters()[0].ParameterType));
     }
     private static object?[] BuildProcessArgs(MethodInfo processAsync, Stream stream, CancellationToken cancellationToken)
     {
@@ -1346,14 +1372,3 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
-
-
-
-
-
-
-
-
-
-
-
