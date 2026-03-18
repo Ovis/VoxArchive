@@ -11,7 +11,7 @@ namespace VoxArchive.LongRunTests;
 
 public sealed class RecordingServiceLongRunTests
 {
-    [Test, Timeout(30000)]
+    [Test, CancelAfter(30000)]
     public async Task ContinuousRun_ForTenSeconds_DoesNotFailAndProducesFrames()
     {
         using var fixture = new LongRunFixture();
@@ -243,6 +243,7 @@ public sealed class RecordingServiceLongRunTests
         return arr;
     }
 }
+
 
 
 

@@ -21,8 +21,9 @@ public sealed class NAudioSpeakerCaptureService : ISpeakerCaptureService
         _sampleRate = NAudioCaptureUtils.ResolveSampleRate(_capture);
         (_channels, _bitsPerSample, _isFloat) = NAudioCaptureUtils.ResolveFormat(_capture);
 
-        _dataAvailableEvent = _capture.GetType().GetEvent("DataAvailable");
-        _dataAvailableHandler = NAudioCaptureUtils.CreateDataAvailableDelegate(this, _dataAvailableEvent!, nameof(OnDataAvailable));
+        _dataAvailableEvent = _capture.GetType().GetEvent("DataAvailable")
+            ?? throw new InvalidOperationException("DataAvailable event was not found.");
+        _dataAvailableHandler = NAudioCaptureUtils.CreateDataAvailableDelegate(this, _dataAvailableEvent, nameof(OnDataAvailable));
         _dataAvailableEvent.AddEventHandler(_capture, _dataAvailableHandler);
 
         NAudioCaptureUtils.StartRecording(_capture);
@@ -67,5 +68,3 @@ public sealed class NAudioSpeakerCaptureService : ISpeakerCaptureService
         ChunkCaptured?.Invoke(this, new CaptureChunk(mono, _sampleRate, DateTimeOffset.UtcNow));
     }
 }
-
-

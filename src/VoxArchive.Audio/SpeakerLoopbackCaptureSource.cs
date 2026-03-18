@@ -16,7 +16,11 @@ public sealed class SpeakerLoopbackCaptureSource : IOutputCaptureSource
     public OutputCaptureMode Mode => OutputCaptureMode.SpeakerLoopback;
 
     public event EventHandler<CaptureChunk>? ChunkCaptured;
-    public event EventHandler? SourceUnavailable;
+    public event EventHandler? SourceUnavailable
+    {
+        add { }
+        remove { }
+    }
 
     public async Task StartAsync(RecordingOptions options, CancellationToken cancellationToken = default)
     {
@@ -33,5 +37,3 @@ public sealed class SpeakerLoopbackCaptureSource : IOutputCaptureSource
         ChunkCaptured?.Invoke(this, chunk);
     }
 }
-
-

@@ -351,7 +351,7 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
         try
         {
             var iidAudioClient = typeof(IAudioClientNative).GUID;
-            var hr = Marshal.QueryInterface(activatedInterfacePtr, ref iidAudioClient, out audioClientPtr);
+            var hr = Marshal.QueryInterface(activatedInterfacePtr, in iidAudioClient, out audioClientPtr);
             if (hr < 0 || audioClientPtr == IntPtr.Zero)
             {
                 return null;
@@ -608,6 +608,7 @@ public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCapture
         }
     }
 }
+
 
 
 
