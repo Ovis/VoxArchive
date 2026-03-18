@@ -51,8 +51,7 @@ public partial class SettingsWindow : Window
         TranscriptionLanguage = "ja";
         OutputTxtCheckBox.IsChecked = true;
 
-        TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
-        TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
+        SetDefaultEnvironmentStatus();
 
         _suppressEnvironmentAutoCheck = false;
     }
@@ -250,8 +249,7 @@ public partial class SettingsWindow : Window
         }
 
         // 自動実行は行わず、明示的な「環境チェック」押下時のみ判定する。
-        TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
-        TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
+        SetDefaultEnvironmentStatus();
     }
 
     private async Task RefreshEnvironmentStatusAsync()
@@ -354,6 +352,12 @@ public partial class SettingsWindow : Window
         {
             TranscriptionStatusTextBlock.Text = $"モデル削除失敗: {ex.Message}";
         }
+    }
+
+    private void SetDefaultEnvironmentStatus()
+    {
+        TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
+        TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
     }
 
     private void SetEnvironmentCheckUiState(bool isChecking)
@@ -564,6 +568,8 @@ public partial class SettingsWindow : Window
         };
     }
 }
+
+
 
 
 
