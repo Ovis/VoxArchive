@@ -126,17 +126,6 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         }
     }
 
-
-    public async Task<string> EnsureModelAsync(TranscriptionModel model, CancellationToken cancellationToken = default)
-    {
-        if (modelStore.IsInstalled(model))
-        {
-            return modelStore.GetModelPath(model);
-        }
-
-        return await modelStore.DownloadAsync(model, cancellationToken);
-    }
-
     public async Task<TranscriptionJobResult> TranscribeAsync(TranscriptionJobRequest request, CancellationToken cancellationToken = default)
     {
         var started = DateTimeOffset.Now;
@@ -163,7 +152,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             {
                 return Fail("Whisper.net ランタイムが利用できません。依存ライブラリを確認してください。", started);
             }
-var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cancellationToken);
+            var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cancellationToken);
             var labeledSegments = await Task.Run(() => ApplySpeakerLabelsByChannelEnergy(request.AudioFilePath, segments, cancellationToken), cancellationToken);
             var generated = await WriteOutputsAsync(request.AudioFilePath, request.Options.TranscriptionModel, request.Options.TranscriptionOutputFormats, labeledSegments, cancellationToken);
 
@@ -1368,4 +1357,6 @@ var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cance
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
+
+
 

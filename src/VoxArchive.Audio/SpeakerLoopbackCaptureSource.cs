@@ -28,14 +28,10 @@ public sealed class SpeakerLoopbackCaptureSource : IOutputCaptureSource
         await _speakerCaptureService.StopAsync(cancellationToken);
     }
 
-    public void NotifyUnavailable(string reason = "SpeakerSourceUnavailable")
-    {
-        _ = reason;
-        SourceUnavailable?.Invoke(this, EventArgs.Empty);
-    }
-
     private void OnChunkCaptured(object? sender, CaptureChunk chunk)
     {
         ChunkCaptured?.Invoke(this, chunk);
     }
 }
+
+
