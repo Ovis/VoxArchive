@@ -138,6 +138,12 @@ public partial class MainWindow : Window
 
     private void OnBalloonRequested(string title, string message, Forms.ToolTipIcon icon)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => OnBalloonRequested(title, message, icon));
+            return;
+        }
+
         if (_notifyIcon is null)
         {
             return;
