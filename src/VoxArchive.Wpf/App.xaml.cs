@@ -58,6 +58,13 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<IProcessLoopbackCaptureService, ProcessLoopbackCaptureService>();
                     services.AddSingleton<IRecordingServiceFactory, RecordingServiceFactory>();
                     services.AddSingleton<LocalRecordingBootstrapper>();
+                    services.AddSingleton<RecordingRuntimeContextHolder>();
+                    services.AddTransient<MainViewModel>(sp =>
+                    {
+                        var holder = sp.GetRequiredService<RecordingRuntimeContextHolder>();
+                        var context = holder.Context ?? throw new InvalidOperationException("Recording runtime context is not initialized.");
+                        return ActivatorUtilities.CreateInstance<MainViewModel>(sp, context);
+                    });
 
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
                     services.AddSingleton<WhisperModelStore>();
@@ -72,12 +79,14 @@ public partial class App : System.Windows.Application
 
             var bootstrapper = _host.Services.GetRequiredService<LocalRecordingBootstrapper>();
             var context = await bootstrapper.InitializeAsync();
+            var holder = _host.Services.GetRequiredService<RecordingRuntimeContextHolder>();
+            holder.Context = context;
 
             var logger = _host.Services.GetRequiredService<ILogger<App>>();
             logger.LogInformation("Application startup completed.");
 
             var window = _host.Services.GetRequiredService<MainWindow>();
-            window.DataContext = ActivatorUtilities.CreateInstance<MainViewModel>(_host.Services, context);
+            window.DataContext = _host.Services.GetRequiredService<MainViewModel>();
             window.Show();
         }
         catch (Exception ex)
@@ -121,4 +130,3 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
-
