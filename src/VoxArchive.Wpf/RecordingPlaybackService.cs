@@ -5,6 +5,9 @@ namespace VoxArchive.Wpf;
 
 public sealed class RecordingPlaybackService : IRecordingPlaybackService
 {
+    private const double MinPlaybackSpeed = 0.5d;
+    private const double MaxPlaybackSpeed = 4.0d;
+
     private WasapiOut? _output;
     private AudioFileReader? _reader;
     private StereoGainSampleProvider? _gainProvider;
@@ -89,7 +92,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
     public void SetPlaybackSpeed(double speed)
     {
-        _playbackSpeed = Math.Clamp(speed, 0.5d, 4.0d);
+        _playbackSpeed = Math.Clamp(speed, MinPlaybackSpeed, MaxPlaybackSpeed);
         if (_rateProvider is not null)
         {
             _rateProvider.PlaybackRate = (float)_playbackSpeed;
