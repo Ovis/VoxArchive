@@ -1026,6 +1026,48 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
 
     private static TimeSpan GetTimeSpan(object target, params string[] names)
     {
+        if (!TryGetPropertyValueByNames(target, names, out var value) || value is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (value is TimeSpan ts)
+        {
+            return ts;
+        }
+
+        if (value is double d)
+        {
+            return TimeSpan.FromSeconds(d);
+        }
+
+        if (value is float f)
+        {
+            return TimeSpan.FromSeconds(f);
+        }
+
+        if (value is long l)
+        {
+            return TimeSpan.FromMilliseconds(l);
+        }
+
+        if (TimeSpan.TryParse(value.ToString(), out var parsed))
+        {
+            return parsed;
+        }
+
+        return TimeSpan.Zero;
+    }
+
+    private static string GetString(object target, params string[] names)
+    {
+        return TryGetPropertyValueByNames(target, names, out var value)
+            ? value?.ToString()?.Trim() ?? string.Empty
+            : string.Empty;
+    }
+
+    private static bool TryGetPropertyValueByNames(object target, IReadOnlyList<string> names, out object? value)
+    {
         foreach (var name in names)
         {
             var prop = target.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
@@ -1034,54 +1076,26 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
                 continue;
             }
 
-            var value = prop.GetValue(target);
-            if (value is null)
+            value = prop.GetValue(target);
+            if (value is string text)
             {
-                continue;
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    continue;
+                }
+
+                value = text;
+                return true;
             }
 
-            if (value is TimeSpan ts)
+            if (value is not null)
             {
-                return ts;
-            }
-
-            if (value is double d)
-            {
-                return TimeSpan.FromSeconds(d);
-            }
-
-            if (value is float f)
-            {
-                return TimeSpan.FromSeconds(f);
-            }
-
-            if (value is long l)
-            {
-                return TimeSpan.FromMilliseconds(l);
-            }
-
-            if (TimeSpan.TryParse(value.ToString(), out var parsed))
-            {
-                return parsed;
+                return true;
             }
         }
 
-        return TimeSpan.Zero;
-    }
-
-    private static string GetString(object target, params string[] names)
-    {
-        foreach (var name in names)
-        {
-            var prop = target.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-            var value = prop?.GetValue(target)?.ToString();
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value.Trim();
-            }
-        }
-
-        return string.Empty;
+        value = null;
+        return false;
     }
 
     private static async Task<IReadOnlyList<string>> WriteOutputsAsync(
