@@ -556,13 +556,23 @@ public sealed class RecordingCatalogService
         }
     }
 
+    private static string BuildDefaultTitleFromFileName(string fileName)
+    {
+        var stem = Path.GetFileNameWithoutExtension(fileName);
+        if (stem.Length == 17 && stem.All(char.IsDigit))
+        {
+            return stem[..14];
+        }
+
+        return stem;
+    }
     private static (string title, long durationMs, int sampleRate, int channels) ReadMetadata(string filePath, string fileName)
     {
         try
         {
             using var tagFile = TagLib.File.Create(filePath);
             var title = string.IsNullOrWhiteSpace(tagFile.Tag.Title)
-                ? Path.GetFileNameWithoutExtension(fileName)
+                ? BuildDefaultTitleFromFileName(fileName)
                 : tagFile.Tag.Title.Trim();
 
             return (
@@ -573,7 +583,7 @@ public sealed class RecordingCatalogService
         }
         catch
         {
-            return (Path.GetFileNameWithoutExtension(fileName), 0, 0, 0);
+            return (BuildDefaultTitleFromFileName(fileName), 0, 0, 0);
         }
     }
 
@@ -655,7 +665,7 @@ public sealed class RecordingCatalogService
                 Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString("N") : Id,
                 FilePath = FilePath,
                 FileName = FileName,
-                Title = string.IsNullOrWhiteSpace(Title) ? Path.GetFileNameWithoutExtension(FileName) : Title,
+                Title = string.IsNullOrWhiteSpace(Title) ? BuildDefaultTitleFromFileName(FileName) : Title,
                 DurationMilliseconds = DurationMilliseconds,
                 SampleRate = SampleRate,
                 Channels = Channels,

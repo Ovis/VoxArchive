@@ -25,7 +25,7 @@ public sealed class RecordingServiceIntegrationTests
         await Task.Delay(80);
         await sut.StopAsync();
 
-        Assert.That(outputPath, Does.Match(@"\d{14}\.flac$"));
+        Assert.That(outputPath, Does.Match(@"\d{17}(?:_\d+)?\.flac$"));
         Assert.That(states, Contains.Item(RecordingState.Starting));
         Assert.That(states, Contains.Item(RecordingState.Recording));
         Assert.That(states, Contains.Item(RecordingState.Stopping));
@@ -51,6 +51,27 @@ public sealed class RecordingServiceIntegrationTests
         Assert.That(sut.CurrentState, Is.EqualTo(RecordingState.Recording));
 
         await sut.StopAsync();
+    }
+    [Test]
+    public async Task Start_PreservesPreconfiguredMuteFlags()
+    {
+        var fixture = new RecordingFixture();
+        var sut = fixture.CreateService();
+
+        sut.SetSpeakerCaptureEnabled(false);
+        sut.SetMicCaptureEnabled(false);
+
+        var options = fixture.CreateOptions();
+
+        await sut.StartAsync(options);
+        Assert.That(sut.IsSpeakerCaptureEnabled, Is.False);
+        Assert.That(sut.IsMicCaptureEnabled, Is.False);
+
+        await Task.Delay(50);
+        await sut.StopAsync();
+
+        Assert.That(fixture.SpeakerBuffer.Count, Is.EqualTo(0));
+        Assert.That(fixture.MicBuffer.Count, Is.EqualTo(0));
     }
 
     [Test]

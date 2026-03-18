@@ -107,8 +107,6 @@ public sealed class RecordingService : IRecordingService
             _accumulatedPausedDuration = TimeSpan.Zero;
             _pauseStartedAt = null;
             _isPaused = false;
-            _speakerCaptureEnabled = true;
-            _micCaptureEnabled = true;
             _underflowCount = 0;
             _overflowCount = 0;
             _speakerBuffer.Clear();
@@ -125,8 +123,8 @@ public sealed class RecordingService : IRecordingService
 
             await StartCaptureAsync(effectiveOptions, cancellationToken);
 
-            _processingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _processingTask = Task.Run(() => ProcessingLoopAsync(_processingCts.Token), _processingCts.Token);
+            _processingCts = new CancellationTokenSource();
+            _processingTask = Task.Run(() => ProcessingLoopAsync(_processingCts.Token));
 
             TransitionTo(RecordingState.Recording);
             RaiseStatistics();
@@ -563,8 +561,25 @@ public sealed class RecordingService : IRecordingService
 
     private static string BuildOutputFilePath(string directory)
     {
-        var fileName = DateTime.Now.ToString("yyyyMMddHHmmss") + ".flac";
-        return Path.Combine(directory, fileName);
+        var now = DateTime.Now;
+        var baseName = now.ToString("yyyyMMddHHmmssfff");
+        var path = Path.Combine(directory, baseName + ".flac");
+        if (!File.Exists(path))
+        {
+            return path;
+        }
+
+        var index = 1;
+        while (true)
+        {
+            var candidate = Path.Combine(directory, $"{baseName}_{index}.flac");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            index++;
+        }
     }
 
     private double SamplesToMs(int samples)

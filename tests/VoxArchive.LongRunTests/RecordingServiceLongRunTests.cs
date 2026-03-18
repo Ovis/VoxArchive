@@ -30,6 +30,28 @@ public sealed class RecordingServiceLongRunTests
         Assert.That(sut.CurrentState, Is.EqualTo(RecordingState.Stopped));
         Assert.That(fixture.Encoder.Writes, Is.GreaterThanOrEqualTo(500), $"Expected many frame writes, actual={fixture.Encoder.Writes}");
     }
+    [Test, CancelAfter(30000)]
+    public async Task StartTokenCanceledAfterStart_ProcessingKeepsRunning()
+    {
+        using var fixture = new LongRunFixture();
+        var sut = fixture.CreateService();
+        var options = fixture.CreateOptions();
+
+        using var startCts = new CancellationTokenSource();
+        await sut.StartAsync(options, startCts.Token);
+
+        await Task.Delay(100);
+        var writesBeforeCancel = fixture.Encoder.Writes;
+        startCts.Cancel();
+
+        await Task.Delay(300);
+        var writesAfterCancel = fixture.Encoder.Writes;
+
+        await sut.StopAsync();
+
+        Assert.That(writesAfterCancel, Is.GreaterThan(writesBeforeCancel));
+        Assert.That(sut.CurrentState, Is.EqualTo(RecordingState.Stopped));
+    }
 
     private sealed class LongRunFixture : IDisposable
     {
