@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using Microsoft.Extensions.Logging;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using VoxArchive.Audio.Abstractions;
@@ -8,7 +9,7 @@ using VoxArchive.Audio.Abstractions;
 namespace VoxArchive.Audio;
 
 [SupportedOSPlatform("windows")]
-public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureService
+public sealed class ProcessLoopbackCaptureService(ILogger<ProcessLoopbackCaptureService> logger) : IProcessLoopbackCaptureService
 {
     // Process Loopback 用の仮想デバイス ID。
     private const string VirtualAudioDeviceProcessLoopback = "VAD\\Process_Loopback";
@@ -192,7 +193,7 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
             }
             catch (Exception ex)
             {
-                WriteAppErrorLog($"ProcessLoopback capture error: {ex.Message}");
+                logger.LogWarning(ex, "ProcessLoopback capture error.");
 
                 if (!IsProcessAlive(_targetProcessId))
                 {
@@ -439,27 +440,6 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
         }
     }
 
-    private static readonly object ErrorLogSync = new();
-
-    private static void WriteAppErrorLog(string message)
-    {
-        try
-        {
-            var appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive");
-            var logsDir = Path.Combine(appDir, "logs");
-            Directory.CreateDirectory(logsDir);
-            var logPath = Path.Combine(logsDir, "app-errors.log");
-            var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}";
-            lock (ErrorLogSync)
-            {
-                File.AppendAllText(logPath, line + Environment.NewLine);
-            }
-        }
-        catch
-        {
-        }
-    }
-
     private static bool IsProcessAlive(int pid)
     {
         try
@@ -628,4 +608,7 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
         }
     }
 }
+
+
+
 

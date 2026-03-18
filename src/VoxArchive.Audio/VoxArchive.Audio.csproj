@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -16,3 +17,5 @@
   </PropertyGroup>
 
 </Project>
+
+
