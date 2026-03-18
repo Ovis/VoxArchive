@@ -790,7 +790,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             return;
         }
-        app.Dispatcher.Invoke(() =>
+        _ = app.Dispatcher.BeginInvoke(() =>
         {
             if (e.Result.Succeeded)
             {
@@ -832,7 +832,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        app.Dispatcher.Invoke(() =>
+        _ = app.Dispatcher.BeginInvoke(() =>
         {
             OnPropertyChanged(nameof(IsTranscribing));
             RaiseCommands();
@@ -1279,5 +1279,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _catalogSession.Dispose();
     }
 }
+
 
 
