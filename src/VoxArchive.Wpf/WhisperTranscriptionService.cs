@@ -403,7 +403,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             var paddingFrames = Math.Max(0, (int)Math.Ceiling(VadSpeechPaddingMilliseconds / VadFrameMilliseconds));
             var mergeGapFrames = Math.Max(0, (int)Math.Ceiling(VadMergeGapMilliseconds / VadFrameMilliseconds));
 
-            var dbFrames = new List<double>(4096);
+            var dbFrames = new List<double>(VadAnalysisFrameCapacity);
             var buffer = new float[frameSamples];
             while (true)
             {
@@ -430,8 +430,8 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
                 return Array.Empty<SpeechRegion>();
             }
 
-            var noiseFloorDb = Percentile(dbFrames, 0.2);
-            var speechThresholdDb = Math.Max(-50d, noiseFloorDb + 12d);
+            var noiseFloorDb = Percentile(dbFrames, VadNoiseFloorPercentile);
+            var speechThresholdDb = Math.Max(VadMinimumThresholdDb, noiseFloorDb + VadThresholdOffsetDb);
 
             var ranges = new List<(int StartFrame, int EndFrame)>();
             var inSpeech = false;
@@ -903,6 +903,10 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     private const double VadMinSilenceMilliseconds = 600d;
     private const double VadSpeechPaddingMilliseconds = 200d;
     private const double VadMergeGapMilliseconds = 300d;
+    private const int VadAnalysisFrameCapacity = 4096;
+    private const double VadNoiseFloorPercentile = 0.2d;
+    private const double VadMinimumThresholdDb = -50d;
+    private const double VadThresholdOffsetDb = 12d;
 
     private static async Task<PreparedWaveInput> PrepareWaveInputAsync(string audioFilePath, RecordingOptions options, CancellationToken cancellationToken)
     {
