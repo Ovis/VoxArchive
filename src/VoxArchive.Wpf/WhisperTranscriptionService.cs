@@ -173,24 +173,9 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         var basePath = BuildOutputBasePath(audioFilePath, model);
 
         var list = new List<string>(4);
-        if (formats.HasFlag(TranscriptionOutputFormats.Txt))
+        foreach (var (_, extension) in EnumerateRequestedOutputFormats(formats))
         {
-            list.Add(basePath + ".txt");
-        }
-
-        if (formats.HasFlag(TranscriptionOutputFormats.Srt))
-        {
-            list.Add(basePath + ".srt");
-        }
-
-        if (formats.HasFlag(TranscriptionOutputFormats.Vtt))
-        {
-            list.Add(basePath + ".vtt");
-        }
-
-        if (formats.HasFlag(TranscriptionOutputFormats.Json))
-        {
-            list.Add(basePath + ".json");
+            list.Add(basePath + extension);
         }
 
         return list;
@@ -1125,37 +1110,46 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         var basePath = BuildOutputBasePath(audioFilePath, model);
         var generated = new List<string>(4);
 
-        if (formats.HasFlag(TranscriptionOutputFormats.Txt))
+        foreach (var (format, extension) in EnumerateRequestedOutputFormats(formats))
         {
-            var path = basePath + ".txt";
-            var text = string.Join(Environment.NewLine, segments.Select(FormatSegmentText).Where(x => !string.IsNullOrWhiteSpace(x)));
-            await WriteOutputFileAsync(path, text, generated, cancellationToken);
-        }
+            var path = basePath + extension;
+            var text = format switch
+            {
+                TranscriptionOutputFormats.Txt => string.Join(Environment.NewLine, segments.Select(FormatSegmentText).Where(x => !string.IsNullOrWhiteSpace(x))),
+                TranscriptionOutputFormats.Srt => BuildSrtContent(segments),
+                TranscriptionOutputFormats.Vtt => BuildVttContent(segments),
+                TranscriptionOutputFormats.Json => BuildJsonContent(segments),
+                _ => throw new InvalidOperationException($"未対応の文字起こし出力形式です: {format}")
+            };
 
-        if (formats.HasFlag(TranscriptionOutputFormats.Srt))
-        {
-            var path = basePath + ".srt";
-            var text = BuildSrtContent(segments);
-            await WriteOutputFileAsync(path, text, generated, cancellationToken);
-        }
-
-        if (formats.HasFlag(TranscriptionOutputFormats.Vtt))
-        {
-            var path = basePath + ".vtt";
-            var text = BuildVttContent(segments);
-            await WriteOutputFileAsync(path, text, generated, cancellationToken);
-        }
-
-        if (formats.HasFlag(TranscriptionOutputFormats.Json))
-        {
-            var path = basePath + ".json";
-            var text = BuildJsonContent(segments);
             await WriteOutputFileAsync(path, text, generated, cancellationToken);
         }
 
         return generated;
     }
 
+    private static IEnumerable<(TranscriptionOutputFormats Format, string Extension)> EnumerateRequestedOutputFormats(TranscriptionOutputFormats formats)
+    {
+        if (formats.HasFlag(TranscriptionOutputFormats.Txt))
+        {
+            yield return (TranscriptionOutputFormats.Txt, ".txt");
+        }
+
+        if (formats.HasFlag(TranscriptionOutputFormats.Srt))
+        {
+            yield return (TranscriptionOutputFormats.Srt, ".srt");
+        }
+
+        if (formats.HasFlag(TranscriptionOutputFormats.Vtt))
+        {
+            yield return (TranscriptionOutputFormats.Vtt, ".vtt");
+        }
+
+        if (formats.HasFlag(TranscriptionOutputFormats.Json))
+        {
+            yield return (TranscriptionOutputFormats.Json, ".json");
+        }
+    }
     private static async Task WriteOutputFileAsync(string path, string text, ICollection<string> generated, CancellationToken cancellationToken)
     {
         await File.WriteAllTextAsync(path, text, System.Text.Encoding.UTF8, cancellationToken);
