@@ -37,3 +37,4 @@ public sealed class SpeakerLoopbackCaptureSource : IOutputCaptureSource
         ChunkCaptured?.Invoke(this, chunk);
     }
 }
+
