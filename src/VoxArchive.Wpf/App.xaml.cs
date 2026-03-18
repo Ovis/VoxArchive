@@ -28,7 +28,6 @@ public partial class App : System.Windows.Application
         Directory.CreateDirectory(logsDir);
 
         var settingsPath = Path.Combine(appData, "settings.json");
-        var appErrorLogPath = Path.Combine(logsDir, "app-errors.log");
 
         try
         {
@@ -78,14 +77,16 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
-            try
+            if (_host is not null)
             {
-                File.AppendAllText(
-                    appErrorLogPath,
-                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [Fatal] [App] 起動失敗: {ex}" + Environment.NewLine);
-            }
-            catch
-            {
+                try
+                {
+                    var logger = _host.Services.GetService<ILogger<App>>();
+                    logger?.LogCritical(ex, "Application startup failed.");
+                }
+                catch
+                {
+                }
             }
 
             Shutdown(-1);
@@ -111,5 +112,3 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
-
-
