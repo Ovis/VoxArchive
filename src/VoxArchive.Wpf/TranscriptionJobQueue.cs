@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.IO;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -9,14 +10,16 @@ public sealed class TranscriptionJobQueue : IDisposable
 {
     private readonly Lock _stateGate = new();
     private readonly WhisperTranscriptionService _transcriptionService;
+    private readonly ILogger<TranscriptionJobQueue> _logger;
     private readonly Channel<TranscriptionJobRequest> _queue;
     private readonly CancellationTokenSource _cts;
     private readonly Task _workerTask;
     private readonly ConcurrentDictionary<string, TranscriptionJobState> _jobStates = new(StringComparer.OrdinalIgnoreCase);
 
-    public TranscriptionJobQueue(WhisperTranscriptionService transcriptionService)
+    public TranscriptionJobQueue(WhisperTranscriptionService transcriptionService, ILogger<TranscriptionJobQueue> logger)
     {
         _transcriptionService = transcriptionService;
+        _logger = logger;
         _queue = Channel.CreateUnbounded<TranscriptionJobRequest>(new UnboundedChannelOptions
         {
             SingleReader = true,
@@ -75,10 +78,11 @@ public sealed class TranscriptionJobQueue : IDisposable
         }
         catch (OperationCanceledException)
         {
-            // no-op
+            _logger.LogDebug("Transcription job worker canceled.");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Transcription job worker loop failed.");
         }
     }
 
@@ -155,9 +159,9 @@ public sealed class TranscriptionJobQueue : IDisposable
         {
             _workerTask.Wait(TimeSpan.FromSeconds(2));
         }
-        catch
+        catch (Exception ex)
         {
-            // ignore
+            _logger.LogDebug(ex, "Transcription job worker wait canceled during dispose.");
         }
 
         _cts.Dispose();
