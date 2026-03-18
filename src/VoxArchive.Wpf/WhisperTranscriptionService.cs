@@ -1112,63 +1112,83 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         {
             var path = basePath + ".txt";
             var text = string.Join(Environment.NewLine, segments.Select(FormatSegmentText).Where(x => !string.IsNullOrWhiteSpace(x)));
-            await File.WriteAllTextAsync(path, text, System.Text.Encoding.UTF8, cancellationToken);
-            generated.Add(path);
+            await WriteOutputFileAsync(path, text, generated, cancellationToken);
         }
 
         if (formats.HasFlag(TranscriptionOutputFormats.Srt))
         {
             var path = basePath + ".srt";
-            var sb = new StringBuilder();
-            for (var i = 0; i < segments.Count; i++)
-            {
-                var seg = segments[i];
-                sb.AppendLine((i + 1).ToString());
-                sb.AppendLine($"{FormatSrt(seg.Start)} --> {FormatSrt(seg.End)}");
-                sb.AppendLine(FormatSegmentText(seg));
-                sb.AppendLine();
-            }
-
-            await File.WriteAllTextAsync(path, sb.ToString(), System.Text.Encoding.UTF8, cancellationToken);
-            generated.Add(path);
+            var text = BuildSrtContent(segments);
+            await WriteOutputFileAsync(path, text, generated, cancellationToken);
         }
 
         if (formats.HasFlag(TranscriptionOutputFormats.Vtt))
         {
             var path = basePath + ".vtt";
-            var sb = new StringBuilder();
-            sb.AppendLine("WEBVTT");
-            sb.AppendLine();
-            foreach (var seg in segments)
-            {
-                sb.AppendLine($"{FormatVtt(seg.Start)} --> {FormatVtt(seg.End)}");
-                sb.AppendLine(FormatSegmentText(seg));
-                sb.AppendLine();
-            }
-
-            await File.WriteAllTextAsync(path, sb.ToString(), System.Text.Encoding.UTF8, cancellationToken);
-            generated.Add(path);
+            var text = BuildVttContent(segments);
+            await WriteOutputFileAsync(path, text, generated, cancellationToken);
         }
 
         if (formats.HasFlag(TranscriptionOutputFormats.Json))
         {
             var path = basePath + ".json";
-            var payload = new
-            {
-                segments = segments.Select(x => new
-                {
-                    start = x.Start.TotalSeconds,
-                    end = x.End.TotalSeconds,
-                    speaker = x.SpeakerLabel,
-                    text = x.Text
-                })
-            };
-            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(path, json, System.Text.Encoding.UTF8, cancellationToken);
-            generated.Add(path);
+            var text = BuildJsonContent(segments);
+            await WriteOutputFileAsync(path, text, generated, cancellationToken);
         }
 
         return generated;
+    }
+
+    private static async Task WriteOutputFileAsync(string path, string text, ICollection<string> generated, CancellationToken cancellationToken)
+    {
+        await File.WriteAllTextAsync(path, text, System.Text.Encoding.UTF8, cancellationToken);
+        generated.Add(path);
+    }
+
+    private static string BuildSrtContent(IReadOnlyList<TranscribedSegment> segments)
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i < segments.Count; i++)
+        {
+            var seg = segments[i];
+            sb.AppendLine((i + 1).ToString());
+            sb.AppendLine($"{FormatSrt(seg.Start)} --> {FormatSrt(seg.End)}");
+            sb.AppendLine(FormatSegmentText(seg));
+            sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    private static string BuildVttContent(IReadOnlyList<TranscribedSegment> segments)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("WEBVTT");
+        sb.AppendLine();
+        foreach (var seg in segments)
+        {
+            sb.AppendLine($"{FormatVtt(seg.Start)} --> {FormatVtt(seg.End)}");
+            sb.AppendLine(FormatSegmentText(seg));
+            sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    private static string BuildJsonContent(IReadOnlyList<TranscribedSegment> segments)
+    {
+        var payload = new
+        {
+            segments = segments.Select(x => new
+            {
+                start = x.Start.TotalSeconds,
+                end = x.End.TotalSeconds,
+                speaker = x.SpeakerLabel,
+                text = x.Text
+            })
+        };
+
+        return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
     }
 
 
