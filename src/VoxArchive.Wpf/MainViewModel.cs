@@ -12,7 +12,7 @@ using VoxArchive.Runtime;
 
 namespace VoxArchive.Wpf;
 
-public sealed class MainViewModel : INotifyPropertyChanged
+public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly IRecordingService _recordingService;
 
@@ -95,42 +95,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OpenSettingsCommand = new DelegateCommand(OpenSettingsAsync, () => IsDeviceSelectionEnabled);
         OpenLibraryCommand = new DelegateCommand(OpenLibraryAsync);
 
-        _recordingService.StateChanged += (_, s) => RunOnUi(() =>
-        {
-            if (s is RecordingState.Stopped or RecordingState.Error)
-            {
-                ResetLevelMeters();
-            }
-
-            if (s == RecordingState.Stopped)
-            {
-                _ = RegisterLatestRecordingAsync();
-            }
-            OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
-            OnPropertyChanged(nameof(IsSpeakerDeviceSelectionEnabled));
-            OnPropertyChanged(nameof(IsStoppedOrError));
-            OnPropertyChanged(nameof(IsProcessSelectionEnabled));
-            OnPropertyChanged(nameof(RecordButtonVisibility));
-            OnPropertyChanged(nameof(RecordingControlsVisibility));
-            OnPropertyChanged(nameof(WindowWidth));
-            OnPropertyChanged(nameof(PauseGlyphVisibility));
-            OnPropertyChanged(nameof(ResumeGlyphVisibility));
-            EnsureSpeakerDevicePopupState();
-            RefreshCommands();
-        });
-
-        _recordingService.ErrorOccurred += (_, e) => RunOnUi(() => _logger.LogWarning($"エラー: {e}"));
-        _recordingService.OutputSourceChanged += (_, e) => RunOnUi(() => _logger.LogWarning($"出力切替: {e.Previous} -> {e.Current} ({e.Reason})"));
-        _recordingService.StatisticsUpdated += (_, st) => RunOnUi(() =>
-        {
-            if (!string.IsNullOrWhiteSpace(st.OutputFilePath))
-            {
-                _lastRecordedFilePath = st.OutputFilePath;
-            }
-            ElapsedText = st.ElapsedTime.ToString(@"hh\:mm\:ss");
-            SpeakerLevelPercent = IsSpeakerCaptureEnabled ? ConvertLevelToPercent(st.SpeakerLevel) : 0;
-            MicLevelPercent = IsMicCaptureEnabled ? ConvertLevelToPercent(st.MicLevel) : 0;
-        });
+        _recordingService.StateChanged += OnRecordingStateChanged;
+        _recordingService.ErrorOccurred += OnRecordingErrorOccurred;
+        _recordingService.OutputSourceChanged += OnOutputSourceChanged;
+        _recordingService.StatisticsUpdated += OnStatisticsUpdated;
 
         _ = LoadDevicesAsync();
         _ = LoadProcessesAsync();
@@ -806,6 +774,58 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return defaultDevice?.DeviceId ?? string.Empty;
     }
 
+    private void OnRecordingStateChanged(object? sender, RecordingState state)
+    {
+        RunOnUi(() =>
+        {
+            if (state is RecordingState.Stopped or RecordingState.Error)
+            {
+                ResetLevelMeters();
+            }
+
+            if (state == RecordingState.Stopped)
+            {
+                _ = RegisterLatestRecordingAsync();
+            }
+
+            OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
+            OnPropertyChanged(nameof(IsSpeakerDeviceSelectionEnabled));
+            OnPropertyChanged(nameof(IsStoppedOrError));
+            OnPropertyChanged(nameof(IsProcessSelectionEnabled));
+            OnPropertyChanged(nameof(RecordButtonVisibility));
+            OnPropertyChanged(nameof(RecordingControlsVisibility));
+            OnPropertyChanged(nameof(WindowWidth));
+            OnPropertyChanged(nameof(PauseGlyphVisibility));
+            OnPropertyChanged(nameof(ResumeGlyphVisibility));
+            EnsureSpeakerDevicePopupState();
+            RefreshCommands();
+        });
+    }
+
+    private void OnRecordingErrorOccurred(object? sender, string message)
+    {
+        RunOnUi(() => _logger.LogWarning($"エラー: {message}"));
+    }
+
+    private void OnOutputSourceChanged(object? sender, OutputSourceChangedEvent e)
+    {
+        RunOnUi(() => _logger.LogWarning($"出力切替: {e.Previous} -> {e.Current} ({e.Reason})"));
+    }
+
+    private void OnStatisticsUpdated(object? sender, RecordingStatistics st)
+    {
+        RunOnUi(() =>
+        {
+            if (!string.IsNullOrWhiteSpace(st.OutputFilePath))
+            {
+                _lastRecordedFilePath = st.OutputFilePath;
+            }
+
+            ElapsedText = st.ElapsedTime.ToString(@"hh\:mm\:ss");
+            SpeakerLevelPercent = IsSpeakerCaptureEnabled ? ConvertLevelToPercent(st.SpeakerLevel) : 0;
+            MicLevelPercent = IsMicCaptureEnabled ? ConvertLevelToPercent(st.MicLevel) : 0;
+        });
+    }
     private void OnTranscriptionJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e)
     {
         if (e.Request.Trigger != TranscriptionTrigger.AutoAfterRecord)
@@ -958,6 +978,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
+    public void Dispose()
+    {
+        _recordingService.StateChanged -= OnRecordingStateChanged;
+        _recordingService.ErrorOccurred -= OnRecordingErrorOccurred;
+        _recordingService.OutputSourceChanged -= OnOutputSourceChanged;
+        _recordingService.StatisticsUpdated -= OnStatisticsUpdated;
+        _transcriptionQueue.JobCompleted -= OnTranscriptionJobCompleted;
+    }
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -983,6 +1011,8 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
+
 
 
 
