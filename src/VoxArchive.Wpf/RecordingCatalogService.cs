@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 
@@ -659,8 +660,8 @@ public sealed class RecordingCatalogService
                 SampleRate = SampleRate,
                 Channels = Channels,
                 FileSizeBytes = FileSizeBytes,
-                LastWriteUtc = DateTime.TryParse(LastWriteUtc, out var lastWrite) ? lastWrite : DateTime.UtcNow,
-                UpdatedUtc = DateTime.TryParse(UpdatedUtc, out var updated) ? updated : DateTime.UtcNow
+                LastWriteUtc = DateTime.TryParseExact(LastWriteUtc, "o", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var lastWrite) ? lastWrite : DateTime.UtcNow,
+                UpdatedUtc = DateTime.TryParseExact(UpdatedUtc, "o", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var updated) ? updated : DateTime.UtcNow
             };
         }
     }
