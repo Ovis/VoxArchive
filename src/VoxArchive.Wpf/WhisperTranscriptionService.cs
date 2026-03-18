@@ -467,10 +467,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
                 }
 
                 var speechEnd = i - trailingSilence;
-                if (speechEnd - speechStart + 1 >= minSpeechFrames)
-                {
-                    ranges.Add((speechStart, speechEnd));
-                }
+                AddSpeechRangeIfValid(ranges, speechStart, speechEnd, minSpeechFrames);
 
                 inSpeech = false;
                 trailingSilence = 0;
@@ -479,10 +476,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             if (inSpeech)
             {
                 var speechEnd = dbFrames.Count - 1;
-                if (speechEnd - speechStart + 1 >= minSpeechFrames)
-                {
-                    ranges.Add((speechStart, speechEnd));
-                }
+                AddSpeechRangeIfValid(ranges, speechStart, speechEnd, minSpeechFrames);
             }
 
             if (ranges.Count == 0)
@@ -580,11 +574,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             if ((current.Start - last.End).TotalMilliseconds <= VadMergeGapMilliseconds
                 && string.Equals(last.SpeakerLabel, current.SpeakerLabel, StringComparison.OrdinalIgnoreCase))
             {
-                var text = string.IsNullOrWhiteSpace(last.Text)
-                    ? current.Text
-                    : string.IsNullOrWhiteSpace(current.Text)
-                        ? last.Text
-                        : $"{last.Text} {current.Text}";
+                var text = MergeSegmentText(last.Text, current.Text);
                 merged[^1] = last with
                 {
                     End = current.End > last.End ? current.End : last.End,
@@ -597,6 +587,29 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         }
 
         return merged;
+    }
+
+    private static void AddSpeechRangeIfValid(ICollection<(int StartFrame, int EndFrame)> ranges, int speechStart, int speechEnd, int minSpeechFrames)
+    {
+        if (speechEnd - speechStart + 1 >= minSpeechFrames)
+        {
+            ranges.Add((speechStart, speechEnd));
+        }
+    }
+
+    private static string MergeSegmentText(string left, string right)
+    {
+        if (string.IsNullOrWhiteSpace(left))
+        {
+            return right;
+        }
+
+        if (string.IsNullOrWhiteSpace(right))
+        {
+            return left;
+        }
+
+        return $"{left} {right}";
     }
 
     private static string CreateTemporarySegmentWavePath()
