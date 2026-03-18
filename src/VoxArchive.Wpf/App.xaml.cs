@@ -107,8 +107,10 @@ public partial class App : System.Windows.Application
             {
                 _host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
             }
-            catch
+            catch (Exception ex)
             {
+                var logger = _host.Services.GetService<ILogger<App>>();
+                logger?.LogWarning(ex, "Host stop threw an exception during shutdown.");
                 Debug.WriteLine("[App] Host stop threw an exception during shutdown.");
             }
 
@@ -119,3 +121,4 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
+
