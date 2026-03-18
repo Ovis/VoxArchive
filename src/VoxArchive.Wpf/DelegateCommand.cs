@@ -1,9 +1,14 @@
 using System.Windows.Input;
+using Microsoft.Extensions.Logging;
 
 namespace VoxArchive.Wpf;
 
 public sealed class DelegateCommand(Func<Task> executeAsync, Func<bool>? canExecute = null) : ICommand
 {
+    private static readonly ILogger Logger = LoggerFactory
+        .Create(builder => builder.AddDebug().SetMinimumLevel(LogLevel.Warning))
+        .CreateLogger<DelegateCommand>();
+
     private bool _executing;
 
     public event EventHandler? CanExecuteChanged;
@@ -26,6 +31,10 @@ public sealed class DelegateCommand(Func<Task> executeAsync, Func<bool>? canExec
         {
             await executeAsync();
         }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "DelegateCommand execution failed.");
+        }
         finally
         {
             _executing = false;
@@ -38,4 +47,3 @@ public sealed class DelegateCommand(Func<Task> executeAsync, Func<bool>? canExec
         CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 }
-
