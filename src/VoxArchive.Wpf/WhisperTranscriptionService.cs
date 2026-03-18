@@ -1111,28 +1111,25 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         return generated;
     }
 
+    private static readonly (TranscriptionOutputFormats Format, string Extension)[] OutputFormatMap =
+    [
+        (TranscriptionOutputFormats.Txt, ".txt"),
+        (TranscriptionOutputFormats.Srt, ".srt"),
+        (TranscriptionOutputFormats.Vtt, ".vtt"),
+        (TranscriptionOutputFormats.Json, ".json")
+    ];
+
     private static IEnumerable<(TranscriptionOutputFormats Format, string Extension)> EnumerateRequestedOutputFormats(TranscriptionOutputFormats formats)
     {
-        if (formats.HasFlag(TranscriptionOutputFormats.Txt))
+        foreach (var item in OutputFormatMap)
         {
-            yield return (TranscriptionOutputFormats.Txt, ".txt");
-        }
-
-        if (formats.HasFlag(TranscriptionOutputFormats.Srt))
-        {
-            yield return (TranscriptionOutputFormats.Srt, ".srt");
-        }
-
-        if (formats.HasFlag(TranscriptionOutputFormats.Vtt))
-        {
-            yield return (TranscriptionOutputFormats.Vtt, ".vtt");
-        }
-
-        if (formats.HasFlag(TranscriptionOutputFormats.Json))
-        {
-            yield return (TranscriptionOutputFormats.Json, ".json");
+            if (formats.HasFlag(item.Format))
+            {
+                yield return item;
+            }
         }
     }
+
     private static async Task WriteOutputFileAsync(string path, string text, ICollection<string> generated, CancellationToken cancellationToken)
     {
         await File.WriteAllTextAsync(path, text, System.Text.Encoding.UTF8, cancellationToken);
