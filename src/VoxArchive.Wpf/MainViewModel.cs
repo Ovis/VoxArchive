@@ -402,7 +402,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            RunOnUi(() => _logger.LogWarning($"デバイス列挙失敗: {ex.Message}"));
+            RunOnUi(() => _logger.LogWarning(ex, "デバイス列挙失敗"));
         }
     }
 
@@ -428,7 +428,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            RunOnUi(() => _logger.LogWarning($"プロセス列挙失敗: {ex.Message}"));
+            RunOnUi(() => _logger.LogWarning(ex, "プロセス列挙失敗"));
         }
     }
 
@@ -569,7 +569,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning($"ライブラリ起動失敗: {ex.Message}");
+            _logger.LogWarning(ex, "ライブラリ起動失敗");
             ModernDialog.Show(
                 $"ライブラリウィンドウの表示に失敗しました。\n{ex.Message}",
                 "ライブラリ起動失敗",
@@ -615,7 +615,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogWarning($"ライブラリ登録失敗: {ex.Message}");
+                _logger.LogWarning(ex, "ライブラリ登録失敗");
                 return;
             }
         }
@@ -720,7 +720,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning($"設定画面起動失敗: {ex.Message}");
+            _logger.LogWarning(ex, "設定画面起動失敗");
             ModernDialog.Show(
                 $"設定画面の表示に失敗しました。\n{ex.Message}",
                 "設定画面起動失敗",
@@ -804,12 +804,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnRecordingErrorOccurred(object? sender, string message)
     {
-        RunOnUi(() => _logger.LogWarning($"エラー: {message}"));
+        RunOnUi(() => _logger.LogWarning("エラー: {Message}", message));
     }
 
     private void OnOutputSourceChanged(object? sender, OutputSourceChangedEvent e)
     {
-        RunOnUi(() => _logger.LogWarning($"出力切替: {e.Previous} -> {e.Current} ({e.Reason})"));
+        RunOnUi(() => _logger.LogWarning("出力切替: {Previous} -> {Current} ({Reason})", e.Previous, e.Current, e.Reason));
     }
 
     private void OnStatisticsUpdated(object? sender, RecordingStatistics st)
@@ -845,7 +845,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 return;
             }
 
-            _logger.LogWarning($"文字起こし失敗: {e.Result.Message}");
+            _logger.LogWarning("文字起こし失敗: {Message}", e.Result.Message);
             if (e.Request.Options.TranscriptionToastNotificationEnabled)
             {
                 AppNotificationHub.Notify("VoxArchive", $"自動文字起こし失敗: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
@@ -1011,6 +1011,7 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
 
 
 
