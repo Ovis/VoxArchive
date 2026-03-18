@@ -1045,6 +1045,19 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     }
 
 
+    private async Task RemoveFromCatalogAndRefreshAsync(string filePath)
+    {
+        try
+        {
+            await _catalogService.RemoveFromListAsync(filePath);
+            await RefreshAsync();
+            StatusText = "一覧から削除しました（ファイルは残ります）。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"一覧削除失敗: {ex.Message}";
+        }
+    }
     private List<LibraryRecordingItem> GetCheckedItems()
     {
         return Items.Where(x => x.IsChecked).ToList();
@@ -1287,6 +1300,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _catalogSession.Dispose();
     }
 }
+
 
 
 
