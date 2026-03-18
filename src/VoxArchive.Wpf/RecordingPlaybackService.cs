@@ -7,6 +7,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 {
     private const double MinPlaybackSpeed = 0.5d;
     private const double MaxPlaybackSpeed = 4.0d;
+    private const int SharedOutputLatencyMilliseconds = 100;
 
     private WasapiOut? _output;
     private AudioFileReader? _reader;
@@ -34,7 +35,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
             PlaybackRate = (float)_playbackSpeed
         };
 
-        _output = new WasapiOut(AudioClientShareMode.Shared, 100);
+        _output = new WasapiOut(AudioClientShareMode.Shared, SharedOutputLatencyMilliseconds);
         _output.PlaybackStopped += OnPlaybackStopped;
         _output.Init(_rateProvider);
     }
