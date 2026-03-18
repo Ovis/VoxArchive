@@ -239,8 +239,7 @@ public sealed class RecordingCatalogService
             return await EnsureInteractiveCacheAsync(cancellationToken);
         }
 
-        var transient = await LoadStateAsync(cancellationToken);
-        return transient.State;
+        return (await LoadStateAsync(cancellationToken)).State;
     }
 
     private async Task<Dictionary<string, CatalogEntry>> GetWritableStateAsync(CancellationToken cancellationToken)
