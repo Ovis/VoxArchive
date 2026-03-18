@@ -19,8 +19,8 @@ public sealed class RecordingService : IRecordingService
     private readonly IDriftCorrector _driftCorrector;
     private readonly IFrameBuilder _frameBuilder;
     private readonly IFfmpegFlacEncoder _encoder;
+    private readonly ILogger<RecordingService> _logger;
     private readonly IRecordingTelemetrySink? _telemetrySink;
-    private readonly ILogger<RecordingService>? _logger;
 
     private CancellationTokenSource? _processingCts;
     private Task? _processingTask;
@@ -47,8 +47,9 @@ public sealed class RecordingService : IRecordingService
         IDriftCorrector driftCorrector,
         IFrameBuilder frameBuilder,
         IFfmpegFlacEncoder encoder,
-        IRecordingTelemetrySink? telemetrySink = null,
-        ILogger<RecordingService>? logger = null)
+        ILogger<RecordingService> logger,
+        IRecordingTelemetrySink? telemetrySink = null
+        )
     {
         _outputCaptureController = outputCaptureController;
         _failoverCoordinator = failoverCoordinator;

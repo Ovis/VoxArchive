@@ -4,6 +4,8 @@ using VoxArchive.Audio;
 using VoxArchive.Audio.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Encoding.Abstractions;
+using VoxArchive.Runtime;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace VoxArchive.LongRunTests;
 
@@ -45,7 +47,8 @@ public sealed class RecordingServiceLongRunTests
         public RecordingService CreateService()
         {
             var frameBuilder = new FrameBuilder(_speakerBuffer, _micBuffer, _resampler);
-            return new RecordingService(
+            var factory = new RecordingServiceFactory(NullLogger<RecordingService>.Instance, new[] { _telemetry });
+            return (RecordingService)factory.Create(
                 _outputController,
                 _failoverCoordinator,
                 _micCaptureService,
@@ -53,8 +56,7 @@ public sealed class RecordingServiceLongRunTests
                 _micBuffer,
                 _driftCorrector,
                 frameBuilder,
-                Encoder,
-                _telemetry);
+                Encoder);
         }
 
         public RecordingOptions CreateOptions()
@@ -241,4 +243,6 @@ public sealed class RecordingServiceLongRunTests
         return arr;
     }
 }
+
+
 

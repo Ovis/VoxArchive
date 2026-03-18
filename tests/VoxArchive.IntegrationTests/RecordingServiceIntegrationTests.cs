@@ -4,6 +4,8 @@ using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Encoding.Abstractions;
+using VoxArchive.Runtime;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace VoxArchive.IntegrationTests;
 
@@ -109,7 +111,8 @@ public sealed class RecordingServiceIntegrationTests
             OutputController.ChunkCaptured += (_, chunk) => SpeakerBuffer.Write(chunk.Samples.Span);
             MicCaptureService.ChunkCaptured += (_, chunk) => MicBuffer.Write(chunk.Samples.Span);
 
-            return new RecordingService(
+            var factory = new RecordingServiceFactory(NullLogger<RecordingService>.Instance, new[] { Telemetry });
+            return (RecordingService)factory.Create(
                 OutputController,
                 FailoverCoordinator,
                 MicCaptureService,
@@ -117,8 +120,7 @@ public sealed class RecordingServiceIntegrationTests
                 MicBuffer,
                 DriftCorrector,
                 FrameBuilder,
-                Encoder,
-                Telemetry);
+                Encoder);
         }
 
         public RecordingOptions CreateOptions()
@@ -343,4 +345,6 @@ public sealed class RecordingServiceIntegrationTests
         }
     }
 }
+
+
 

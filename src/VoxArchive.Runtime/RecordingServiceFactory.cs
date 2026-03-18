@@ -32,7 +32,8 @@ public sealed class RecordingServiceFactory(
             driftCorrector,
             frameBuilder,
             encoder,
-            _telemetrySink,
-            logger);
+            logger,
+            _telemetrySink
+            );
     }
 }
