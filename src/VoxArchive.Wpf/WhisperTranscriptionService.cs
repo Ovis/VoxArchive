@@ -13,7 +13,6 @@ namespace VoxArchive.Wpf;
 public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
 {
 
-
     public WhisperEnvironmentStatus CheckEnvironment(RecordingOptions options)
     {
         try
@@ -385,28 +384,24 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         }
         finally
         {
-            switch (processor)
-            {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-            }
-
-            switch (factory)
-            {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-            }
+            await DisposeUnknownAsync(processor);
+            await DisposeUnknownAsync(factory);
         }
     }
 
+
+    private static async ValueTask DisposeUnknownAsync(object? instance)
+    {
+        switch (instance)
+        {
+            case IAsyncDisposable asyncDisposable:
+                await asyncDisposable.DisposeAsync();
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
+    }
 
     private static async Task<IReadOnlyList<SpeechRegion>> DetectSpeechRegionsAsync(string monoWavePath, CancellationToken cancellationToken)
     {
@@ -1351,6 +1346,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
+
 
 
 
