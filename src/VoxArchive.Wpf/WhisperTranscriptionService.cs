@@ -642,6 +642,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         }
         catch
         {
+            // 一時ファイル削除失敗はリトライ時に上書きされるため継続する。
         }
     }
 
@@ -1350,6 +1351,8 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
+
+
 
 
 

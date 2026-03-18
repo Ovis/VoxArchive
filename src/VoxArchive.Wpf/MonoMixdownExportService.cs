@@ -45,6 +45,7 @@ public static class MonoMixdownExportService
             }
             catch
             {
+                // 一時ファイル削除失敗は出力結果に影響しないため握りつぶす。
             }
         }
     }
@@ -137,5 +138,3 @@ public static class MonoMixdownExportService
         return (float)linear;
     }
 }
-
-

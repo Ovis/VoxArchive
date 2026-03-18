@@ -1,4 +1,5 @@
 using System.IO;
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -86,6 +87,7 @@ public partial class App : System.Windows.Application
                 }
                 catch
                 {
+                    Debug.WriteLine($"[App] Failed to log startup exception: {ex}");
                 }
             }
 
@@ -103,6 +105,7 @@ public partial class App : System.Windows.Application
             }
             catch
             {
+                Debug.WriteLine("[App] Host stop threw an exception during shutdown.");
             }
 
             _host.Dispose();

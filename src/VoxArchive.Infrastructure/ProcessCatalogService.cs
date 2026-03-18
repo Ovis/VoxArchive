@@ -32,6 +32,7 @@ public sealed class ProcessCatalogService : IProcessCatalogService
                 }
                 catch
                 {
+                    // 権限不足や終了済みプロセスは列挙対象から除外する。
                 }
                 finally
                 {
