@@ -44,11 +44,11 @@ public partial class SettingsWindow : Window
         PreviewKeyDown += OnWindowPreviewKeyDown;
         ModelDirectoryTextBox.Text = _whisperModelStore.ModelsDirectory;
 
-        ExecutionModeComboBox.SelectedIndex = 0;
-        ModelComboBox.SelectedIndex = 2;
-        AutoPriorityComboBox.SelectedIndex = 0;
-        ManualPriorityComboBox.SelectedIndex = 1;
-        LanguageComboBox.SelectedIndex = 1;
+        TranscriptionExecutionMode = TranscriptionExecutionMode.Auto;
+        TranscriptionModel = TranscriptionModel.Small;
+        AutoTranscriptionPriority = TranscriptionPriority.Low;
+        ManualTranscriptionPriority = TranscriptionPriority.Normal;
+        TranscriptionLanguage = "ja";
         OutputTxtCheckBox.IsChecked = true;
 
         TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
