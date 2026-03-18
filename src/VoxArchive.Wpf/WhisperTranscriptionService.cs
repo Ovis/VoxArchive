@@ -163,20 +163,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             {
                 return Fail("Whisper.net ランタイムが利用できません。依存ライブラリを確認してください。", started);
             }
-
-            if (request.Options.TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred)
-            {
-
-                // 事前ロードは行わず、存在確認ベースの判定に限定してクラッシュ経路を避ける。
-                var cudaRuntimeAvailable = TryProbeCudaRuntimeForSettings(out var cudaRuntimeDetail);
-                var cudaDriverAvailable = TryProbeCudaDriverForSettings(out var cudaDriverDetail);
-                var cudaReady = cudaRuntimeAvailable && cudaDriverAvailable;
-                if (!cudaReady)
-                {
-                }
-            }
-
-            var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cancellationToken);
+var segments = await ExecuteWhisperAsync(factoryType!, modelPath, request, cancellationToken);
             var labeledSegments = await Task.Run(() => ApplySpeakerLabelsByChannelEnergy(request.AudioFilePath, segments, cancellationToken), cancellationToken);
             var generated = await WriteOutputsAsync(request.AudioFilePath, request.Options.TranscriptionModel, request.Options.TranscriptionOutputFormats, labeledSegments, cancellationToken);
 
@@ -1381,3 +1368,4 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
+
