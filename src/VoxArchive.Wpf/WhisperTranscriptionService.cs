@@ -1033,32 +1033,15 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
             return TimeSpan.Zero;
         }
 
-        if (value is TimeSpan ts)
+        return value switch
         {
-            return ts;
-        }
-
-        if (value is double d)
-        {
-            return TimeSpan.FromSeconds(d);
-        }
-
-        if (value is float f)
-        {
-            return TimeSpan.FromSeconds(f);
-        }
-
-        if (value is long l)
-        {
-            return TimeSpan.FromMilliseconds(l);
-        }
-
-        if (TimeSpan.TryParse(value.ToString(), out var parsed))
-        {
-            return parsed;
-        }
-
-        return TimeSpan.Zero;
+            TimeSpan ts => ts,
+            double d => TimeSpan.FromSeconds(d),
+            float f => TimeSpan.FromSeconds(f),
+            long l => TimeSpan.FromMilliseconds(l),
+            _ when TimeSpan.TryParse(value.ToString(), out var parsed) => parsed,
+            _ => TimeSpan.Zero
+        };
     }
 
     private static string GetString(object target, params string[] names)
