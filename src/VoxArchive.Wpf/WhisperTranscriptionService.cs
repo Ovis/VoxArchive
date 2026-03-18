@@ -1403,3 +1403,4 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
+
