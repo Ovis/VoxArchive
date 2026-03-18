@@ -155,14 +155,14 @@ public sealed class TranscriptionJobQueue : IDisposable
             _cts.Cancel();
         }
 
-        try
+        _ = _workerTask.ContinueWith(task =>
         {
-            _workerTask.Wait(TimeSpan.FromSeconds(2));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Transcription job worker wait canceled during dispose.");
-        }
+            if (task.IsFaulted)
+            {
+                _logger.LogDebug(task.Exception, "Transcription job worker ended with fault during dispose.");
+            }
+        }, TaskScheduler.Default);
+
 
         _cts.Dispose();
     }
@@ -181,3 +181,4 @@ public enum TranscriptionJobState
 public sealed record TranscriptionJobStateSnapshot(string AudioFilePath, TranscriptionJobState State);
 
 public sealed record TranscriptionJobStateChangedEventArgs(string AudioFilePath, TranscriptionJobState? State);
+
