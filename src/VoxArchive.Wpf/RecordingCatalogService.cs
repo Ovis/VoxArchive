@@ -250,14 +250,7 @@ public sealed class RecordingCatalogService
     {
         if (_interactiveSessionCount > 0)
         {
-            if (_interactiveCache is null)
-            {
-                var loaded = await LoadStateAsync(cancellationToken);
-                _interactiveCache = loaded.State;
-                _opsSinceCompact = loaded.OpsCount;
-            }
-
-            return _interactiveCache;
+            return await EnsureInteractiveCacheAsync(cancellationToken);
         }
 
         var transient = await LoadStateAsync(cancellationToken);
@@ -268,19 +261,25 @@ public sealed class RecordingCatalogService
     {
         if (_interactiveSessionCount > 0)
         {
-            if (_interactiveCache is null)
-            {
-                var loaded = await LoadStateAsync(cancellationToken);
-                _interactiveCache = loaded.State;
-                _opsSinceCompact = loaded.OpsCount;
-            }
-
-            return _interactiveCache;
+            return await EnsureInteractiveCacheAsync(cancellationToken);
         }
 
         var transient = await LoadStateAsync(cancellationToken);
         _opsSinceCompact = transient.OpsCount;
         return transient.State;
+    }
+
+    private async Task<Dictionary<string, CatalogEntry>> EnsureInteractiveCacheAsync(CancellationToken cancellationToken)
+    {
+        if (_interactiveCache is not null)
+        {
+            return _interactiveCache;
+        }
+
+        var loaded = await LoadStateAsync(cancellationToken);
+        _interactiveCache = loaded.State;
+        _opsSinceCompact = loaded.OpsCount;
+        return _interactiveCache;
     }
 
     private async Task<(Dictionary<string, CatalogEntry> State, int OpsCount)> LoadStateAsync(CancellationToken cancellationToken)
