@@ -358,7 +358,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             {
                 item.PropertyChanged -= OnItemPropertyChanged;
             }
-            var list = await Task.Run(async () => await _catalogService.GetAllAsync());
+            var list = await _catalogService.GetAllAsync();
             Items.Clear();
             foreach (var item in list)
             {
@@ -400,7 +400,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             try
             {
-                await Task.Run(async () => await _catalogService.AddOrUpdateFileAsync(file));
+                await _catalogService.AddOrUpdateFileAsync(file);
                 added++;
             }
             catch (Exception ex)
