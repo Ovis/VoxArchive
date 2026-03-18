@@ -51,6 +51,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private const double MeterCeilingDb = 0d;
     private const double MeterDisplayGainDb = 6d;
     private const string SystemDefaultDeviceId = "__system_default__";
+    private const int LibraryRegisterMaxRetry = 10;
+    private const int LibraryRegisterRetryDelayMilliseconds = 100;
 
     public MainViewModel(
         RecordingRuntimeContext context,
@@ -588,7 +590,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
 
         var filePath = _lastRecordedFilePath;
-        for (var attempt = 0; attempt < 10; attempt++)
+        for (var attempt = 0; attempt < LibraryRegisterMaxRetry; attempt++)
         {
             try
             {
@@ -605,13 +607,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 TryEnqueueAutoTranscription(filePath);
                 return;
             }
-            catch (FileNotFoundException) when (attempt < 9)
+            catch (FileNotFoundException) when (attempt < LibraryRegisterMaxRetry - 1)
             {
-                await Task.Delay(100);
+                await Task.Delay(LibraryRegisterRetryDelayMilliseconds);
             }
-            catch (IOException) when (attempt < 9)
+            catch (IOException) when (attempt < LibraryRegisterMaxRetry - 1)
             {
-                await Task.Delay(100);
+                await Task.Delay(LibraryRegisterRetryDelayMilliseconds);
             }
             catch (Exception ex)
             {
