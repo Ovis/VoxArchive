@@ -62,8 +62,6 @@ public sealed class RecordingCatalogService
             throw new FileNotFoundException("録音ファイルが見つかりません。", filePath);
         }
 
-        var fileInfo = new FileInfo(filePath);
-        var (title, durationMs, sampleRate, channels) = ReadMetadata(filePath, fileInfo.Name);
 
         await _gate.WaitAsync(cancellationToken);
         try
@@ -74,19 +72,7 @@ public sealed class RecordingCatalogService
                 ? existing.Id
                 : Guid.NewGuid().ToString("N");
 
-            var entry = new CatalogEntry
-            {
-                Id = id,
-                FilePath = filePath,
-                FileName = fileInfo.Name,
-                Title = title,
-                DurationMilliseconds = durationMs,
-                SampleRate = sampleRate,
-                Channels = channels,
-                FileSizeBytes = fileInfo.Length,
-                LastWriteUtc = fileInfo.LastWriteTimeUtc,
-                UpdatedUtc = DateTime.UtcNow
-            };
+            var entry = await BuildEntryAsync(filePath, id, cancellationToken);
 
             state[key] = entry;
             await AppendOperationAsync(CatalogOperationDto.Upsert(entry), cancellationToken);
