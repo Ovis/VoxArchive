@@ -237,9 +237,9 @@ public partial class SettingsWindow : Window
         e.Handled = true;
     }
 
-    private async void OnCheckEnvironmentClick(object sender, RoutedEventArgs e)
+    private void OnCheckEnvironmentClick(object sender, RoutedEventArgs e)
     {
-        await RefreshEnvironmentStatusAsync();
+        _ = RefreshEnvironmentStatusAsync();
     }
 
     private void OnTranscriptionEnvironmentSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -314,7 +314,12 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void OnDownloadModelClick(object sender, RoutedEventArgs e)
+    private void OnDownloadModelClick(object sender, RoutedEventArgs e)
+    {
+        _ = DownloadModelAsync();
+    }
+
+    private async Task DownloadModelAsync()
     {
         try
         {
@@ -333,7 +338,12 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void OnDeleteModelClick(object sender, RoutedEventArgs e)
+    private void OnDeleteModelClick(object sender, RoutedEventArgs e)
+    {
+        _ = DeleteModelAsync();
+    }
+
+    private async Task DeleteModelAsync()
     {
         try
         {
