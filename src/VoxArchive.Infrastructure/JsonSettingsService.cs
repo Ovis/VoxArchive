@@ -34,7 +34,20 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
             Directory.CreateDirectory(directory);
         }
 
-        await using var stream = File.Create(settingsPath);
-        await JsonSerializer.SerializeAsync(stream, options, SerializerOptions, cancellationToken);
+        var tempPath = settingsPath + ".tmp";
+        await using (var stream = File.Create(tempPath))
+        {
+            await JsonSerializer.SerializeAsync(stream, options, SerializerOptions, cancellationToken);
+            await stream.FlushAsync(cancellationToken);
+        }
+
+        if (File.Exists(settingsPath))
+        {
+            File.Replace(tempPath, settingsPath, null);
+        }
+        else
+        {
+            File.Move(tempPath, settingsPath);
+        }
     }
 }
