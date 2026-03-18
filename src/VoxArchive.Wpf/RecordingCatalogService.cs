@@ -227,21 +227,18 @@ public sealed class RecordingCatalogService
 
         Interlocked.Exchange(ref _interactiveSessionCount, 0);
 
-        _ = Task.Run(async () =>
+        _gate.Wait();
+        try
         {
-            await _gate.WaitAsync();
-            try
+            if (_interactiveSessionCount == 0)
             {
-                if (_interactiveSessionCount == 0)
-                {
-                    _interactiveCache = null;
-                }
+                _interactiveCache = null;
             }
-            finally
-            {
-                _gate.Release();
-            }
-        });
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private async Task<Dictionary<string, CatalogEntry>> GetReadableStateAsync(CancellationToken cancellationToken)
