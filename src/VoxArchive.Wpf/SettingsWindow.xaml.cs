@@ -35,34 +35,26 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(WhisperModelStore whisperModelStore, WhisperTranscriptionService whisperTranscriptionService)
     {
-        try
-        {
+        _whisperModelStore = whisperModelStore;
+        _whisperTranscriptionService = whisperTranscriptionService;
 
-            _whisperModelStore = whisperModelStore;
-            _whisperTranscriptionService = whisperTranscriptionService;
+        _suppressEnvironmentAutoCheck = true;
+        InitializeComponent();
 
-            _suppressEnvironmentAutoCheck = true;
-            InitializeComponent();
+        PreviewKeyDown += OnWindowPreviewKeyDown;
+        ModelDirectoryTextBox.Text = _whisperModelStore.ModelsDirectory;
 
-            PreviewKeyDown += OnWindowPreviewKeyDown;
-            ModelDirectoryTextBox.Text = _whisperModelStore.ModelsDirectory;
+        ExecutionModeComboBox.SelectedIndex = 0;
+        ModelComboBox.SelectedIndex = 2;
+        AutoPriorityComboBox.SelectedIndex = 0;
+        ManualPriorityComboBox.SelectedIndex = 1;
+        LanguageComboBox.SelectedIndex = 1;
+        OutputTxtCheckBox.IsChecked = true;
 
-            ExecutionModeComboBox.SelectedIndex = 0;
-            ModelComboBox.SelectedIndex = 2;
-            AutoPriorityComboBox.SelectedIndex = 0;
-            ManualPriorityComboBox.SelectedIndex = 1;
-            LanguageComboBox.SelectedIndex = 1;
-            OutputTxtCheckBox.IsChecked = true;
+        TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
+        TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
 
-            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
-            TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
-
-            _suppressEnvironmentAutoCheck = false;
-        }
-        catch (Exception ex)
-        {
-            throw;
-        }
+        _suppressEnvironmentAutoCheck = false;
     }
 
     public int AlignmentMilliseconds
@@ -562,6 +554,8 @@ public partial class SettingsWindow : Window
         };
     }
 }
+
+
 
 
 
