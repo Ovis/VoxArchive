@@ -98,8 +98,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
     private static float DbToLinear(double db)
     {
-        var linear = Math.Pow(10d, db / 20d);
-        return (float)linear;
+        return (float)Math.Pow(10d, db / 20d);
     }
 
     private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
