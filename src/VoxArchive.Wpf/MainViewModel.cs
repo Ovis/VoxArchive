@@ -928,7 +928,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        System.Windows.Application.Current.Dispatcher.Invoke(action);
+        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(action);
     }
 
     private void EnsureSpeakerDevicePopupState()
@@ -983,6 +983,7 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
 
 
 
