@@ -767,23 +767,12 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
                     continue;
                 }
 
-                list.Add(new TranscribedSegment(
-                    GetTimeSpan(current, "Start", "StartTime", "Begin", "Offset"),
-                    GetTimeSpan(current, "End", "EndTime", "Finish"),
-                    GetString(current, "Text", "Transcript", "Sentence")));
+                list.Add(CreateSegmentFromResultObject(current));
             }
         }
         finally
         {
-            switch (enumerator)
-            {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-            }
+            await DisposeUnknownAsync(enumerator);
         }
 
         return list;
@@ -804,13 +793,18 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
                 continue;
             }
 
-            list.Add(new TranscribedSegment(
-                GetTimeSpan(item, "Start", "StartTime", "Begin", "Offset"),
-                GetTimeSpan(item, "End", "EndTime", "Finish"),
-                GetString(item, "Text", "Transcript", "Sentence")));
+            list.Add(CreateSegmentFromResultObject(item));
         }
 
         return list;
+    }
+
+    private static TranscribedSegment CreateSegmentFromResultObject(object source)
+    {
+        return new TranscribedSegment(
+            GetTimeSpan(source, "Start", "StartTime", "Begin", "Offset"),
+            GetTimeSpan(source, "End", "EndTime", "Finish"),
+            GetString(source, "Text", "Transcript", "Sentence"));
     }
 
     private static async Task<object?> UnwrapAwaitableAsync(object value, CancellationToken cancellationToken)
