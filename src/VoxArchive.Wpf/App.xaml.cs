@@ -14,11 +14,24 @@ namespace VoxArchive.Wpf;
 
 public partial class App : System.Windows.Application
 {
+    private const string AppMutexName = "VoxArchiveRunningMutex";
+
     private IHost? _host;
+    private Mutex? _mutex;
 
     protected override void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        _mutex = new Mutex(true, AppMutexName, out var createdNew);
+        if (!createdNew)
+        {
+            _mutex.Dispose();
+            _mutex = null;
+            Shutdown(0);
+            return;
+        }
+
         _ = OnStartupAsync();
     }
 
@@ -126,6 +139,10 @@ public partial class App : System.Windows.Application
             _host.Dispose();
             _host = null;
         }
+
+        _mutex?.ReleaseMutex();
+        _mutex?.Dispose();
+        _mutex = null;
 
         base.OnExit(e);
     }
