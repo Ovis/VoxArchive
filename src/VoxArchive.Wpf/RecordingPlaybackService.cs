@@ -62,18 +62,8 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
             return;
         }
 
-        var p = position;
-        if (p < TimeSpan.Zero)
-        {
-            p = TimeSpan.Zero;
-        }
-
-        if (p > _reader.TotalTime)
-        {
-            p = _reader.TotalTime;
-        }
-
-        _reader.CurrentTime = p;
+        var targetSeconds = Math.Clamp(position.TotalSeconds, 0d, _reader.TotalTime.TotalSeconds);
+        _reader.CurrentTime = TimeSpan.FromSeconds(targetSeconds);
     }
 
     public void SetGains(double leftDb, double rightDb)
@@ -137,4 +127,3 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
         DisposeCore();
     }
 }
-
