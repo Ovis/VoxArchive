@@ -597,7 +597,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 _libraryViewModel = null;
             };
             _libraryWindow.Show();
-            _ = vm.ReloadAsync();
+            await vm.InitializeAsync();
         }
         catch (Exception ex)
         {
@@ -983,6 +983,7 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
 
 
 

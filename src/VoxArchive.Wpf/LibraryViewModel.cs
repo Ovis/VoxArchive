@@ -130,7 +130,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         SaveMonoMixCommand = new DelegateCommand(SaveMonoMixAsync, CanSaveMonoMix);
         ResetPlaybackSpeedCommand = new DelegateCommand(ResetPlaybackSpeedAsync, CanResetPlaybackSpeed);
 
-        _ = RefreshAsync();
+
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -312,6 +312,11 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     }
 
     public bool IsTranscribing => IsTranscribingForPath(SelectedItem?.FilePath);
+
+    public Task InitializeAsync()
+    {
+        return RefreshAsync();
+    }
 
     public void BeginSeek() => _isSeekingByUser = true;
 
@@ -1279,6 +1284,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _catalogSession.Dispose();
     }
 }
+
 
 
 
