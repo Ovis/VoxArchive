@@ -19,9 +19,20 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
             return new RecordingOptions();
         }
 
-        await using var stream = File.OpenRead(settingsPath);
-        var options = await JsonSerializer.DeserializeAsync<RecordingOptions>(stream, SerializerOptions, cancellationToken);
-        return options ?? new RecordingOptions();
+        try
+        {
+            await using var stream = File.OpenRead(settingsPath);
+            var options = await JsonSerializer.DeserializeAsync<RecordingOptions>(stream, SerializerOptions, cancellationToken);
+            return options ?? new RecordingOptions();
+        }
+        catch (JsonException)
+        {
+            return new RecordingOptions();
+        }
+        catch (IOException)
+        {
+            return new RecordingOptions();
+        }
     }
 
     public async Task SaveRecordingOptionsAsync(RecordingOptions options, CancellationToken cancellationToken = default)
