@@ -15,10 +15,7 @@ public sealed class SpeakerCaptureService : ISpeakerCaptureService
             throw new ArgumentException("speakerDeviceId is required.", nameof(speakerDeviceId));
         }
 
-        if (sampleRate <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(sampleRate));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
 
         _running = true;
         return Task.CompletedTask;

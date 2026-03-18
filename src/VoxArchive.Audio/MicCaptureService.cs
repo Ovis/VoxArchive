@@ -15,10 +15,7 @@ public sealed class MicCaptureService : IMicCaptureService
             throw new ArgumentException("micDeviceId is required.", nameof(micDeviceId));
         }
 
-        if (sampleRate <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(sampleRate));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
 
         _running = true;
         return Task.CompletedTask;

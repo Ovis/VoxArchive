@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using VoxArchive.Audio.Abstractions;
 
 namespace VoxArchive.Audio;
 
+[SupportedOSPlatform("windows")]
 public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureService
 {
     // Process Loopback 用の仮想デバイス ID。
@@ -39,10 +41,7 @@ public sealed class ProcessLoopbackCaptureService : IProcessLoopbackCaptureServi
 
     public async Task StartAsync(int targetProcessId, int sampleRate, CancellationToken cancellationToken = default)
     {
-        if (targetProcessId <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(targetProcessId));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetProcessId);
 
         await StopAsync(cancellationToken);
 

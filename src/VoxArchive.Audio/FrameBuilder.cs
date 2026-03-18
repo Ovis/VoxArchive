@@ -12,10 +12,7 @@ public sealed class FrameBuilder(IRingBuffer speakerBuffer, IRingBuffer micBuffe
 
     public FrameBuildResult BuildFrame(int frameSamples, double micRatio)
     {
-        if (frameSamples <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(frameSamples));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameSamples);
 
         EnsureCapacity(frameSamples);
 

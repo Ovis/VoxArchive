@@ -18,10 +18,7 @@ public sealed class PiDriftCorrector : IDriftCorrector
 
     public void Configure(double kp, double ki, double maxCorrectionPpm)
     {
-        if (maxCorrectionPpm <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxCorrectionPpm));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCorrectionPpm);
 
         _kp = kp;
         _ki = ki;

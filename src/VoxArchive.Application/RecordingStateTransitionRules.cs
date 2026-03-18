@@ -7,13 +7,13 @@ public static class RecordingStateTransitionRules
     private static readonly IReadOnlyDictionary<RecordingState, HashSet<RecordingState>> AllowedTransitions =
         new Dictionary<RecordingState, HashSet<RecordingState>>
         {
-            [RecordingState.Stopped] = new() { RecordingState.Starting, RecordingState.Error },
-            [RecordingState.Starting] = new() { RecordingState.Recording, RecordingState.Error },
-            [RecordingState.Recording] = new() { RecordingState.Pausing, RecordingState.Stopping, RecordingState.Error },
-            [RecordingState.Pausing] = new() { RecordingState.Paused, RecordingState.Error },
-            [RecordingState.Paused] = new() { RecordingState.Recording, RecordingState.Stopping, RecordingState.Error },
-            [RecordingState.Stopping] = new() { RecordingState.Stopped, RecordingState.Error },
-            [RecordingState.Error] = new() { RecordingState.Starting, RecordingState.Stopped }
+            [RecordingState.Stopped] = [RecordingState.Starting, RecordingState.Error],
+            [RecordingState.Starting] = [RecordingState.Recording, RecordingState.Error],
+            [RecordingState.Recording] = [RecordingState.Pausing, RecordingState.Stopping, RecordingState.Error],
+            [RecordingState.Pausing] = [RecordingState.Paused, RecordingState.Error],
+            [RecordingState.Paused] = [RecordingState.Recording, RecordingState.Stopping, RecordingState.Error],
+            [RecordingState.Stopping] = [RecordingState.Stopped, RecordingState.Error],
+            [RecordingState.Error] = [RecordingState.Starting, RecordingState.Stopped]
         };
 
     public static bool CanTransition(RecordingState current, RecordingState next)

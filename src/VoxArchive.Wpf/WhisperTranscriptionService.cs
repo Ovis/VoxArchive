@@ -483,7 +483,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
 
             if (dbFrames.Count == 0)
             {
-                return (IReadOnlyList<SpeechRegion>)Array.Empty<SpeechRegion>();
+                return Array.Empty<SpeechRegion>();
             }
 
             var noiseFloorDb = Percentile(dbFrames, 0.2);
@@ -543,7 +543,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
 
             if (ranges.Count == 0)
             {
-                return (IReadOnlyList<SpeechRegion>)Array.Empty<SpeechRegion>();
+                return Array.Empty<SpeechRegion>();
             }
 
             for (var i = 0; i < ranges.Count; i++)
@@ -583,7 +583,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
                 }
             }
 
-            return (IReadOnlyList<SpeechRegion>)result;
+            return result;
         }, cancellationToken);
     }
 
@@ -698,7 +698,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         var parameters = processAsync.GetParameters();
         if (parameters.Length == 1)
         {
-            return new object?[] { stream };
+            return [stream];
         }
 
         var args = new object?[parameters.Length];
@@ -744,7 +744,7 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
         }
 
         var enumArgs = getAsyncEnumerator.GetParameters().Length == 1
-            ? new object?[] { cancellationToken }
+            ? [cancellationToken]
             : Array.Empty<object?>();
 
         var enumerator = getAsyncEnumerator.Invoke(source, enumArgs);
@@ -1381,12 +1381,3 @@ public sealed class WhisperTranscriptionService(WhisperModelStore modelStore)
     private sealed record SegmentFrameRange(long StartFrame, long EndFrame);
     private sealed record TranscribedSegment(TimeSpan Start, TimeSpan End, string Text, string? SpeakerLabel = null);
 }
-
-
-
-
-
-
-
-
-
