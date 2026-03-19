@@ -304,7 +304,6 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
             "/DMyAppVersion=$env:VERSION" `
             "/DInstallerFlavor=sc" `
-            "/DDotNetRuntimeMode=Skip" `
             "/DSourceDir=$sourceDir" `
             "/DOutputDir=$outputDir" `
             "$issPath"
@@ -318,7 +317,6 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
             "/DMyAppVersion=$env:VERSION" `
             "/DInstallerFlavor=fd" `
-            "/DDotNetRuntimeMode=CheckOnly" `
             "/DSourceDir=$sourceDir" `
             "/DOutputDir=$outputDir" `
             "$issPath"
