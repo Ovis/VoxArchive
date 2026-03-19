@@ -1,0 +1,23 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/VoxArchive.Application.Abstractions/VoxArchive.Application.Abstractions.csproj" />
+    <Project Path="src/VoxArchive.Application/VoxArchive.Application.csproj" />
+    <Project Path="src/VoxArchive.Audio.Abstractions/VoxArchive.Audio.Abstractions.csproj" />
+    <Project Path="src/VoxArchive.Audio/VoxArchive.Audio.csproj" />
+    <Project Path="src/VoxArchive.Domain/VoxArchive.Domain.csproj" />
+    <Project Path="src/VoxArchive.Encoding.Abstractions/VoxArchive.Encoding.Abstractions.csproj" />
+    <Project Path="src/VoxArchive.Encoding/VoxArchive.Encoding.csproj" />
+    <Project Path="src/VoxArchive.Infrastructure/VoxArchive.Infrastructure.csproj" />
+    <Project Path="src/VoxArchive.Runtime/VoxArchive.Runtime.csproj" />
+    <Project Path="src/VoxArchive.Wpf/VoxArchive.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VoxArchive.IntegrationTests/VoxArchive.IntegrationTests.csproj" />
+    <Project Path="tests/VoxArchive.LongRunTests/VoxArchive.LongRunTests.csproj" />
+  </Folder>
+</Solution>

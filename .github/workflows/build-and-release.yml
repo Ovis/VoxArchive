@@ -1,0 +1,368 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (SemVer, e.g. 1.2.3)"
+        required: false
+        default: ""
+      release_mode:
+        description: "Release mode: none / draft / prerelease / stable"
+        required: false
+        type: choice
+        options:
+          - none
+          - draft
+          - prerelease
+          - stable
+        default: draft
+
+concurrency:
+  group: build-and-release
+  cancel-in-progress: false
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      run_build: ${{ steps.meta.outputs.run_build }}
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      release_mode: ${{ steps.meta.outputs.release_mode }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            tag="${GITHUB_REF_NAME}"
+            release_mode="stable"
+            if [[ "${version}" == *"-"* ]]; then
+              release_mode="prerelease"
+            fi
+          else
+            release_mode="${{ github.event.inputs.release_mode }}"
+            if [[ -z "${release_mode}" ]]; then
+              release_mode="draft"
+            fi
+            input_version="${{ github.event.inputs.version }}"
+            generate_unique_timestamp_tag() {
+              while true; do
+                candidate="$(TZ=Asia/Tokyo date +%Y%m%d%H%M%S%3N)"
+                if ! git rev-parse -q --verify "refs/tags/${candidate}" >/dev/null; then
+                  echo "${candidate}"
+                  return 0
+                fi
+                sleep 0.01
+              done
+            }
+            timestamp_tag="$(generate_unique_timestamp_tag)"
+
+            case "${release_mode}" in
+              none)
+                # ビルド確認専用: タグ/リリースは作らない
+                version="0.0.0-ci.${timestamp_tag}"
+                tag=""
+                ;;
+              draft)
+                # 動作検証用ドラフト: SemVerタグは使わず時刻タグを採番
+                version="0.0.0-ci.${timestamp_tag}"
+                tag="ci-${timestamp_tag}"
+                ;;
+              prerelease|stable)
+                if [[ -z "${input_version}" ]]; then
+                  echo "release_mode=${release_mode} の場合、version の指定が必要です。" >&2
+                  exit 1
+                fi
+                version="${input_version#v}"
+                tag="v${version}"
+                python3 ./scripts/ci/validate-version-order.py --version "${version}"
+
+                if [[ "${release_mode}" == "prerelease" && "${version}" != *"-"* ]]; then
+                  echo "release_mode=prerelease の場合、version には -beta.1 や -rc.1 のようなプレリリース識別子が必要です。" >&2
+                  exit 1
+                fi
+                if [[ "${release_mode}" == "stable" && "${version}" == *"-"* ]]; then
+                  echo "release_mode=stable の場合、version にプレリリース識別子（-beta.1 / -rc.1 など）は指定できません。" >&2
+                  exit 1
+                fi
+                ;;
+              *)
+                echo "無効な release_mode: ${release_mode}" >&2
+                exit 1
+                ;;
+            esac
+
+            if [[ -n "${tag}" ]] && ! git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag "${tag}"
+              git push origin "${tag}"
+            fi
+          fi
+
+          echo "run_build=true" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "release_mode=${release_mode}" >> "$GITHUB_OUTPUT"
+
+  create-release:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.run_build == 'true' && needs.prepare-release.outputs.release_mode != 'none'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create draft Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag }}
+          name: ${{ needs.prepare-release.outputs.tag }}
+          generate_release_notes: true
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-zips:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.run_build == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare-release.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish self-contained app (win-x64)
+        shell: pwsh
+        run: dotnet publish src/VoxArchive.Wpf/VoxArchive.Wpf.csproj -c Release -r win-x64 --self-contained true -p:Version=${env:VERSION} -p:InformationalVersion=${env:VERSION} -o .\output\zip\sc\app
+
+      - name: Publish framework-dependent app (win-x64)
+        shell: pwsh
+        run: dotnet publish src/VoxArchive.Wpf/VoxArchive.Wpf.csproj -c Release -r win-x64 --self-contained false -p:Version=${env:VERSION} -p:InformationalVersion=${env:VERSION} -o .\output\zip\fd\app
+
+      - name: Clean up publish artifacts
+        shell: pwsh
+        run: |
+          foreach ($variant in @('sc', 'fd')) {
+            $dir = Join-Path $env:GITHUB_WORKSPACE "output\zip\$variant\app"
+
+            # .pdb を削除
+            Get-ChildItem -Path $dir -Recurse -Filter "*.pdb" | Remove-Item -Force
+
+            # runtimes フォルダのクリーンアップ
+            $runtimesDir = Join-Path $dir "runtimes"
+            if (Test-Path $runtimesDir) {
+              # cuda と win-x64 以外を削除
+              Get-ChildItem -Path $runtimesDir -Directory |
+                Where-Object { $_.Name -notin @('cuda', 'win-x64') } |
+                Remove-Item -Recurse -Force
+
+              # cuda フォルダ内は win-x64 以外を削除
+              $cudaDir = Join-Path $runtimesDir "cuda"
+              if (Test-Path $cudaDir) {
+                Get-ChildItem -Path $cudaDir |
+                  Where-Object { $_.Name -ne 'win-x64' } |
+                  Remove-Item -Recurse -Force
+              }
+            }
+          }
+
+      - name: Prepare ZIP payloads
+        shell: pwsh
+        run: |
+          foreach ($variant in @('sc', 'fd')) {
+            $dir = Join-Path $env:GITHUB_WORKSPACE "output\zip\$variant\app"
+            Copy-Item -Path .\README.md  -Destination (Join-Path $dir "README.md")  -Force
+            Copy-Item -Path .\LICENSE    -Destination (Join-Path $dir "LICENSE")    -Force
+            Copy-Item -Path .\LICENSES   -Destination (Join-Path $dir "LICENSES")   -Recurse -Force
+          }
+
+      - name: Create ZIPs and checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .\output\release\zips -Force | Out-Null
+
+          Push-Location .\output\zip\sc\app
+          Compress-Archive -Path * -DestinationPath "${env:GITHUB_WORKSPACE}\output\release\zips\VoxArchive-${env:VERSION}-win-x64.zip"
+          Pop-Location
+
+          Push-Location .\output\zip\fd\app
+          Compress-Archive -Path * -DestinationPath "${env:GITHUB_WORKSPACE}\output\release\zips\VoxArchive-${env:VERSION}-win-x64-fd.zip"
+          Pop-Location
+
+          $hashes = Get-ChildItem -Path .\output\release\zips -Filter "*.zip" | ForEach-Object {
+            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash *$($_.Name)"
+          }
+          $hashes | Out-File -FilePath .\output\release\zips\SHA256SUMS-zips.txt -Encoding ascii
+
+      - name: Upload ZIPs to Release
+        if: needs.prepare-release.outputs.release_mode != 'none'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag }}
+          draft: true
+          files: |
+            output/release/zips/*.zip
+            output/release/zips/SHA256SUMS-zips.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows-installer:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.run_build == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare-release.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish self-contained app (win-x64)
+        shell: pwsh
+        run: dotnet publish src/VoxArchive.Wpf/VoxArchive.Wpf.csproj -c Release -r win-x64 --self-contained true -p:Version=${env:VERSION} -p:InformationalVersion=${env:VERSION} -o .\output\installer\sc\app
+
+      - name: Publish framework-dependent app (win-x64)
+        shell: pwsh
+        run: dotnet publish src/VoxArchive.Wpf/VoxArchive.Wpf.csproj -c Release -r win-x64 --self-contained false -p:Version=${env:VERSION} -p:InformationalVersion=${env:VERSION} -o .\output\installer\fd\app
+
+      - name: Clean up publish artifacts
+        shell: pwsh
+        run: |
+          foreach ($variant in @('sc', 'fd')) {
+            $dir = Join-Path $env:GITHUB_WORKSPACE "output\installer\$variant\app"
+
+            # .pdb を削除
+            Get-ChildItem -Path $dir -Recurse -Filter "*.pdb" | Remove-Item -Force
+
+            # runtimes フォルダのクリーンアップ
+            $runtimesDir = Join-Path $dir "runtimes"
+            if (Test-Path $runtimesDir) {
+              Get-ChildItem -Path $runtimesDir -Directory |
+                Where-Object { $_.Name -notin @('cuda', 'win-x64') } |
+                Remove-Item -Recurse -Force
+
+              $cudaDir = Join-Path $runtimesDir "cuda"
+              if (Test-Path $cudaDir) {
+                Get-ChildItem -Path $cudaDir |
+                  Where-Object { $_.Name -ne 'win-x64' } |
+                  Remove-Item -Recurse -Force
+              }
+            }
+          }
+
+      - name: Prepare installer payloads
+        shell: pwsh
+        run: |
+          foreach ($variant in @('sc', 'fd')) {
+            $dir = Join-Path $env:GITHUB_WORKSPACE "output\installer\$variant\app"
+            Copy-Item -Path .\README.md  -Destination (Join-Path $dir "README.md")  -Force
+            Copy-Item -Path .\LICENSE    -Destination (Join-Path $dir "LICENSE")    -Force
+            Copy-Item -Path .\LICENSES   -Destination (Join-Path $dir "LICENSES")   -Recurse -Force
+          }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build self-contained installer
+        shell: pwsh
+        run: |
+          $sourceDir = Join-Path $env:GITHUB_WORKSPACE "output\installer\sc\app"
+          $outputDir = Join-Path $env:GITHUB_WORKSPACE "output\release\windows-installer"
+          $issPath   = Join-Path $env:GITHUB_WORKSPACE "installer\windows\VoxArchive.iss"
+          New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=$env:VERSION" `
+            "/DInstallerFlavor=sc" `
+            "/DDotNetRuntimeMode=Skip" `
+            "/DSourceDir=$sourceDir" `
+            "/DOutputDir=$outputDir" `
+            "$issPath"
+
+      - name: Build framework-dependent installer
+        shell: pwsh
+        run: |
+          $sourceDir = Join-Path $env:GITHUB_WORKSPACE "output\installer\fd\app"
+          $outputDir = Join-Path $env:GITHUB_WORKSPACE "output\release\windows-installer"
+          $issPath   = Join-Path $env:GITHUB_WORKSPACE "installer\windows\VoxArchive.iss"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=$env:VERSION" `
+            "/DInstallerFlavor=fd" `
+            "/DDotNetRuntimeMode=CheckOnly" `
+            "/DSourceDir=$sourceDir" `
+            "/DOutputDir=$outputDir" `
+            "$issPath"
+
+      - name: Create checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path .\output\release\windows-installer -Filter "VoxArchive-setup-*.exe"
+          if ($files.Count -eq 0) { throw "Installer exe が見つかりません。" }
+          foreach ($exe in $files) {
+            $hash = (Get-FileHash -Path $exe.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash *$($exe.Name)" | Out-File -FilePath "$($exe.FullName).sha256" -Encoding ascii
+          }
+
+      - name: Upload Windows installers to Release
+        if: needs.prepare-release.outputs.release_mode != 'none'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag }}
+          draft: true
+          files: |
+            output/release/windows-installer/VoxArchive-setup-*.exe
+            output/release/windows-installer/VoxArchive-setup-*.exe.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-release:
+    needs:
+      - prepare-release
+      - create-release
+      - build-zips
+      - build-windows-installer
+    if: needs.prepare-release.outputs.run_build == 'true' && (needs.prepare-release.outputs.release_mode == 'stable' || needs.prepare-release.outputs.release_mode == 'prerelease')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish Release (only when all build jobs succeeded)
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag }}
+          name: ${{ needs.prepare-release.outputs.tag }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ needs.prepare-release.outputs.release_mode == 'prerelease' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="8.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="NUnit" Version="4.5.1" />
+    <PackageReference Include="NUnit3TestAdapter" Version="6.1.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\VoxArchive.Application\VoxArchive.Application.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Application.Abstractions\VoxArchive.Application.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Audio\VoxArchive.Audio.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Audio.Abstractions\VoxArchive.Audio.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Domain\VoxArchive.Domain.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Encoding.Abstractions\VoxArchive.Encoding.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Runtime\VoxArchive.Runtime.csproj" />
+  </ItemGroup>
+
+</Project>
+
+

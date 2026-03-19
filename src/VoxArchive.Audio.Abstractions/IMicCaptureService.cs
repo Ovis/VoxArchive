@@ -1,5 +1,3 @@
-using VoxArchive.Domain;
-
 namespace VoxArchive.Audio.Abstractions;
 
 public interface IMicCaptureService
