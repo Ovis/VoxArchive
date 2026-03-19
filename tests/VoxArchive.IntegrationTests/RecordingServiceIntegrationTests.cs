@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using VoxArchive.Application;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Audio.Abstractions;
@@ -70,8 +69,16 @@ public sealed class RecordingServiceIntegrationTests
         await Task.Delay(50);
         await sut.StopAsync();
 
-        Assert.That(fixture.SpeakerBuffer.Count, Is.EqualTo(0));
-        Assert.That(fixture.MicBuffer.Count, Is.EqualTo(0));
+        Assert.That(fixture.SpeakerBuffer.Count, Is.GreaterThan(0));
+        Assert.That(fixture.MicBuffer.Count, Is.GreaterThan(0));
+
+        var speaker = new float[fixture.SpeakerBuffer.Count];
+        fixture.SpeakerBuffer.Read(speaker);
+        Assert.That(speaker.All(x => x == 0f), Is.True);
+
+        var mic = new float[fixture.MicBuffer.Count];
+        fixture.MicBuffer.Read(mic);
+        Assert.That(mic.All(x => x == 0f), Is.True);
     }
 
     [Test]
@@ -129,9 +136,6 @@ public sealed class RecordingServiceIntegrationTests
 
         public RecordingService CreateService()
         {
-            OutputController.ChunkCaptured += (_, chunk) => SpeakerBuffer.Write(chunk.Samples.Span);
-            MicCaptureService.ChunkCaptured += (_, chunk) => MicBuffer.Write(chunk.Samples.Span);
-
             var factory = new RecordingServiceFactory(NullLogger<RecordingService>.Instance, new[] { Telemetry });
             return (RecordingService)factory.Create(
                 OutputController,
