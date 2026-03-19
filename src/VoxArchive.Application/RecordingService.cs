@@ -123,8 +123,9 @@ public sealed class RecordingService : IRecordingService
 
             await StartCaptureAsync(effectiveOptions, cancellationToken);
 
-            _processingCts = new CancellationTokenSource();
-            _processingTask = Task.Run(() => ProcessingLoopAsync(_processingCts.Token));
+            var processingCts = new CancellationTokenSource();
+            _processingCts = processingCts;
+            _processingTask = Task.Run(() => ProcessingLoopAsync(processingCts.Token));
 
             TransitionTo(RecordingState.Recording);
             RaiseStatistics();
