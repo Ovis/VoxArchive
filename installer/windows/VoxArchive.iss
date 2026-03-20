@@ -22,7 +22,7 @@ AppId={{7E3F9A2C-B4D1-4F56-8C3E-9A0B2D4F6E1A}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={localappdata}\VoxArchive
+DefaultDirName={code:GetDefaultInstallDir}
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
 OutputBaseFilename=VoxArchive-setup-{#MyAppVersion}-{#InstallerFlavor}
@@ -61,6 +61,18 @@ Filename: "{app}\VoxArchive.Wpf.exe"; Description: "{cm:LaunchProgram,{#MyAppNam
 [Code]
 var
   PrereqPage: TWizardPage;
+
+function GetDefaultInstallDir(Param: String): String;
+begin
+  if IsAdmin then
+  begin
+    Result := ExpandConstant('{autopf}\VoxArchive');
+  end
+  else
+  begin
+    Result := ExpandConstant('{localappdata}\VoxArchive');
+  end;
+end;
 
 procedure InitializeWizard;
 var
