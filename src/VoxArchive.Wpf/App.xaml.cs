@@ -101,6 +101,17 @@ public partial class App : System.Windows.Application
             var window = _host.Services.GetRequiredService<MainWindow>();
             window.DataContext = _host.Services.GetRequiredService<MainViewModel>();
             window.Show();
+
+            if (!FfmpegRuntimeChecker.IsAvailable(out var ffmpegDetail))
+            {
+                logger.LogWarning("ffmpeg is not available at startup. detail={Detail}", ffmpegDetail);
+                ModernDialog.Show(
+                    window,
+                    BuildFfmpegMissingMessage(ffmpegDetail),
+                    "ffmpeg 未検出",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
+            }
         }
         catch (Exception ex)
         {
@@ -119,6 +130,22 @@ public partial class App : System.Windows.Application
 
             Shutdown(-1);
         }
+    }
+
+    private static string BuildFfmpegMissingMessage(string detail)
+    {
+        var baseMessage =
+            "ffmpeg が見つかりません。録音機能は利用できません。" + Environment.NewLine +
+            "ffmpeg をインストールして PATH を通した後に再起動してください。" + Environment.NewLine +
+            Environment.NewLine +
+            "インストール例: winget install Gyan.FFmpeg";
+
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return baseMessage;
+        }
+
+        return baseMessage + Environment.NewLine + Environment.NewLine + "詳細: " + detail;
     }
 
     protected override void OnExit(System.Windows.ExitEventArgs e)

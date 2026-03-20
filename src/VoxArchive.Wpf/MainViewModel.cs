@@ -438,7 +438,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         if (_recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error)
         {
-            
+            if (!FfmpegRuntimeChecker.IsAvailable(out var ffmpegDetail))
+            {
+                var message = BuildFfmpegMissingMessage(ffmpegDetail);
+                _logger.LogWarning("録音開始前に ffmpeg 未検出: {Detail}", ffmpegDetail);
+                ModernDialog.Show(
+                    message,
+                    "ffmpeg 未検出",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             var mode = SelectedOutputMode;
             var targetPid = SelectedProcessItem?.ProcessId;
 
@@ -892,6 +903,22 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         };
     }
 
+
+    private static string BuildFfmpegMissingMessage(string detail)
+    {
+        var baseMessage =
+            "ffmpeg が見つかりません。録音を開始できません。" + Environment.NewLine +
+            "ffmpeg をインストールして PATH を通した後に再試行してください。" + Environment.NewLine +
+            Environment.NewLine +
+            "インストール例: winget install Gyan.FFmpeg";
+
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return baseMessage;
+        }
+
+        return baseMessage + Environment.NewLine + Environment.NewLine + "詳細: " + detail;
+    }
     private static double ConvertLevelToPercent(double linearLevel)
     {
         var clamped = Math.Clamp(linearLevel, 0d, 1d);
