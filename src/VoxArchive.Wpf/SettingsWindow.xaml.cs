@@ -322,12 +322,15 @@ public partial class SettingsWindow : Window
         try
         {
             ToggleTranscriptionButtons(false);
+            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
             TranscriptionStatusTextBlock.Text = "モデルをダウンロードしています...";
             var path = await _whisperModelStore.DownloadAsync(TranscriptionModel);
+            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
             TranscriptionStatusTextBlock.Text = $"モデル取得完了: {path}";
         }
         catch (Exception ex)
         {
+            TranscriptionStatusTextBlock.Foreground = StatusErrorBrush;
             TranscriptionStatusTextBlock.Text = $"モデル取得失敗: {ex.Message}";
         }
         finally
@@ -335,25 +338,24 @@ public partial class SettingsWindow : Window
             ToggleTranscriptionButtons(true);
         }
     }
-
     private void OnDeleteModelClick(object sender, RoutedEventArgs e)
     {
         _ = DeleteModelAsync();
     }
-
     private async Task DeleteModelAsync()
     {
         try
         {
             await _whisperModelStore.DeleteAsync(TranscriptionModel);
+            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
             TranscriptionStatusTextBlock.Text = "モデルを削除しました。";
         }
         catch (Exception ex)
         {
+            TranscriptionStatusTextBlock.Foreground = StatusErrorBrush;
             TranscriptionStatusTextBlock.Text = $"モデル削除失敗: {ex.Message}";
         }
     }
-
     private void SetDefaultEnvironmentStatus()
     {
         TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
@@ -568,11 +570,4 @@ public partial class SettingsWindow : Window
         };
     }
 }
-
-
-
-
-
-
-
 
