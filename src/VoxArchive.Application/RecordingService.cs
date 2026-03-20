@@ -124,8 +124,9 @@ public sealed class RecordingService : IRecordingService
             await StartCaptureAsync(effectiveOptions, cancellationToken);
 
             var processingCts = new CancellationTokenSource();
+            var processingToken = processingCts.Token;
             _processingCts = processingCts;
-            _processingTask = Task.Run(() => ProcessingLoopAsync(processingCts.Token));
+            _processingTask = Task.Run(() => ProcessingLoopAsync(processingToken));
 
             TransitionTo(RecordingState.Recording);
             RaiseStatistics();
@@ -229,26 +230,29 @@ public sealed class RecordingService : IRecordingService
     {
         _isPaused = true;
 
-        if (_processingCts is not null)
+        var processingCts = _processingCts;
+        var processingTask = _processingTask;
+        _processingCts = null;
+        _processingTask = null;
+
+        if (processingCts is not null)
         {
-            await _processingCts.CancelAsync();
-            _processingCts.Dispose();
-            _processingCts = null;
+            await processingCts.CancelAsync();
         }
 
-        if (_processingTask is not null)
+        if (processingTask is not null)
         {
             try
             {
-                await _processingTask.WaitAsync(cancellationToken);
+                await processingTask.WaitAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
                 // 停止要求で処理ループ待機が中断された場合は正常系として扱う。
             }
-
-            _processingTask = null;
         }
+
+        processingCts?.Dispose();
 
         await StopCaptureAsync(cancellationToken);
         var stopResult = await _encoder.StopAsync(cancellationToken);
@@ -593,4 +597,3 @@ public sealed class RecordingService : IRecordingService
         return (samples * 1000d) / _activeOptions.SampleRate;
     }
 }
-
