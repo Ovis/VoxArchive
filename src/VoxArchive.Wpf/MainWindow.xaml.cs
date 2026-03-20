@@ -103,6 +103,21 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_viewModel is not null && !_viewModel.SuppressCloseToTrayNotice)
+        {
+            var notice = new CloseToTrayNoticeWindow
+            {
+                Owner = this
+            };
+
+            _ = notice.ShowDialog();
+
+            if (notice.SuppressFutureNotice)
+            {
+                _ = _viewModel.SetSuppressCloseToTrayNoticeAsync(true);
+            }
+        }
+
         e.Cancel = true;
         HideToTray();
     }
@@ -397,5 +412,4 @@ public partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 }
-
 

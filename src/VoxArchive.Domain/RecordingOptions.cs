@@ -30,5 +30,5 @@ public sealed record RecordingOptions
     public TranscriptionPriority AutoTranscriptionPriority { get; init; } = TranscriptionPriority.Low;
     public TranscriptionPriority ManualTranscriptionPriority { get; init; } = TranscriptionPriority.Normal;
     public bool TranscriptionToastNotificationEnabled { get; init; } = true;
+    public bool SuppressCloseToTrayNotice { get; init; } = false;
 }
-

@@ -180,6 +180,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
     public string StartStopHotkeyText { get => _startStopHotkeyText; private set => SetField(ref _startStopHotkeyText, value); }
+    public bool SuppressCloseToTrayNotice => _options.SuppressCloseToTrayNotice;
 
     public bool IsSpeakerCaptureEnabled
     {
@@ -552,6 +553,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         IsMiniMode = !IsMiniMode;
         return Task.CompletedTask;
+    }
+    
+    public async Task SetSuppressCloseToTrayNoticeAsync(bool suppress)
+    {
+        if (_options.SuppressCloseToTrayNotice == suppress)
+        {
+            return;
+        }
+
+        _options = EnsureDefaults(_options) with
+        {
+            SuppressCloseToTrayNotice = suppress
+        };
+
+        try
+        {
+            await _settingsService.SaveRecordingOptionsAsync(_options);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "終了時ガイド設定の保存に失敗");
+        }
     }
     private async Task OpenLibraryAsync()
     {
@@ -1040,12 +1063,4 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
-
-
-
-
-
-
-
 
