@@ -1,18 +1,28 @@
 # VoxArchive
 
-スピーカー出力（またはプロセス指定録音）とマイク入力を同時録音し、FLAC 形式で保存する Windows 向けデスクトップアプリです。
-会議・通話などの音声を記録し、Whisper による自動文字起こしも行えます。
+スピーカー出力（またはプロセス指定録音）とマイク入力を同時録音し、FLAC 形式で保存する Windows 向けデスクトップアプリです。  
+会議・通話などの音声を記録し、Whisper による自動文字起こしも行えます。  
 スピーカー出力とマイク入力をそれぞれ別チャンネルで格納するため、録音後にゲインを調整しながら再生が可能です。
 
-## 機能
+## 主な機能
 
-- **同時録音** — スピーカー出力（WASAPI ループバック）とマイク入力を 2ch FLAC で保存
-- **プロセス指定録音** — 特定のアプリの音声のみをキャプチャ（Process Loopback）
-- **一時停止・再開** — 録音を中断せずに一時停止し、同一ファイルへ続きを追記
-- **グローバルホットキー** — 録音開始・停止をキーボードショートカットで操作
-- **音声文字起こし** — Whisper.net（CPU / CUDA 対応）による自動または手動の文字起こし
-- **ライブラリ管理** — 録音ファイルの一覧表示・再生・タイトル編集・モノラル変換エクスポート
-- **ミニモード** — コンパクト表示で画面を占有せずに録音状態を確認
+- 同時録音（出力 + マイク、2ch FLAC）
+- 出力ソース切替
+  - スピーカーモード（WASAPI ループバック）
+  - プログラムモード（Process Loopback）
+- 録音の開始 / 一時停止 / 再開 / 停止
+- グローバルホットキー（録音開始/停止）
+- ミニモード切替
+- タスクトレイ常駐（閉じるでトレイ格納、右クリックで復帰/終了）
+- ライブラリ機能
+  - 一覧表示、再生、シーク、再生速度変更
+  - タイトル編集、ファイル名変更
+  - 一覧から削除 / ファイル削除 / Explorer で表示
+  - モノラル保存（WAV / MP3 / FLAC）
+- 文字起こし（Whisper.net）
+  - 手動実行 / 録音後自動実行
+  - 複数出力形式（txt / srt / vtt / json）
+  - CPU / CUDA 優先モード
 
 ## 動作環境
 
@@ -23,6 +33,17 @@
 | ffmpeg | 別途インストール必須（後述） |
 | CUDA（省略可） | CUDA Toolkit 13（文字起こしの GPU アクセラレーション用） |
 
+## 配布物
+
+リリースでは以下を提供します。
+
+- ZIP（自己完結）: `VoxArchive-<version>-win-x64.zip`
+- ZIP（ランタイム非同梱）: `VoxArchive-<version>-win-x64-fd.zip`
+- インストーラー（自己完結）: `VoxArchive-setup-<version>-sc.exe`
+- インストーラー（ランタイム非同梱）: `VoxArchive-setup-<version>-fd.exe`
+
+ランタイム非同梱版（`-fd`）は .NET Desktop Runtime が別途必要です。
+
 ## セットアップ
 
 ### 1. ffmpeg のインストール
@@ -31,61 +52,46 @@ VoxArchive は FLAC エンコードに ffmpeg を使用します。winget でイ
 
 ```powershell
 winget install Gyan.FFmpeg
-```
-
-インストール後、`ffmpeg` コマンドがパスに通っていることを確認してください。
-
-```powershell
 ffmpeg -version
 ```
 
-### 2. VoxArchive のインストール
+### 2. アプリ起動
 
-[Releases](../../releases) から最新の `VoxArchive-vX.X.X.zip` をダウンロードし、任意のフォルダに展開して `VoxArchive.exe` を実行してください。
+- ZIP 版: 展開後に `VoxArchive.Wpf.exe` を実行
+- インストーラー版: セットアップ実行後、インストール先の `VoxArchive.Wpf.exe` を実行
 
-### 3. 文字起こし機能の有効化（省略可）
+## 基本的な使い方
 
-1. アプリ内の設定画面を開く
-2. 「文字起こし」タブで使用するモデルを選択
-3. 「モデルを取得」ボタンをクリックしてダウンロード
+1. 出力デバイス（または対象プロセス）とマイクを選択
+2. REC で録音開始
+3. 必要に応じて一時停止 / 再開
+4. STOP で録音停止
+5. ライブラリで録音を確認・再生・編集
 
+## 文字起こし
+
+設定画面で以下を設定できます。
+
+- 有効/無効
+- 実行モード（自動 / CPU固定 / CUDA優先）
+- モデル
+- 言語
+- 出力形式
+- 優先度（自動実行時 / 手動実行時）
+- 完了通知
+
+ライブラリ画面から手動で文字起こしを実行できます。  
 GPU（CUDA）を使用する場合は、NVIDIA ドライバおよび CUDA Toolkit 13.x がインストールされている必要があります。
 
-## 使い方
+## 開発
 
-### 基本的な録音
+### 前提
 
-1. アプリを起動し、スピーカーデバイスとマイクデバイスを選択
-2. **REC** ボタンをクリック（またはホットキー）で録音開始
-3. **STOP** ボタンで録音停止
-4. 録音ファイルはデフォルトで `ドキュメント\VoxArchive` に保存されます
+- .NET 10 SDK
 
-### 出力ソースの切替
+### ビルド
 
-- **スピーカーループバック** — PC 全体の出力音声を録音
-- **プロセス指定** — プロセス一覧から対象アプリを選択して録音
-
-### ライブラリ
-
-メニューの「ライブラリ」から録音一覧を開けます。
-
-- 録音の再生・スピーカー/マイクの個別ゲイン調整
-- タイトル編集（FLAC タグに反映）
-- モノラル変換して WAV/MP3/FLAC でエクスポート
-- 文字起こしの手動実行・結果ファイルの確認
-
-## ビルド方法
-
-### 前提条件
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Visual Studio 2022 以降 または Visual Studio Code
-
-### 手順
-
-```bash
-git clone https://github.com/Ovis/VoxArchive.git
-cd VoxArchive
+```powershell
 dotnet build VoxArchive.slnx -c Release
 ```
 
@@ -103,14 +109,3 @@ dotnet build VoxArchive.slnx -c Release
 VoxArchive は [MIT License](LICENSE) の下で公開されています。
 
 本ソフトウェアは以下のサードパーティライブラリを使用しています。
-
-| ライブラリ | ライセンス |
-|---|---|
-| [NAudio](https://github.com/naudio/NAudio) | [MIT](LICENSES/NAudio-MIT.txt) |
-| [TagLibSharp](https://github.com/mono/taglib-sharp) | [LGPL-2.1](LICENSES/TagLibSharp-LGPL-2.1.txt) |
-| [Whisper.net](https://github.com/sandrohanea/whisper.net) | [MIT](LICENSES/Whisper.net-MIT.txt) |
-| [whisper.cpp](https://github.com/ggerganov/whisper.cpp) | [MIT](LICENSES/whisper.cpp-MIT.txt) |
-| [ZLogger](https://github.com/Cysharp/ZLogger) | [MIT](LICENSES/ZLogger-MIT.txt) |
-| Microsoft.Extensions.* | [MIT](LICENSES/dotnet-MIT.txt) |
-
-**外部依存：** ffmpeg は本ソフトウェアに同梱されていません。別途インストールしてください。ffmpeg のライセンスは [ffmpeg.org/legal.html](https://ffmpeg.org/legal.html) を参照してください。
