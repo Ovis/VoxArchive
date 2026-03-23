@@ -300,6 +300,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="10" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="10" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -410,11 +412,36 @@
                     </Grid>
 
 
-                    <StackPanel Grid.Row="9" Margin="0,8,0,6">
+                    <Grid Grid.Row="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="92" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabelStyle}" Text="ffmpeg 実行ファイル" />
+                        <TextBox x:Name="FfmpegPathTextBox" Grid.Row="1" Grid.Column="0" Margin="0,0,10,0" />
+                        <TextBlock Grid.Row="2"
+                                   Grid.Column="0"
+                                   Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextMuted}"
+                                   Text="空欄の場合は自動検出します。固定したい場合は ffmpeg.exe の絶対パスを指定してください。" />
+                        <Button Grid.Row="1"
+                                Grid.Column="1"
+                                Height="36"
+                                Content="参照"
+                                VerticalAlignment="Top"
+                                Click="OnBrowseFfmpegPathClick" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="11" Margin="0,8,0,6">
                         <CheckBox x:Name="RecordingMetricsLogCheckBox" Content="録音メトリクスをログに保存" />
                         <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="有効時は AppData\\Local\\VoxArchive\\logs に録音メトリクスを出力します。" />
                     </StackPanel>
-                    <Border Grid.Row="10" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                    <Border Grid.Row="12" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="2*" />
@@ -518,7 +545,7 @@
                             </StackPanel>
                         </Grid>
                     </Border>
-                    <StackPanel Grid.Row="12" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <StackPanel Grid.Row="14" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                         <Button Width="100" Margin="0,0,8,0" Content="保存" Style="{StaticResource AccentButtonStyle}" IsDefault="True" Click="OnSaveClick" />
                         <Button Width="100" Content="キャンセル" IsCancel="True" />
                     </StackPanel>
@@ -528,23 +555,3 @@
         </Grid>
     </Grid>
 </Window>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

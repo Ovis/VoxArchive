@@ -439,7 +439,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         if (_recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error)
         {
-            if (!FfmpegRuntimeChecker.IsAvailable(out var ffmpegDetail))
+            if (!FfmpegRuntimeChecker.IsAvailable(_options.FfmpegExecutablePath, out var ffmpegDetail, out var resolvedFfmpegPath))
             {
                 var message = BuildFfmpegMissingMessage(ffmpegDetail);
                 _logger.LogWarning("録音開始前に ffmpeg 未検出: {Detail}", ffmpegDetail);
@@ -484,7 +484,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 MicDeviceId = SelectedMicDeviceId,
                 OutputCaptureMode = mode,
                 TargetProcessId = targetPid,
-                ChannelAlignmentMilliseconds = alignmentMs
+                ChannelAlignmentMilliseconds = alignmentMs,
+                FfmpegExecutablePath = resolvedFfmpegPath
             };
 
             var resolvedSpeakerDeviceId = await ResolveDeviceIdAsync(_options.SpeakerDeviceId, DeviceKind.Speaker);
@@ -498,7 +499,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var startOptions = _options with
             {
                 SpeakerDeviceId = resolvedSpeakerDeviceId,
-                MicDeviceId = resolvedMicDeviceId
+                MicDeviceId = resolvedMicDeviceId,
+                FfmpegExecutablePath = _options.FfmpegExecutablePath
             };
 
             await _settingsService.SaveRecordingOptionsAsync(_options);
@@ -704,7 +706,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 TranscriptionOutputFormats = _options.TranscriptionOutputFormats,
                 AutoTranscriptionPriority = _options.AutoTranscriptionPriority,
                 ManualTranscriptionPriority = _options.ManualTranscriptionPriority,
-                TranscriptionToastNotificationEnabled = _options.TranscriptionToastNotificationEnabled
+                TranscriptionToastNotificationEnabled = _options.TranscriptionToastNotificationEnabled,
+                FfmpegExecutablePath = _options.FfmpegExecutablePath
             };
 
 
@@ -748,7 +751,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 TranscriptionOutputFormats = normalizedFormats,
                 AutoTranscriptionPriority = dialog.AutoTranscriptionPriority,
                 ManualTranscriptionPriority = dialog.ManualTranscriptionPriority,
-                TranscriptionToastNotificationEnabled = dialog.TranscriptionToastNotificationEnabled
+                TranscriptionToastNotificationEnabled = dialog.TranscriptionToastNotificationEnabled,
+                FfmpegExecutablePath = string.IsNullOrWhiteSpace(dialog.FfmpegExecutablePath) ? string.Empty : dialog.FfmpegExecutablePath.Trim()
             };
             StartStopHotkeyText = normalizedHotkey;
             await _settingsService.SaveRecordingOptionsAsync(_options);
@@ -920,6 +924,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             DefaultSpeakerPlaybackGainDb = Math.Clamp(options.DefaultSpeakerPlaybackGainDb, -60d, 48d),
             DefaultMicPlaybackGainDb = Math.Clamp(options.DefaultMicPlaybackGainDb, -60d, 48d),
             TranscriptionLanguage = string.IsNullOrWhiteSpace(options.TranscriptionLanguage) ? "ja" : options.TranscriptionLanguage.Trim(),
+            FfmpegExecutablePath = string.IsNullOrWhiteSpace(options.FfmpegExecutablePath) ? string.Empty : options.FfmpegExecutablePath.Trim(),
             TranscriptionOutputFormats = options.TranscriptionOutputFormats == TranscriptionOutputFormats.None
                 ? TranscriptionOutputFormats.Txt
                 : options.TranscriptionOutputFormats
@@ -1063,4 +1068,3 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-

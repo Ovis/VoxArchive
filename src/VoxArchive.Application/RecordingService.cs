@@ -119,7 +119,8 @@ public sealed class RecordingService : IRecordingService
                 OutputFilePath: _outputPath,
                 SampleRate: effectiveOptions.SampleRate,
                 Channels: effectiveOptions.ChannelCount,
-                CompressionLevel: effectiveOptions.FlacCompressionLevel), cancellationToken);
+                CompressionLevel: effectiveOptions.FlacCompressionLevel,
+                ExecutablePath: string.IsNullOrWhiteSpace(effectiveOptions.FfmpegExecutablePath) ? "ffmpeg" : effectiveOptions.FfmpegExecutablePath), cancellationToken);
 
             await StartCaptureAsync(effectiveOptions, cancellationToken);
 

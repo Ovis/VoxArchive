@@ -992,7 +992,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                 outputPath,
                 SpeakerGainDb,
                 MicGainDb,
-                format);
+                format,
+                _optionsProvider().FfmpegExecutablePath);
 
             StatusText = $"モノラル変換ファイルを保存しました: {Path.GetFileName(outputPath)}";
         }
@@ -1300,9 +1301,3 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _catalogSession.Dispose();
     }
 }
-
-
-
-
-
-

@@ -31,4 +31,5 @@ public sealed record RecordingOptions
     public TranscriptionPriority ManualTranscriptionPriority { get; init; } = TranscriptionPriority.Normal;
     public bool TranscriptionToastNotificationEnabled { get; init; } = true;
     public bool SuppressCloseToTrayNotice { get; init; } = false;
+    public string FfmpegExecutablePath { get; init; } = string.Empty;
 }

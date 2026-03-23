@@ -102,7 +102,7 @@ public partial class App : System.Windows.Application
             window.DataContext = _host.Services.GetRequiredService<MainViewModel>();
             window.Show();
 
-            if (!FfmpegRuntimeChecker.IsAvailable(out var ffmpegDetail))
+            if (!FfmpegRuntimeChecker.IsAvailable(context.DefaultOptions.FfmpegExecutablePath, out var ffmpegDetail))
             {
                 logger.LogWarning("ffmpeg is not available at startup. detail={Detail}", ffmpegDetail);
                 ModernDialog.Show(
@@ -132,6 +132,37 @@ public partial class App : System.Windows.Application
         }
     }
 
+
+    private static async Task<RecordingRuntimeContext> EnsureStartupFfmpegPathAsync(RecordingRuntimeContext context, ILogger<App> logger)
+    {
+        if (!string.IsNullOrWhiteSpace(context.DefaultOptions.FfmpegExecutablePath))
+        {
+            return context;
+        }
+
+        if (!FfmpegRuntimeChecker.IsAvailable(string.Empty, out _, out var resolvedPath))
+        {
+            return context;
+        }
+
+        if (string.IsNullOrWhiteSpace(resolvedPath) || !Path.IsPathFullyQualified(resolvedPath))
+        {
+            return context;
+        }
+
+        var updatedOptions = context.DefaultOptions with { FfmpegExecutablePath = resolvedPath };
+        try
+        {
+            await context.SettingsService.SaveRecordingOptionsAsync(updatedOptions);
+            logger.LogInformation("起動時に ffmpeg パスを自動保存しました: {Path}", resolvedPath);
+            return context with { DefaultOptions = updatedOptions };
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "起動時の ffmpeg パス自動保存に失敗しました。検出値={Path}", resolvedPath);
+            return context;
+        }
+    }
     private static string BuildFfmpegMissingMessage(string detail)
     {
         var baseMessage =
@@ -174,3 +205,5 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
+
+

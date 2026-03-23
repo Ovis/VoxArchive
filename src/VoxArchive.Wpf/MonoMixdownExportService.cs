@@ -20,6 +20,7 @@ public static class MonoMixdownExportService
         double speakerGainDb,
         double micGainDb,
         MonoMixdownOutputFormat format,
+        string? ffmpegExecutablePath = null,
         CancellationToken cancellationToken = default)
     {
         if (format == MonoMixdownOutputFormat.Wav)
@@ -32,7 +33,7 @@ public static class MonoMixdownExportService
         try
         {
             await ExportAsMonoWaveAsync(inputFilePath, tempWavePath, speakerGainDb, micGainDb, cancellationToken);
-            await ConvertWithFfmpegAsync(tempWavePath, outputFilePath, format, cancellationToken);
+            await ConvertWithFfmpegAsync(tempWavePath, outputFilePath, format, ffmpegExecutablePath, cancellationToken);
         }
         finally
         {
@@ -92,7 +93,7 @@ public static class MonoMixdownExportService
         }, cancellationToken);
     }
 
-    private static async Task ConvertWithFfmpegAsync(string inputWavePath, string outputPath, MonoMixdownOutputFormat format, CancellationToken cancellationToken)
+    private static async Task ConvertWithFfmpegAsync(string inputWavePath, string outputPath, MonoMixdownOutputFormat format, string? ffmpegExecutablePath, CancellationToken cancellationToken)
     {
         var codecArgs = format switch
         {
@@ -104,7 +105,7 @@ public static class MonoMixdownExportService
         var args = $"-y -hide_banner -loglevel error -i \"{inputWavePath}\" {codecArgs} \"{outputPath}\"";
         var psi = new ProcessStartInfo
         {
-            FileName = "ffmpeg",
+            FileName = string.IsNullOrWhiteSpace(ffmpegExecutablePath) ? "ffmpeg" : ffmpegExecutablePath,
             Arguments = args,
             RedirectStandardError = true,
             RedirectStandardOutput = false,

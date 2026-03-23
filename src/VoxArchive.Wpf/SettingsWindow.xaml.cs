@@ -90,6 +90,12 @@ public partial class SettingsWindow : Window
         set => OutputDirectoryTextBox.Text = value;
     }
 
+
+    public string FfmpegExecutablePath
+    {
+        get => FfmpegPathTextBox.Text.Trim();
+        set => FfmpegPathTextBox.Text = value;
+    }
     public bool RecordingMetricsLogEnabled
     {
         get => RecordingMetricsLogCheckBox.IsChecked == true;
@@ -174,6 +180,28 @@ public partial class SettingsWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             OutputDirectory = dialog.FolderName;
+        }
+    }
+
+    private void OnBrowseFfmpegPathClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "ffmpeg 実行ファイルを選択",
+            Filter = "ffmpeg.exe|ffmpeg.exe|実行ファイル (*.exe)|*.exe|すべてのファイル (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (!string.IsNullOrWhiteSpace(FfmpegExecutablePath) && File.Exists(FfmpegExecutablePath))
+        {
+            dialog.InitialDirectory = Path.GetDirectoryName(FfmpegExecutablePath);
+            dialog.FileName = Path.GetFileName(FfmpegExecutablePath);
+        }
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            FfmpegExecutablePath = dialog.FileName;
         }
     }
 
@@ -570,4 +598,3 @@ public partial class SettingsWindow : Window
         };
     }
 }
-
