@@ -790,25 +790,10 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         if (app is null)
         {
             return;
-        }
+        }
         _ = app.Dispatcher.BeginInvoke(() =>
         {
-            if (e.Result.Succeeded)
-            {
-                StatusText = $"文字起こし完了: {Path.GetFileName(e.Request.AudioFilePath)}";
-                if (e.Request.Options.TranscriptionToastNotificationEnabled)
-                {
-                    AppNotificationHub.Notify("VoxArchive", $"文字起こし完了: {Path.GetFileName(e.Request.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
-                }
-            }
-            else
-            {
-                StatusText = $"文字起こし失敗: {e.Result.Message}";
-                if (e.Request.Options.TranscriptionToastNotificationEnabled)
-                {
-                    AppNotificationHub.Notify("VoxArchive", $"文字起こし失敗: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
-                }
-            }
+            OnPropertyChanged(nameof(IsTranscribing));
             RaiseCommands();
         });
     }
@@ -831,8 +816,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         if (app is null)
         {
             return;
-        }
-
+        }
         _ = app.Dispatcher.BeginInvoke(() =>
         {
             OnPropertyChanged(nameof(IsTranscribing));
@@ -1301,3 +1285,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _catalogSession.Dispose();
     }
 }
+
+
+
+
+

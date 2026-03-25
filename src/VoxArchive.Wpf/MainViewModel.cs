@@ -868,30 +868,31 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     }
     private void OnTranscriptionJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e)
     {
-        if (e.Request.Trigger != TranscriptionTrigger.AutoAfterRecord)
-        {
-            return;
-        }
-
         RunOnUi(() =>
         {
             if (e.Result.Succeeded)
             {
-                if (e.Request.Options.TranscriptionToastNotificationEnabled)
+                if (!e.Request.Options.TranscriptionToastNotificationEnabled)
                 {
-                    AppNotificationHub.Notify("VoxArchive", $"自動文字起こし完了: {Path.GetFileName(e.Request.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
+                    return;
                 }
 
+                var title = e.Request.Trigger == TranscriptionTrigger.AutoAfterRecord ? "自動文字起こし完了" : "文字起こし完了";
+                AppNotificationHub.Notify("VoxArchive", $"{title}: {Path.GetFileName(e.Request.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
                 return;
             }
 
             _logger.LogWarning("文字起こし失敗: {Message}", e.Result.Message);
-            if (e.Request.Options.TranscriptionToastNotificationEnabled)
+            if (!e.Request.Options.TranscriptionToastNotificationEnabled)
             {
-                AppNotificationHub.Notify("VoxArchive", $"自動文字起こし失敗: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
+                return;
             }
+
+            var failTitle = e.Request.Trigger == TranscriptionTrigger.AutoAfterRecord ? "自動文字起こし失敗" : "文字起こし失敗";
+            AppNotificationHub.Notify("VoxArchive", $"{failTitle}: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
         });
     }
+
     private void RefreshCommands()
     {
         StartStopCommand.RaiseCanExecuteChanged();
@@ -1068,3 +1069,7 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
+
+
+
+
