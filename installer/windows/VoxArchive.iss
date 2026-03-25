@@ -1,5 +1,5 @@
 #define MyAppName "VoxArchive"
-#define MyAppPublisher "VoxArchive Project"
+#define MyAppPublisher "Ovis"
 
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0-dev"
