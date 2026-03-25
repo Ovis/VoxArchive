@@ -125,7 +125,7 @@ jobs:
       contents: write
     steps:
       - name: Create draft Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag }}
           name: ${{ needs.prepare-release.outputs.tag }}
@@ -217,7 +217,7 @@ jobs:
 
       - name: Upload ZIPs to Release
         if: needs.prepare-release.outputs.release_mode != 'none'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag }}
           draft: true
@@ -330,7 +330,7 @@ jobs:
 
       - name: Upload Windows installers to Release
         if: needs.prepare-release.outputs.release_mode != 'none'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag }}
           draft: true
