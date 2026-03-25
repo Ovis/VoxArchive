@@ -376,3 +376,20 @@ jobs:
           else
             gh release edit "${TAG}" -R "${GITHUB_REPOSITORY}" --draft=false
           fi
+
+  update-winget-manifest:
+    needs:
+      - prepare-release
+      - publish-release
+    if: needs.prepare-release.outputs.run_build == 'true' && needs.prepare-release.outputs.release_mode == 'stable'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Update winget manifest
+        uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: EsheepDev.VoxArchive
+          release-tag: ${{ needs.prepare-release.outputs.tag }}
+          installers-regex: ^VoxArchive-setup-.*-sc\.exe$
+          token: ${{ secrets.WINGET_TOKEN }}
