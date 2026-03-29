@@ -173,7 +173,7 @@
                                     <ColumnDefinition Width="20" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0"
-                                           Text="{Binding DataContext.SelectedSeekStepOption.Label, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Text="{Binding SelectedItem.Label, RelativeSource={RelativeSource TemplatedParent}}"
                                            Foreground="{StaticResource TextPrimary}"
                                            VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
@@ -734,6 +734,7 @@
 
     </Grid>
 </Window>
+
 
 
 
