@@ -1,5 +1,6 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using SoundTouch.Net.NAudioSupport;
 
 namespace VoxArchive.Wpf;
 
@@ -12,7 +13,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
     private WasapiOut? _output;
     private AudioFileReader? _reader;
     private StereoGainSampleProvider? _gainProvider;
-    private PlaybackRateSampleProvider? _rateProvider;
+    private SoundTouchWaveProvider? _timeStretchProvider;
     private double _playbackSpeed = 1.0;
 
     public event EventHandler? PlaybackStopped;
@@ -30,14 +31,16 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
         _reader = new AudioFileReader(filePath);
         _gainProvider = new StereoGainSampleProvider(_reader);
-        _rateProvider = new PlaybackRateSampleProvider(_gainProvider)
+        _timeStretchProvider = new SoundTouchWaveProvider(_gainProvider.ToWaveProvider())
         {
-            PlaybackRate = (float)_playbackSpeed
+            // Tempo を変更するとピッチを維持したまま再生速度だけを変更できる。
+            Tempo = (float)_playbackSpeed,
+            Pitch = 1.0f
         };
 
         _output = new WasapiOut(AudioClientShareMode.Shared, SharedOutputLatencyMilliseconds);
         _output.PlaybackStopped += OnPlaybackStopped;
-        _output.Init(_rateProvider);
+        _output.Init(_timeStretchProvider);
     }
 
     public void Play()
@@ -57,6 +60,8 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
         {
             _reader.CurrentTime = TimeSpan.Zero;
         }
+
+        _timeStretchProvider?.Clear();
     }
 
     public void Seek(TimeSpan position)
@@ -68,6 +73,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
         var targetSeconds = Math.Clamp(position.TotalSeconds, 0d, _reader.TotalTime.TotalSeconds);
         _reader.CurrentTime = TimeSpan.FromSeconds(targetSeconds);
+        _timeStretchProvider?.Clear();
     }
 
     public void SetGains(double leftDb, double rightDb)
@@ -94,9 +100,10 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
     public void SetPlaybackSpeed(double speed)
     {
         _playbackSpeed = Math.Clamp(speed, MinPlaybackSpeed, MaxPlaybackSpeed);
-        if (_rateProvider is not null)
+        if (_timeStretchProvider is not null)
         {
-            _rateProvider.PlaybackRate = (float)_playbackSpeed;
+            _timeStretchProvider.Tempo = (float)_playbackSpeed;
+            _timeStretchProvider.Pitch = 1.0f;
         }
     }
 
@@ -122,7 +129,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
         _reader?.Dispose();
         _reader = null;
         _gainProvider = null;
-        _rateProvider = null;
+        _timeStretchProvider = null;
     }
 
     public void Dispose()
