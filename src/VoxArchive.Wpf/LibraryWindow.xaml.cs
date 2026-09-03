@@ -48,13 +48,8 @@ public partial class LibraryWindow : System.Windows.Window
     }
 
     /// <summary>
-    /// 既存の編集領域へ文字起こし結果パネルを追加する
+    /// 既存の編集領域へ文字起こし結果パネルと独立Windowを開く操作を追加する
     /// </summary>
-    /// <remarks>
-    /// Libraryの既存DataContextや再生・編集Bindingを変更しないため、右ペインの編集領域だけを
-    /// ScrollViewerで包み、その末尾へ結果パネルを追加する。結果UIの導入によって既存操作領域が
-    /// ウィンドウ高を超えてもアクセス不能にならないようスクロール可能にする。
-    /// </remarks>
     private void AttachTranscriptionResultsPanel()
     {
         var detailGrid = FindDetailGrid(this);
@@ -71,6 +66,29 @@ public partial class LibraryWindow : System.Windows.Window
             return;
         }
 
+        // 既存ボタンは外部エディタを開く操作であることを明示し、その隣にアプリ内の独立Windowを追加する。
+        // XAML全体のDataContext構成を変更せず、今回追加した結果UIだけを局所的に差し込むためここで構築する。
+        var buttonRow = FindDescendants<System.Windows.Controls.StackPanel>(editContent)
+            .FirstOrDefault(x => x.Orientation == System.Windows.Controls.Orientation.Horizontal &&
+                                 x.Children.OfType<System.Windows.Controls.Button>().Any(b => Equals(b.Content, "文字起こし結果を開く")));
+        var editorButton = buttonRow?.Children
+            .OfType<System.Windows.Controls.Button>()
+            .FirstOrDefault(b => Equals(b.Content, "文字起こし結果を開く"));
+        if (buttonRow is not null && editorButton is not null)
+        {
+            editorButton.Content = "文字起こし結果をエディタで開く";
+            editorButton.Margin = new System.Windows.Thickness(0, 0, 8, 0);
+
+            var detachedButton = new System.Windows.Controls.Button
+            {
+                Content = "文字起こし結果を新しいウィンドウで開く",
+                Margin = new System.Windows.Thickness(0, 0, 8, 0)
+            };
+            detachedButton.SetResourceReference(System.Windows.FrameworkElement.StyleProperty, "FlatButtonStyle");
+            detachedButton.Click += OnOpenTranscriptionResultsWindowClick;
+            buttonRow.Children.Insert(buttonRow.Children.IndexOf(editorButton) + 1, detachedButton);
+        }
+
         detailGrid.Children.Remove(editContent);
 
         var stack = new System.Windows.Controls.StackPanel();
@@ -84,7 +102,6 @@ public partial class LibraryWindow : System.Windows.Window
             VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled
         };
-        scrollViewer.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextPrimary");
         System.Windows.Controls.Grid.SetRow(scrollViewer, 9);
         detailGrid.Children.Add(scrollViewer);
     }
@@ -197,6 +214,25 @@ public partial class LibraryWindow : System.Windows.Window
         };
         _transcriptionResultsWindow.Closed += (_, _) => _transcriptionResultsWindow = null;
         _transcriptionResultsWindow.Show();
+    }
+
+    private static IEnumerable<T> FindDescendants<T>(System.Windows.DependencyObject root)
+        where T : System.Windows.DependencyObject
+    {
+        var childCount = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T matched)
+            {
+                yield return matched;
+            }
+
+            foreach (var nested in FindDescendants<T>(child))
+            {
+                yield return nested;
+            }
+        }
     }
 
     private static T? FindParent<T>(System.Windows.DependencyObject? child)
