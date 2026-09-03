@@ -1,7 +1,5 @@
-using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 
 namespace VoxArchive.Wpf;
 
@@ -10,7 +8,7 @@ namespace VoxArchive.Wpf;
 /// </summary>
 /// <remarks>
 /// 結果の発見と本文ロードは <see cref="LibraryTranscriptionResultsState"/> に委譲し、
-/// 本クラスは選択操作を状態へ伝えるUI責務だけを持つ。同じパネルをLibrary内と独立Windowで再利用する。
+/// 本クラスは選択操作と表示先に依存しないUIイベントだけを担当する。
 /// </remarks>
 public partial class LibraryTranscriptionResultsPanel : UserControl
 {
@@ -18,17 +16,27 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
     private bool _selectionChangeInProgress;
 
     /// <summary>
-    /// 結果件数からComboBoxの有効状態へ変換するコンバーターを取得する
+    /// エディタで開く操作が要求されたときに発生する
     /// </summary>
-    public static IValueConverter CountToEnabledConverter { get; } = new PositiveCountConverter();
+    public event EventHandler? OpenInEditorRequested;
 
     /// <summary>
-    /// パネル上部の「文字起こし」見出しを表示するかどうかを取得または設定する
+    /// 独立ウィンドウで開く操作が要求されたときに発生する
+    /// </summary>
+    public event EventHandler? OpenDetachedRequested;
+
+    /// <summary>
+    /// パネル上部の見出しを表示するかどうかを取得または設定する
     /// </summary>
     public bool ShowHeader { get; set; } = true;
 
     /// <summary>
-    /// 本文表示領域の高さを取得または設定する。独立WindowではAutoを指定して残り領域を使用する
+    /// パネル下部の操作ボタンを表示するかどうかを取得または設定する
+    /// </summary>
+    public bool ShowActions { get; set; } = true;
+
+    /// <summary>
+    /// 本文表示領域の高さを取得または設定する
     /// </summary>
     public GridLength TranscriptHeight { get; set; } = new(180);
 
@@ -54,7 +62,7 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
     }
 
     /// <summary>
-    /// 指定されたライブラリ文字起こし状態を表示するパネルを生成する
+    /// 指定された状態を表示するパネルを生成する
     /// </summary>
     public LibraryTranscriptionResultsPanel(LibraryTranscriptionResultsState state) : this()
     {
@@ -70,8 +78,6 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
             return;
         }
 
-        // SelectedItemはStateからOneWayで反映しているため、ユーザー操作時だけ明示的に遅延ロードする。
-        // 読み込み完了時にState側のSelectedResultが更新されても再入しないようガードする。
         try
         {
             _selectionChangeInProgress = true;
@@ -83,12 +89,9 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
         }
     }
 
-    private sealed class PositiveCountConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-            => value is int count && count > 0;
+    private void OnOpenInEditorClick(object sender, RoutedEventArgs e)
+        => OpenInEditorRequested?.Invoke(this, EventArgs.Empty);
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-            => throw new NotSupportedException();
-    }
+    private void OnOpenDetachedClick(object sender, RoutedEventArgs e)
+        => OpenDetachedRequested?.Invoke(this, EventArgs.Empty);
 }
