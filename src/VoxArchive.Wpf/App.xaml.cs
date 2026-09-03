@@ -79,6 +79,12 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<TranscriptionSpeakerLabelService>();
                     services.AddSingleton<TranscriptionExportService>();
                     services.AddSingleton<WhisperTranscriptionService>();
+
+                    // QueueからWhisperへの直接依存を外し、エンジン選択をResolver/Orchestratorへ集約する。
+                    // 現在はWhisperだけを登録し、認識挙動を変えずに後続のReazonSpeech追加点を用意する。
+                    services.AddSingleton<WhisperTranscriptionEngine>();
+                    services.AddSingleton<ITranscriptionEngineResolver, TranscriptionEngineResolver>();
+                    services.AddSingleton<TranscriptionOrchestrator>();
                     services.AddSingleton<TranscriptionJobQueue>();
                     services.AddTransient<IRecordingPlaybackService, RecordingPlaybackService>();
                     services.AddTransient<MainWindow>();
