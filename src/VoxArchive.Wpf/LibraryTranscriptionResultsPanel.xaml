@@ -30,7 +30,6 @@
                             <Border x:Name="ComboRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" />
                             <Grid Margin="10,0,8,0" IsHitTestVisible="False">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="20" /></Grid.ColumnDefinitions>
-                                <!-- SelectionBoxItemを直接表示するとDisplayMemberPathが適用されず型名になるため表示名を明示する -->
                                 <TextBlock Grid.Column="0" Text="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource TemplatedParent}}" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Text="▼" FontSize="9" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
@@ -68,6 +67,42 @@
         <Style x:Key="TranscriptionActionButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" /><Setter Property="Background" Value="#1B2A3C" /><Setter Property="BorderBrush" Value="#2F4664" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="12,6" /><Setter Property="Height" Value="34" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Base" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Base" Property="Background" Value="#24364C" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style x:Key="TranscriptionDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource TranscriptionActionButtonStyle}">
+            <Setter Property="Background" Value="#7C2D36" />
+            <Setter Property="BorderBrush" Value="#A03B47" />
+        </Style>
+
+        <!-- Popup内では標準ButtonテンプレートのOS依存MouseOver色を使わず、
+             ダークテーマ上で文字とのコントラストを維持できる色を明示する。 -->
+        <Style x:Key="TranscriptionExportPopupButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#EFF4FC" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#2A3E58" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#213249" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </UserControl.Resources>
 
@@ -107,10 +142,12 @@
             </Grid>
         </Border>
 
-        <StackPanel Grid.Row="8" Orientation="Horizontal">
-            <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding ShowActions, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding Results.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-            <Button Content="エディタで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,0" Click="OnOpenInEditorClick" />
-            <Button Content="新しいウィンドウで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Click="OnOpenDetachedClick" />
-        </StackPanel>
+        <WrapPanel Grid.Row="8">
+            <WrapPanel.Style><Style TargetType="WrapPanel"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding ShowActions, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding Results.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></WrapPanel.Style>
+            <Button Content="エディタで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnOpenInEditorClick" />
+            <Button Content="新しいウィンドウで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnOpenDetachedClick" />
+            <Button Content="出力 ▼" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnExportButtonClick" />
+            <Button Content="削除" Style="{StaticResource TranscriptionDangerButtonStyle}" Margin="0,0,8,8" Click="OnDeleteClick" />
+        </WrapPanel>
     </Grid>
 </UserControl>

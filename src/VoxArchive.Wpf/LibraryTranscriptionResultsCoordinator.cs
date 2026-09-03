@@ -6,9 +6,8 @@ namespace VoxArchive.Wpf;
 /// LibraryViewModelの録音選択・文字起こし状態と、文字起こし結果状態を同期する
 /// </summary>
 /// <remarks>
-/// <see cref="LibraryTranscriptionResultsState"/> 自体はファイル発見と選択結果の読み込みだけを担当するため、
-/// Library固有のライフサイクル監視をこのクラスへ分離する。これにより結果UIを追加しても既存の再生・編集ロジックへ
-/// 文字起こしファイル走査の責務を混在させずに済む。
+/// <see cref="LibraryTranscriptionResultsState"/> 自体はファイル発見・結果操作を担当し、
+/// Library固有の選択変更やジョブ完了との同期だけを本クラスへ分離する。
 /// </remarks>
 public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChanged, IDisposable
 {
@@ -24,7 +23,8 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
         _libraryViewModel = libraryViewModel;
         State = new LibraryTranscriptionResultsState(
             new TranscriptionResultDiscoveryService(),
-            new TranscriptionDocumentStore());
+            new TranscriptionDocumentStore(),
+            new TranscriptionExportService());
         _wasTranscribing = libraryViewModel.IsTranscribing;
         _libraryViewModel.PropertyChanged += OnLibraryPropertyChanged;
         State.PropertyChanged += OnStatePropertyChanged;
