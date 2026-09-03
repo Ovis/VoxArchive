@@ -7,6 +7,7 @@ public partial class LibraryWindow : System.Windows.Window
 {
     private readonly LibraryViewModel _viewModel;
     private readonly LibraryTranscriptionResultsCoordinator _transcriptionResultsCoordinator;
+    private TranscriptionResultsWindow? _transcriptionResultsWindow;
 
     public LibraryWindow(LibraryViewModel viewModel)
     {
@@ -79,9 +80,11 @@ public partial class LibraryWindow : System.Windows.Window
         var scrollViewer = new System.Windows.Controls.ScrollViewer
         {
             Content = stack,
+            Margin = new System.Windows.Thickness(0, 0, 8, 0),
             VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled
         };
+        scrollViewer.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextPrimary");
         System.Windows.Controls.Grid.SetRow(scrollViewer, 9);
         detailGrid.Children.Add(scrollViewer);
     }
@@ -111,6 +114,7 @@ public partial class LibraryWindow : System.Windows.Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _transcriptionResultsWindow?.Close();
         _transcriptionResultsCoordinator.Dispose();
         _viewModel.Dispose();
     }
@@ -165,6 +169,34 @@ public partial class LibraryWindow : System.Windows.Window
 
         row.IsSelected = true;
         row.Focus();
+    }
+
+    private void OnOpenTranscriptionResultsWindowClick(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (_viewModel.SelectedItem is null)
+        {
+            return;
+        }
+
+        if (_transcriptionResultsWindow is { IsLoaded: true })
+        {
+            if (_transcriptionResultsWindow.WindowState == System.Windows.WindowState.Minimized)
+            {
+                _transcriptionResultsWindow.WindowState = System.Windows.WindowState.Normal;
+            }
+
+            _transcriptionResultsWindow.Activate();
+            return;
+        }
+
+        // Libraryと同じStateを共有することで、録音や結果の選択変更を別Windowにも即時反映する。
+        // WindowごとにJSONを再走査すると選択状態が競合するため、独立したStateは作らない。
+        _transcriptionResultsWindow = new TranscriptionResultsWindow(TranscriptionResults)
+        {
+            Owner = this
+        };
+        _transcriptionResultsWindow.Closed += (_, _) => _transcriptionResultsWindow = null;
+        _transcriptionResultsWindow.Show();
     }
 
     private static T? FindParent<T>(System.Windows.DependencyObject? child)
