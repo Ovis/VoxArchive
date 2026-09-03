@@ -78,6 +78,7 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<TranscriptionSpeechRegionDetector>();
                     services.AddSingleton<TranscriptionSpeakerLabelService>();
                     services.AddSingleton<TranscriptionExportService>();
+                    services.AddSingleton<TranscriptionDocumentStore>();
                     services.AddSingleton<WhisperTranscriptionService>();
 
                     // QueueからWhisperへの直接依存を外し、エンジン選択をResolver/Orchestratorへ集約する。
