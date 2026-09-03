@@ -1,20 +1,22 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// ライブラリで選択中の録音に対する文字起こし結果一覧と選択状態を管理する
+/// ライブラリで選択中の録音に対する文字起こし結果一覧・選択状態・結果操作を管理する
 /// </summary>
 /// <remarks>
 /// 結果一覧の走査と本文JSONの読み込みを分離し、録音選択時に全結果のsegmentsを読み込まない。
-/// 本文は結果が選択された時点で初めてロードする。
+/// 本文は結果が選択された時点で初めてロードする。再出力と削除も選択中のcanonical documentを基準に行う。
 /// </remarks>
 public sealed class LibraryTranscriptionResultsState(
     TranscriptionResultDiscoveryService discoveryService,
-    TranscriptionDocumentStore documentStore) : INotifyPropertyChanged
+    TranscriptionDocumentStore documentStore,
+    TranscriptionExportService exportService) : INotifyPropertyChanged
 {
     private LibraryTranscriptionResultItem? _selectedResult;
     private TranscriptionDocument? _selectedDocument;
@@ -95,6 +97,37 @@ public sealed class LibraryTranscriptionResultsState(
 
         SelectedResult = result;
         SelectedDocument = await documentStore.LoadAsync(result.DocumentPath, cancellationToken);
+    }
+
+    /// <summary>
+    /// 選択中のcanonical documentから指定形式の派生ファイルを再生成する
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ExportSelectedAsync(
+        TranscriptionOutputFormats formats,
+        CancellationToken cancellationToken = default)
+    {
+        var result = SelectedResult ?? throw new InvalidOperationException("文字起こし結果が選択されていません。");
+        var document = SelectedDocument ?? await documentStore.LoadAsync(result.DocumentPath, cancellationToken);
+        return await exportService.WriteDerivedAsync(result.DocumentPath, document, formats, cancellationToken);
+    }
+
+    /// <summary>
+    /// 選択中のcanonical JSONだけを削除し、派生TXT/SRT/VTTは残す
+    /// </summary>
+    /// <remarks>
+    /// 派生ファイルはユーザーが手編集している可能性があるため、自動的には削除しない。
+    /// </remarks>
+    public async Task DeleteSelectedAsync(CancellationToken cancellationToken = default)
+    {
+        var result = SelectedResult ?? throw new InvalidOperationException("文字起こし結果が選択されていません。");
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (File.Exists(result.DocumentPath))
+        {
+            File.Delete(result.DocumentPath);
+        }
+
+        await RefreshAsync(cancellationToken);
     }
 
     /// <summary>
