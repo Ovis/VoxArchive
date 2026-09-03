@@ -440,6 +440,8 @@
                     <StackPanel Grid.Row="11" Margin="0,8,0,6">
                         <CheckBox x:Name="RecordingMetricsLogCheckBox" Content="録音メトリクスをログに保存" />
                         <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="有効時は AppData\\Local\\VoxArchive\\logs に録音メトリクスを出力します。" />
+                        <CheckBox x:Name="TranscriptionDiagnosticsLogCheckBox" Content="文字起こし処理の情報をログに保存" Margin="0,8,0,2" />
+                        <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="有効時は Whisper.net のランタイム選択や処理時間などの診断情報をログに出力します。" />
                     </StackPanel>
                     <Border Grid.Row="12" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                         <Grid>
