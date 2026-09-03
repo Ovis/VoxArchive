@@ -5,7 +5,7 @@ namespace VoxArchive.Wpf;
 /// <summary>
 /// 録音元の左右チャンネルのエネルギーから文字起こし区間の話者を判定する
 /// </summary>
-internal sealed class TranscriptionSpeakerLabelService
+public sealed class TranscriptionSpeakerLabelService
 {
     /// <summary>
     /// 各文字起こし区間へ既存仕様と同じSpeaker/Mic/Mixedラベルを付与する
@@ -13,12 +13,10 @@ internal sealed class TranscriptionSpeakerLabelService
     public IReadOnlyList<TranscribedSegment> Apply(string audioFilePath, IReadOnlyList<TranscribedSegment> segments, CancellationToken cancellationToken)
     {
         if (segments.Count == 0) return segments;
-
         try
         {
             using var reader = new AudioFileReader(audioFilePath);
             if (reader.WaveFormat.Channels < 2) return segments;
-
             var sampleRate = reader.WaveFormat.SampleRate;
             var channels = reader.WaveFormat.Channels;
             var ranges = BuildSegmentFrameRanges(segments, sampleRate);
@@ -27,13 +25,11 @@ internal sealed class TranscriptionSpeakerLabelService
             var buffer = new float[Math.Max(4096, sampleRate / 4) * channels];
             var segmentIndex = 0;
             long frameIndex = 0;
-
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var read = reader.Read(buffer, 0, buffer.Length);
                 if (read <= 0) break;
-
                 var frames = read / channels;
                 for (var frame = 0; frame < frames; frame++, frameIndex++)
                 {
@@ -41,7 +37,6 @@ internal sealed class TranscriptionSpeakerLabelService
                     if (segmentIndex >= ranges.Count) break;
                     var range = ranges[segmentIndex];
                     if (frameIndex < range.StartFrame) continue;
-
                     var sampleIndex = frame * channels;
                     var left = buffer[sampleIndex];
                     var right = buffer[sampleIndex + 1];
@@ -50,18 +45,11 @@ internal sealed class TranscriptionSpeakerLabelService
                 }
                 if (segmentIndex >= ranges.Count) break;
             }
-
             var labeled = new List<TranscribedSegment>(segments.Count);
-            for (var i = 0; i < segments.Count; i++)
-            {
-                labeled.Add(segments[i] with { SpeakerLabel = ResolveSpeakerLabel(leftEnergy[i], rightEnergy[i]) });
-            }
+            for (var i = 0; i < segments.Count; i++) labeled.Add(segments[i] with { SpeakerLabel = ResolveSpeakerLabel(leftEnergy[i], rightEnergy[i]) });
             return labeled;
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
+        catch (OperationCanceledException) { throw; }
         catch
         {
             // 既存仕様では話者判定だけの失敗で文字起こし全体を失敗させないため、その挙動を維持する。
