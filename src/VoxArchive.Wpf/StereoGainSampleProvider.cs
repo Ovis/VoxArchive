@@ -17,16 +17,16 @@ public sealed class StereoGainSampleProvider : ISampleProvider
     public float RightGain { get; set; } = 1f;
     public bool MixToMono { get; set; }
 
-    public int Read(float[] buffer, int offset, int count)
+    public int Read(Span<float> buffer)
     {
-        var read = _source.Read(buffer, offset, count);
+        var read = _source.Read(buffer);
 
         var channels = Math.Max(1, WaveFormat.Channels);
         if (channels == 1)
         {
             for (var i = 0; i < read; i++)
             {
-                buffer[offset + i] = Clip(buffer[offset + i] * LeftGain);
+                buffer[i] = Clip(buffer[i] * LeftGain);
             }
 
             return read;
@@ -34,9 +34,9 @@ public sealed class StereoGainSampleProvider : ISampleProvider
 
         for (var i = 0; i < read; i += channels)
         {
-            var leftIndex = offset + i;
+            var leftIndex = i;
             var rightIndex = leftIndex + 1;
-            if (rightIndex >= offset + read)
+            if (rightIndex >= read)
             {
                 break;
             }
@@ -58,7 +58,7 @@ public sealed class StereoGainSampleProvider : ISampleProvider
 
             for (var ch = 2; ch < channels && (i + ch) < read; ch++)
             {
-                buffer[offset + i + ch] = Clip(buffer[offset + i + ch]);
+                buffer[i + ch] = Clip(buffer[i + ch]);
             }
         }
 
