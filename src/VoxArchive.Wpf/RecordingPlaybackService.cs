@@ -1,6 +1,5 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
-using SoundTouch.Net.NAudioSupport;
 
 namespace VoxArchive.Wpf;
 
@@ -13,7 +12,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
     private WasapiOut? _output;
     private AudioFileReader? _reader;
     private StereoGainSampleProvider? _gainProvider;
-    private SoundTouchWaveProvider? _timeStretchProvider;
+    private SoundTouchSampleProvider? _timeStretchProvider;
     private double _playbackSpeed = 1.0;
 
     public event EventHandler? PlaybackStopped;
@@ -31,11 +30,11 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
         _reader = new AudioFileReader(filePath);
         _gainProvider = new StereoGainSampleProvider(_reader);
-        _timeStretchProvider = new SoundTouchWaveProvider(_gainProvider.ToWaveProvider())
+        _timeStretchProvider = new SoundTouchSampleProvider(_gainProvider)
         {
             // Tempo を変更するとピッチを維持したまま再生速度だけを変更できる。
-            Tempo = (float)_playbackSpeed,
-            Pitch = 1.0f
+            Tempo = _playbackSpeed,
+            Pitch = 1.0
         };
 
         _output = new WasapiOut(AudioClientShareMode.Shared, SharedOutputLatencyMilliseconds);
@@ -102,8 +101,8 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
         _playbackSpeed = Math.Clamp(speed, MinPlaybackSpeed, MaxPlaybackSpeed);
         if (_timeStretchProvider is not null)
         {
-            _timeStretchProvider.Tempo = (float)_playbackSpeed;
-            _timeStretchProvider.Pitch = 1.0f;
+            _timeStretchProvider.Tempo = _playbackSpeed;
+            _timeStretchProvider.Pitch = 1.0;
         }
     }
 
