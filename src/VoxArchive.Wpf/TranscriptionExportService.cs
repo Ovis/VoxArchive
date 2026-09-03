@@ -36,7 +36,7 @@ public sealed class TranscriptionExportService
                 TranscriptionOutputFormats.Json => BuildJsonContent(segments),
                 _ => throw new InvalidOperationException($"未対応の文字起こし出力形式です: {format}")
             };
-            await File.WriteAllTextAsync(path, text, Encoding.UTF8, cancellationToken);
+            await File.WriteAllTextAsync(path, text, System.Text.Encoding.UTF8, cancellationToken);
             generated.Add(path);
         }
         return generated;
