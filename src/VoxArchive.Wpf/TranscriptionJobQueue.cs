@@ -18,6 +18,7 @@ public sealed class TranscriptionJobQueue : IDisposable
     private readonly Task _workerTask;
     private readonly IDisposable _whisperLogSubscription;
     private readonly ConcurrentDictionary<string, TranscriptionJobState> _jobStates = new(StringComparer.OrdinalIgnoreCase);
+    private int _transcriptionDiagnosticsActive;
 
     public TranscriptionJobQueue(WhisperTranscriptionService transcriptionService, ILogger<TranscriptionJobQueue> logger)
     {
@@ -30,11 +31,11 @@ public sealed class TranscriptionJobQueue : IDisposable
         });
         _cts = new CancellationTokenSource();
 
-        // Whisper.net のネイティブランタイム選択や CUDA 初期化結果を通常のアプリログへ取り込む。
+        // Whisper.net のネイティブログは診断ログが有効な文字起こしジョブの実行中だけ取り込む。
         // アプリ全体の最小ログレベルが Information のため、Whisper.net の Debug も Information として記録する。
         _whisperLogSubscription = LogProvider.AddLogger((level, message) =>
         {
-            if (string.IsNullOrWhiteSpace(message))
+            if (Volatile.Read(ref _transcriptionDiagnosticsActive) == 0 || string.IsNullOrWhiteSpace(message))
             {
                 return;
             }
@@ -62,12 +63,17 @@ public sealed class TranscriptionJobQueue : IDisposable
 
     public bool TryEnqueue(TranscriptionJobRequest request)
     {
+        var diagnosticsEnabled = request.Options.TranscriptionDiagnosticsLogEnabled;
         var key = NormalizePathKey(request.AudioFilePath);
         lock (_stateGate)
         {
             if (_jobStates.ContainsKey(key))
             {
-                _logger.LogInformation("Transcription job enqueue skipped because the file is already pending or running. File={File}", request.AudioFilePath);
+                if (diagnosticsEnabled)
+                {
+                    _logger.LogInformation("Transcription job enqueue skipped because the file is already pending or running. File={File}", request.AudioFilePath);
+                }
+
                 return false;
             }
 
@@ -80,14 +86,17 @@ public sealed class TranscriptionJobQueue : IDisposable
             _jobStates[key] = TranscriptionJobState.Pending;
         }
 
-        _logger.LogInformation(
-            "Transcription job queued. File={File}, Trigger={Trigger}, ExecutionMode={ExecutionMode}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}",
-            request.AudioFilePath,
-            request.Trigger,
-            request.Options.TranscriptionExecutionMode,
-            request.Options.TranscriptionModel,
-            request.Options.TranscriptionLanguage,
-            request.Options.TranscriptionOutputFormats);
+        if (diagnosticsEnabled)
+        {
+            _logger.LogInformation(
+                "Transcription job queued. File={File}, Trigger={Trigger}, ExecutionMode={ExecutionMode}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}",
+                request.AudioFilePath,
+                request.Trigger,
+                request.Options.TranscriptionExecutionMode,
+                request.Options.TranscriptionModel,
+                request.Options.TranscriptionLanguage,
+                request.Options.TranscriptionOutputFormats);
+        }
 
         JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(request.AudioFilePath, TranscriptionJobState.Pending));
         return true;
@@ -128,19 +137,23 @@ public sealed class TranscriptionJobQueue : IDisposable
     private async Task<TranscriptionJobResult> ProcessAsync(TranscriptionJobRequest request, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
+        var diagnosticsEnabled = request.Options.TranscriptionDiagnosticsLogEnabled;
         var priority = request.Trigger == TranscriptionTrigger.AutoAfterRecord
             ? request.Options.AutoTranscriptionPriority
             : request.Options.ManualTranscriptionPriority;
 
-        _logger.LogInformation(
-            "Transcription job started. File={File}, Trigger={Trigger}, ExecutionMode={ExecutionMode}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}, Priority={Priority}",
-            request.AudioFilePath,
-            request.Trigger,
-            request.Options.TranscriptionExecutionMode,
-            request.Options.TranscriptionModel,
-            request.Options.TranscriptionLanguage,
-            request.Options.TranscriptionOutputFormats,
-            priority);
+        if (diagnosticsEnabled)
+        {
+            _logger.LogInformation(
+                "Transcription job started. File={File}, Trigger={Trigger}, ExecutionMode={ExecutionMode}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}, Priority={Priority}",
+                request.AudioFilePath,
+                request.Trigger,
+                request.Options.TranscriptionExecutionMode,
+                request.Options.TranscriptionModel,
+                request.Options.TranscriptionLanguage,
+                request.Options.TranscriptionOutputFormats,
+                priority);
+        }
 
         try
         {
@@ -149,16 +162,29 @@ public sealed class TranscriptionJobQueue : IDisposable
                 await Task.Delay(300, cancellationToken);
             }
 
-            var result = await _transcriptionService.TranscribeAsync(request, cancellationToken);
+            Interlocked.Exchange(ref _transcriptionDiagnosticsActive, diagnosticsEnabled ? 1 : 0);
+            TranscriptionJobResult result;
+            try
+            {
+                result = await _transcriptionService.TranscribeAsync(request, cancellationToken);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _transcriptionDiagnosticsActive, 0);
+            }
+
             stopwatch.Stop();
 
-            _logger.LogInformation(
-                "Transcription job finished. File={File}, Succeeded={Succeeded}, ElapsedMs={ElapsedMs}, GeneratedFileCount={GeneratedFileCount}, Message={Message}",
-                request.AudioFilePath,
-                result.Succeeded,
-                stopwatch.ElapsedMilliseconds,
-                result.GeneratedFiles.Count,
-                result.Message);
+            if (diagnosticsEnabled)
+            {
+                _logger.LogInformation(
+                    "Transcription job finished. File={File}, Succeeded={Succeeded}, ElapsedMs={ElapsedMs}, GeneratedFileCount={GeneratedFileCount}, Message={Message}",
+                    request.AudioFilePath,
+                    result.Succeeded,
+                    stopwatch.ElapsedMilliseconds,
+                    result.GeneratedFiles.Count,
+                    result.Message);
+            }
 
             return result;
         }
@@ -192,6 +218,10 @@ public sealed class TranscriptionJobQueue : IDisposable
                 GeneratedFiles: Array.Empty<string>(),
                 StartedAt: DateTimeOffset.Now,
                 FinishedAt: DateTimeOffset.Now);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _transcriptionDiagnosticsActive, 0);
         }
     }
 

@@ -102,6 +102,12 @@ public partial class SettingsWindow : Window
         set => RecordingMetricsLogCheckBox.IsChecked = value;
     }
 
+    public bool TranscriptionDiagnosticsLogEnabled
+    {
+        get => TranscriptionDiagnosticsLogCheckBox.IsChecked == true;
+        set => TranscriptionDiagnosticsLogCheckBox.IsChecked = value;
+    }
+
     public bool TranscriptionEnabled
     {
         get => TranscriptionEnabledCheckBox.IsChecked == true;
@@ -293,7 +299,8 @@ public partial class SettingsWindow : Window
         try
         {
             var options = BuildTemporaryOptions();
-            var status = await Task.Run(() => _whisperTranscriptionService.CheckEnvironment(options));
+            var (status, cudaProbe) = await Task.Run(() =>
+                (_whisperTranscriptionService.CheckEnvironment(options), CudaRuntimeProbe.Check()));
             if (checkVersion != _environmentCheckVersion)
             {
                 return;
@@ -303,9 +310,14 @@ public partial class SettingsWindow : Window
             {
                 status.RuntimeMessage,
                 status.ModelMessage,
-                status.CudaMessage,
+                cudaProbe.Message,
                 status.DetailMessage
             };
+
+            if (TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !cudaProbe.Available)
+            {
+                lines.Add("CudaPreferred が選択されていますが、Whisper.net が実行時に必要とする CUDA Runtime を利用できません。CPU にフォールバックする可能性があります。");
+            }
 
             TranscriptionStatusTextBlock.Text = string.Join(Environment.NewLine, lines.Where(x => !string.IsNullOrWhiteSpace(x)));
 
@@ -315,7 +327,7 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            if (TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !status.CudaAvailable)
+            if (TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !cudaProbe.Available)
             {
                 TranscriptionStatusTextBlock.Foreground = StatusWarningBrush;
                 return;
