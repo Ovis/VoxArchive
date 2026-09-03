@@ -7,7 +7,7 @@ namespace VoxArchive.Wpf;
 /// <summary>
 /// 文字起こしエンジンへ渡す音声を、16kHz・モノラル・PCM16のWAVEへ正規化する
 /// </summary>
-internal sealed class TranscriptionAudioPreparationService
+public sealed class TranscriptionAudioPreparationService
 {
     private const float TranscriptionSafePeak = 0.98f;
 
@@ -104,7 +104,7 @@ internal sealed class TranscriptionAudioPreparationService
 /// <summary>
 /// 文字起こし用に正規化した一時音声ファイルのライフサイクルを管理する
 /// </summary>
-internal sealed class PreparedTranscriptionAudio(string waveFilePath) : IAsyncDisposable
+public sealed class PreparedTranscriptionAudio(string waveFilePath) : IAsyncDisposable
 {
     public string WaveFilePath { get; } = waveFilePath;
 
