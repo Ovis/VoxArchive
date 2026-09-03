@@ -8,7 +8,7 @@ namespace VoxArchive.Wpf;
 /// <summary>
 /// 文字起こし結果からTXT/SRT/VTT/JSONの既存出力を生成する
 /// </summary>
-internal sealed class TranscriptionExportService
+public sealed class TranscriptionExportService
 {
     private static readonly (TranscriptionOutputFormats Format, string Extension)[] OutputFormatMap =
     [
@@ -86,10 +86,7 @@ internal sealed class TranscriptionExportService
 
     private static string BuildJsonContent(IReadOnlyList<TranscribedSegment> segments)
     {
-        var payload = new
-        {
-            segments = segments.Select(x => new { start = x.Start.TotalSeconds, end = x.End.TotalSeconds, speaker = x.SpeakerLabel, text = x.Text })
-        };
+        var payload = new { segments = segments.Select(x => new { start = x.Start.TotalSeconds, end = x.End.TotalSeconds, speaker = x.SpeakerLabel, text = x.Text }) };
         return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
     }
 
