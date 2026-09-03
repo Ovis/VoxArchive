@@ -22,8 +22,17 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
         try
         {
             await using var stream = File.OpenRead(settingsPath);
-            var options = await JsonSerializer.DeserializeAsync<RecordingOptions>(stream, SerializerOptions, cancellationToken);
-            return options ?? new RecordingOptions();
+            var options = await JsonSerializer.DeserializeAsync<RecordingOptions>(stream, SerializerOptions, cancellationToken)
+                ?? new RecordingOptions();
+
+#pragma warning disable CS0618 // Migrate settings written before automatic multi-runtime selection.
+            if (options.TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred)
+            {
+                options = options with { TranscriptionExecutionMode = TranscriptionExecutionMode.Auto };
+            }
+#pragma warning restore CS0618
+
+            return options;
         }
         catch (JsonException)
         {
