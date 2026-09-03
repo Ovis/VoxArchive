@@ -163,13 +163,10 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
             Padding = new Thickness(10, 0, 10, 0),
             Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0xF4, 0xFC)),
             Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0)
+            BorderThickness = new Thickness(0),
+            Template = CreateExportPopupButtonTemplate()
         };
 
-        var normalBackground = Brushes.Transparent;
-        var hoverBackground = new SolidColorBrush(Color.FromRgb(0x2A, 0x3E, 0x58));
-        button.MouseEnter += (_, _) => button.Background = hoverBackground;
-        button.MouseLeave += (_, _) => button.Background = normalBackground;
         button.Click += async (_, _) =>
         {
             if (_exportPopup is not null)
@@ -179,6 +176,53 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
             await ExportAsync(formats);
         };
         return button;
+    }
+
+    /// <summary>
+    /// OSテーマのButtonホバー描画を使わず、出力Popup専用の暗色ホバーを適用するTemplateを生成する
+    /// </summary>
+    private static ControlTemplate CreateExportPopupButtonTemplate()
+    {
+        var template = new ControlTemplate(typeof(Button));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.Name = "Root";
+        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(3));
+
+        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+        presenter.SetValue(ContentPresenter.ContentProperty, new TemplateBindingExtension(ContentControl.ContentProperty));
+        presenter.SetValue(ContentPresenter.MarginProperty, new TemplateBindingExtension(Control.PaddingProperty));
+        presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+        presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        presenter.SetValue(TextElement.ForegroundProperty, new TemplateBindingExtension(Control.ForegroundProperty));
+        border.AppendChild(presenter);
+        template.VisualTree = border;
+
+        // 標準ButtonのMouseOverトリガーはWindowsテーマ色を使うため、背景が明るくなり白文字とのコントラストが失われる。
+        // 専用Template側で濃い青灰色へ固定し、通常時と同じ白系文字を維持する。
+        var hoverTrigger = new Trigger
+        {
+            Property = UIElement.IsMouseOverProperty,
+            Value = true
+        };
+        hoverTrigger.Setters.Add(new Setter(
+            Border.BackgroundProperty,
+            new SolidColorBrush(Color.FromRgb(0x2A, 0x3E, 0x58)),
+            "Root"));
+        template.Triggers.Add(hoverTrigger);
+
+        var pressedTrigger = new Trigger
+        {
+            Property = ButtonBase.IsPressedProperty,
+            Value = true
+        };
+        pressedTrigger.Setters.Add(new Setter(
+            Border.BackgroundProperty,
+            new SolidColorBrush(Color.FromRgb(0x21, 0x32, 0x49)),
+            "Root"));
+        template.Triggers.Add(pressedTrigger);
+
+        return template;
     }
 
     // 旧ContextMenuのXAMLイベント参照を残している間の互換ハンドラー。
