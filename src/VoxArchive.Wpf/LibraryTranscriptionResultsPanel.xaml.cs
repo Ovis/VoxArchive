@@ -20,34 +20,22 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
     private bool _selectionChangeInProgress;
     private Popup? _exportPopup;
 
-    /// <summary>
-    /// エディタで開く操作が要求されたときに発生する
-    /// </summary>
+    /// <summary>エディタで開く操作が要求されたときに発生する</summary>
     public event EventHandler? OpenInEditorRequested;
 
-    /// <summary>
-    /// 独立ウィンドウで開く操作が要求されたときに発生する
-    /// </summary>
+    /// <summary>独立ウィンドウで開く操作が要求されたときに発生する</summary>
     public event EventHandler? OpenDetachedRequested;
 
-    /// <summary>
-    /// パネル上部の見出しを表示するかどうかを取得または設定する
-    /// </summary>
+    /// <summary>パネル上部の見出しを表示するかどうかを取得または設定する</summary>
     public bool ShowHeader { get; set; } = true;
 
-    /// <summary>
-    /// パネル下部の操作ボタンを表示するかどうかを取得または設定する
-    /// </summary>
+    /// <summary>パネル下部の操作ボタンを表示するかどうかを取得または設定する</summary>
     public bool ShowActions { get; set; } = true;
 
-    /// <summary>
-    /// 本文表示領域の高さを取得または設定する
-    /// </summary>
+    /// <summary>本文表示領域の高さを取得または設定する</summary>
     public GridLength TranscriptHeight { get; set; } = new(180);
 
-    /// <summary>
-    /// 表示対象の文字起こし状態を取得または設定する
-    /// </summary>
+    /// <summary>表示対象の文字起こし状態を取得または設定する</summary>
     public LibraryTranscriptionResultsState? State
     {
         get => _state;
@@ -58,17 +46,13 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
         }
     }
 
-    /// <summary>
-    /// XAMLから生成するためのパネルを初期化する
-    /// </summary>
+    /// <summary>XAMLから生成するためのパネルを初期化する</summary>
     public LibraryTranscriptionResultsPanel()
     {
         InitializeComponent();
     }
 
-    /// <summary>
-    /// 指定された状態を表示するパネルを生成する
-    /// </summary>
+    /// <summary>指定された状態を表示するパネルを生成する</summary>
     public LibraryTranscriptionResultsPanel(LibraryTranscriptionResultsState state) : this()
     {
         State = state;
@@ -76,8 +60,7 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
 
     private async void OnResultSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_selectionChangeInProgress ||
-            _state is null ||
+        if (_selectionChangeInProgress || _state is null ||
             sender is not ComboBox { SelectedItem: LibraryTranscriptionResultItem selected })
         {
             return;
@@ -107,8 +90,7 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
             return;
         }
 
-        // ContextMenuはWindowsテーマ側の描画領域が残り、独自Templateを指定してもチェック列が露出する環境がある。
-        // 出力候補は固定かつ単純なので、OSテーマに依存しないPopupを明示的に構築して外観を完全に制御する。
+        // ContextMenuはWindowsテーマ側の描画領域が残るため、外観を制御できるPopupを使用する。
         _exportPopup ??= CreateExportPopup();
         _exportPopup.PlacementTarget = button;
         _exportPopup.IsOpen = true;
@@ -116,10 +98,7 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
 
     private Popup CreateExportPopup()
     {
-        var panel = new StackPanel
-        {
-            Width = 160
-        };
+        var panel = new StackPanel { Width = 160 };
         panel.Children.Add(CreateExportPopupButton("TXT", TranscriptionOutputFormats.Txt));
         panel.Children.Add(CreateExportPopupButton("SRT", TranscriptionOutputFormats.Srt));
         panel.Children.Add(CreateExportPopupButton("VTT", TranscriptionOutputFormats.Vtt));
@@ -133,23 +112,21 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
             "すべて出力",
             TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt | TranscriptionOutputFormats.Vtt));
 
-        var border = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x1B, 0x2A, 0x3C)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2F, 0x46, 0x64)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(4),
-            Child = panel
-        };
-
         return new Popup
         {
             AllowsTransparency = true,
             Placement = PlacementMode.Bottom,
             StaysOpen = false,
             PopupAnimation = PopupAnimation.Fade,
-            Child = border
+            Child = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x1B, 0x2A, 0x3C)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x2F, 0x46, 0x64)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(4),
+                Child = panel
+            }
         };
     }
 
@@ -158,23 +135,11 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
         var button = new Button
         {
             Content = label,
-            Height = 32,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(10, 0, 10, 0),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0xF4, 0xFC)),
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0)
+            Style = (Style)FindResource("TranscriptionExportPopupButtonStyle")
         };
 
-        // 標準ButtonのMouseOver描画はWindowsテーマ色を使うため、白文字とのコントラストが失われる。
-        // Popup内だけイベントで背景色を固定し、OSテーマに依存しない暗色ホバーを維持する。
-        var normalBackground = Brushes.Transparent;
-        var hoverBackground = new SolidColorBrush(Color.FromRgb(0x2A, 0x3E, 0x58));
-        var pressedBackground = new SolidColorBrush(Color.FromRgb(0x21, 0x32, 0x49));
-        button.MouseEnter += (_, _) => button.Background = hoverBackground;
-        button.MouseLeave += (_, _) => button.Background = normalBackground;
-        button.PreviewMouseLeftButtonDown += (_, _) => button.Background = pressedBackground;
-        button.PreviewMouseLeftButtonUp += (_, _) => button.Background = hoverBackground;
+        // 見た目はXAMLのControlTemplateへ集約し、コード側は出力操作だけを担当する。
+        // これによりOS標準ButtonのMouseOver描画に上書きされず、ビルド時の動的Template生成も不要になる。
         button.Click += async (_, _) =>
         {
             if (_exportPopup is not null)
@@ -185,20 +150,6 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
         };
         return button;
     }
-
-    // 旧ContextMenuのXAMLイベント参照を残している間の互換ハンドラー。
-    // 実際の表示はPopupへ移行しており、次回XAML整理時にContextMenu定義と合わせて削除できる。
-    private async void OnExportTxtClick(object sender, RoutedEventArgs e)
-        => await ExportAsync(TranscriptionOutputFormats.Txt);
-
-    private async void OnExportSrtClick(object sender, RoutedEventArgs e)
-        => await ExportAsync(TranscriptionOutputFormats.Srt);
-
-    private async void OnExportVttClick(object sender, RoutedEventArgs e)
-        => await ExportAsync(TranscriptionOutputFormats.Vtt);
-
-    private async void OnExportAllClick(object sender, RoutedEventArgs e)
-        => await ExportAsync(TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt | TranscriptionOutputFormats.Vtt);
 
     private async Task ExportAsync(TranscriptionOutputFormats formats)
     {
@@ -218,11 +169,7 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
         }
         catch (Exception ex)
         {
-            ModernDialog.Show(
-                $"文字起こし結果の出力に失敗しました。\n{ex.Message}",
-                "文字起こし出力エラー",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            ModernDialog.Show($"文字起こし結果の出力に失敗しました。\n{ex.Message}", "文字起こし出力エラー", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -250,11 +197,7 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
         }
         catch (Exception ex)
         {
-            ModernDialog.Show(
-                $"文字起こし結果を削除できませんでした。\n{ex.Message}",
-                "文字起こし削除エラー",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            ModernDialog.Show($"文字起こし結果を削除できませんでした。\n{ex.Message}", "文字起こし削除エラー", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }
