@@ -11,13 +11,8 @@
             <Setter Property="Background" Value="#1B2A3C" />
             <Setter Property="Padding" Value="8,5" />
             <Style.Triggers>
-                <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#243A55" />
-                </Trigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#2A5EBD" />
-                    <Setter Property="Foreground" Value="White" />
-                </Trigger>
+                <Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#243A55" /></Trigger>
+                <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#2A5EBD" /><Setter Property="Foreground" Value="White" /></Trigger>
             </Style.Triggers>
         </Style>
 
@@ -32,64 +27,25 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBox">
                         <Grid>
-                            <Border x:Name="ComboRoot"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6" />
+                            <Border x:Name="ComboRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" />
                             <Grid Margin="10,0,8,0" IsHitTestVisible="False">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="20" />
-                                </Grid.ColumnDefinitions>
-                                <!-- SelectionBoxItemを直接表示するとDisplayMemberPathが適用されず型名になるため、表示名を明示的に参照する。 -->
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource TemplatedParent}}"
-                                           Foreground="{DynamicResource TextPrimary}"
-                                           VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="1"
-                                           Text="▼"
-                                           FontSize="9"
-                                           Foreground="{DynamicResource TextPrimary}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="20" /></Grid.ColumnDefinitions>
+                                <!-- SelectionBoxItemを直接表示するとDisplayMemberPathが適用されず型名になるため表示名を明示する -->
+                                <TextBlock Grid.Column="0" Text="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource TemplatedParent}}" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="▼" FontSize="9" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
-                            <ToggleButton Focusable="False"
-                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                                          ClickMode="Press"
-                                          Background="Transparent"
-                                          BorderThickness="0"
-                                          Opacity="0">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border Background="Transparent" />
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
+                            <ToggleButton Focusable="False" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" ClickMode="Press" Background="Transparent" BorderThickness="0" Opacity="0">
+                                <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="Transparent" /></ControlTemplate></ToggleButton.Template>
                             </ToggleButton>
-                            <Popup Placement="Bottom"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   PopupAnimation="Fade">
-                                <Border Margin="0,4,0,0"
-                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                                        Background="#1B2A3C"
-                                        BorderBrush="#2F4664"
-                                        BorderThickness="1"
-                                        CornerRadius="6">
-                                    <ScrollViewer CanContentScroll="True" MaxHeight="260">
-                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
-                                    </ScrollViewer>
+                            <Popup Placement="Bottom" AllowsTransparency="True" Focusable="False" IsOpen="{TemplateBinding IsDropDownOpen}" PopupAnimation="Fade">
+                                <Border Margin="0,4,0,0" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" Background="#1B2A3C" BorderBrush="#2F4664" BorderThickness="1" CornerRadius="6">
+                                    <ScrollViewer CanContentScroll="True" MaxHeight="260"><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" /></ScrollViewer>
                                 </Border>
                             </Popup>
                         </Grid>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ComboRoot" Property="BorderBrush" Value="#3D5D84" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="ComboRoot" Property="Opacity" Value="0.55" />
-                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ComboRoot" Property="BorderBrush" Value="#3D5D84" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ComboRoot" Property="Opacity" Value="0.55" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -98,244 +54,63 @@
 
         <Style x:Key="TranscriptionScrollThumbStyle" TargetType="Thumb">
             <Setter Property="Background" Value="#35506E" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Thumb">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Margin="1" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4B6B92" />
-                </Trigger>
-                <Trigger Property="IsDragging" Value="True">
-                    <Setter Property="Background" Value="#5B84B5" />
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Thumb"><Border Background="{TemplateBinding Background}" CornerRadius="5" Margin="1" /></ControlTemplate></Setter.Value></Setter>
+            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#4B6B92" /></Trigger><Trigger Property="IsDragging" Value="True"><Setter Property="Background" Value="#5B84B5" /></Trigger></Style.Triggers>
         </Style>
-
         <Style x:Key="TranscriptionScrollButtonStyle" TargetType="RepeatButton">
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RepeatButton">
-                        <Border Background="{TemplateBinding Background}" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Focusable" Value="False" /><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="{TemplateBinding Background}" /></ControlTemplate></Setter.Value></Setter>
         </Style>
-
         <Style x:Key="TranscriptionScrollBarStyle" TargetType="ScrollBar">
-            <Setter Property="Width" Value="12" />
-            <Setter Property="Background" Value="#0E1724" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollBar">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
-                            <Track x:Name="PART_Track" IsDirectionReversed="True" Margin="1">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource TranscriptionScrollButtonStyle}" />
-                                </Track.DecreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Style="{StaticResource TranscriptionScrollThumbStyle}" />
-                                </Track.Thumb>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource TranscriptionScrollButtonStyle}" />
-                                </Track.IncreaseRepeatButton>
-                            </Track>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Width" Value="12" /><Setter Property="Background" Value="#0E1724" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Border Background="{TemplateBinding Background}" CornerRadius="6"><Track x:Name="PART_Track" IsDirectionReversed="True" Margin="1"><Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource TranscriptionScrollButtonStyle}" /></Track.DecreaseRepeatButton><Track.Thumb><Thumb Style="{StaticResource TranscriptionScrollThumbStyle}" /></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource TranscriptionScrollButtonStyle}" /></Track.IncreaseRepeatButton></Track></Border></ControlTemplate></Setter.Value></Setter>
         </Style>
-
         <Style x:Key="TranscriptionActionButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
-            <Setter Property="Background" Value="#1B2A3C" />
-            <Setter Property="BorderBrush" Value="#2F4664" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="12,6" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Base"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Margin="{TemplateBinding Padding}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Base" Property="Background" Value="#24364C" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" /><Setter Property="Background" Value="#1B2A3C" /><Setter Property="BorderBrush" Value="#2F4664" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="12,6" /><Setter Property="Height" Value="34" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Base" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Base" Property="Background" Value="#24364C" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
     </UserControl.Resources>
 
     <Grid Margin="0,14,10,0">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="8" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="8" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="8" />
-            <RowDefinition Height="{Binding TranscriptHeight, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-            <RowDefinition Height="8" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" /><RowDefinition Height="8" /><RowDefinition Height="Auto" /><RowDefinition Height="8" /><RowDefinition Height="Auto" /><RowDefinition Height="8" /><RowDefinition Height="{Binding TranscriptHeight, RelativeSource={RelativeSource AncestorType=UserControl}}" /><RowDefinition Height="8" /><RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0">
-            <TextBlock Text="文字起こし"
-                       Foreground="{DynamicResource TextPrimary}"
-                       FontWeight="SemiBold"
-                       FontSize="16">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ShowHeader, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
+            <TextBlock Text="文字起こし" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" FontSize="16">
+                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding ShowHeader, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
             </TextBlock>
-            <TextBlock Text="{Binding SummaryText}"
-                       Foreground="{DynamicResource TextMuted}"
-                       Margin="0,0,10,0"
-                       HorizontalAlignment="Right"
-                       DockPanel.Dock="Right" />
+            <TextBlock Text="{Binding SummaryText}" Foreground="{DynamicResource TextMuted}" Margin="0,0,10,0" HorizontalAlignment="Right" DockPanel.Dock="Right" />
         </DockPanel>
 
-        <ComboBox Grid.Row="2"
-                  ItemsSource="{Binding Results}"
-                  SelectedItem="{Binding SelectedResult, Mode=OneWay}"
-                  DisplayMemberPath="DisplayName"
-                  SelectionChanged="OnResultSelectionChanged"
-                  Style="{StaticResource TranscriptionComboBoxStyle}">
-            <ComboBox.Style>
-                <Style TargetType="ComboBox" BasedOn="{StaticResource TranscriptionComboBoxStyle}">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding Results.Count}" Value="0">
-                            <Setter Property="IsEnabled" Value="False" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ComboBox.Style>
+        <ComboBox Grid.Row="2" ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult, Mode=OneWay}" DisplayMemberPath="DisplayName" SelectionChanged="OnResultSelectionChanged">
+            <ComboBox.Style><Style TargetType="ComboBox" BasedOn="{StaticResource TranscriptionComboBoxStyle}"><Style.Triggers><DataTrigger Binding="{Binding Results.Count}" Value="0"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers></Style></ComboBox.Style>
         </ComboBox>
 
         <Grid Grid.Row="4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="74" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="エンジン" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,3" />
-            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedResult.EngineId}" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,3" />
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="モデル" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,3" />
-            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedResult.ModelId}" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,3" />
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="作成日時" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,0" />
-            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedResult.CreatedAt, StringFormat={}{0:yyyy/MM/dd HH:mm:ss}}" Foreground="{DynamicResource TextPrimary}" />
+            <Grid.ColumnDefinitions><ColumnDefinition Width="74" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="エンジン" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,3" /><TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedResult.EngineId}" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,3" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="モデル" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,3" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedResult.ModelId}" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,3" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="作成日時" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,0" /><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedResult.CreatedAt, StringFormat={}{0:yyyy/MM/dd HH:mm:ss}}" Foreground="{DynamicResource TextPrimary}" />
         </Grid>
 
-        <Border Grid.Row="6"
-                Background="{DynamicResource ControlBg}"
-                BorderBrush="{DynamicResource ControlBorder}"
-                BorderThickness="1"
-                CornerRadius="6"
-                Padding="8">
+        <Border Grid.Row="6" Background="{DynamicResource ControlBg}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="6" Padding="8">
             <Grid>
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <ScrollViewer.Resources>
-                        <Style TargetType="ScrollBar" BasedOn="{StaticResource TranscriptionScrollBarStyle}" />
-                    </ScrollViewer.Resources>
-                    <ItemsControl ItemsSource="{Binding SelectedDocument.Segments}"
-                                  Margin="0,0,10,0">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,0,0,7">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="66" />
-                                        <ColumnDefinition Width="58" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding Start, Converter={StaticResource TranscriptionTimeConverter}}"
-                                               Foreground="{DynamicResource TextMuted}"
-                                               FontSize="11"
-                                               VerticalAlignment="Top" />
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding Speaker}"
-                                               Foreground="{DynamicResource TextMuted}"
-                                               FontSize="11"
-                                               VerticalAlignment="Top" />
-                                    <TextBlock Grid.Column="2"
-                                               Text="{Binding Text}"
-                                               Foreground="{DynamicResource TextPrimary}"
-                                               TextWrapping="Wrap"
-                                               VerticalAlignment="Top" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource TranscriptionScrollBarStyle}" /></ScrollViewer.Resources>
+                    <ItemsControl ItemsSource="{Binding SelectedDocument.Segments}" Margin="0,0,10,0">
+                        <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,0,0,7"><Grid.ColumnDefinitions><ColumnDefinition Width="66" /><ColumnDefinition Width="58" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Grid.Column="0" Text="{Binding Start, Converter={StaticResource TranscriptionTimeConverter}}" Foreground="{DynamicResource TextMuted}" FontSize="11" VerticalAlignment="Top" /><TextBlock Grid.Column="1" Text="{Binding Speaker}" Foreground="{DynamicResource TextMuted}" FontSize="11" VerticalAlignment="Top" /><TextBlock Grid.Column="2" Text="{Binding Text}" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" VerticalAlignment="Top" /></Grid></DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-
-                <TextBlock Text="文字起こし結果はありません"
-                           Foreground="{DynamicResource TextMuted}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Results.Count}" Value="0">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <TextBlock Text="文字起こし結果はありません" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Results.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
             </Grid>
         </Border>
 
         <StackPanel Grid.Row="8" Orientation="Horizontal">
-            <StackPanel.Style>
-                <Style TargetType="StackPanel">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding ShowActions, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Results.Count}" Value="0">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </StackPanel.Style>
-            <Button Content="エディタで開く"
-                    Style="{StaticResource TranscriptionActionButtonStyle}"
-                    Margin="0,0,8,0"
-                    Click="OnOpenInEditorClick" />
-            <Button Content="新しいウィンドウで開く"
-                    Style="{StaticResource TranscriptionActionButtonStyle}"
-                    Click="OnOpenDetachedClick" />
+            <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding ShowActions, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding Results.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+            <Button Content="エディタで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,0" Click="OnOpenInEditorClick" />
+            <Button Content="新しいウィンドウで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Click="OnOpenDetachedClick" />
         </StackPanel>
     </Grid>
 </UserControl>
