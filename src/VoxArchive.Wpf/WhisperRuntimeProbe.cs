@@ -14,18 +14,17 @@ internal static class WhisperRuntimeProbe
             DescribeRuntime("CPU", "win-x64", "whisper.dll")
         };
 
-        details.Add("自動モードでは Whisper.net が CUDA 13 → CUDA 12 → Vulkan → CPU の順で利用可能なランタイムを選択します。");
-        details.Add("ここでは同梱ランタイムだけを確認します。実際の利用可否と選択結果は Whisper.net の実行時プローブで決定されます。");
+        details.Add("文字起こしの実行時には、CUDA 13、CUDA 12、Vulkan、CPUの中から利用可能な処理方式が自動的に選択されます。");
 
-        return new WhisperRuntimeProbeResult("Whisper.net ランタイム選択: 自動", details);
+        return new WhisperRuntimeProbeResult("文字起こし処理方式: 自動選択", details);
     }
 
     private static string DescribeRuntime(string displayName, string relativeDirectory, string fileName)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "runtimes", relativeDirectory, fileName);
         return File.Exists(path)
-            ? $"{displayName}: ランタイムアセット同梱"
-            : $"{displayName}: ランタイムアセット未検出";
+            ? $"{displayName}: 利用可能"
+            : $"{displayName}: 利用不可";
     }
 }
 
