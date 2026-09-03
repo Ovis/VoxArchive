@@ -85,6 +85,18 @@ public partial class LibraryWindow : System.Windows.Window
 
         detailGrid.Children.Remove(editContent);
 
+        // 編集欄と文字起こしパネルで右端の基準を揃える。
+        // 外側ScrollViewerのスクロールバー直前まで編集欄だけが伸びると視覚的に段差が出るため、
+        // 文字起こしパネルと同じ10pxの右余白を既存編集領域にも与える。
+        if (editContent is System.Windows.FrameworkElement editElement)
+        {
+            editElement.Margin = new System.Windows.Thickness(
+                editElement.Margin.Left,
+                editElement.Margin.Top,
+                10,
+                editElement.Margin.Bottom);
+        }
+
         var panel = new LibraryTranscriptionResultsPanel(TranscriptionResults);
         panel.OpenInEditorRequested += OnOpenTranscriptionInEditorRequested;
         panel.OpenDetachedRequested += OnOpenTranscriptionResultsWindowRequested;
