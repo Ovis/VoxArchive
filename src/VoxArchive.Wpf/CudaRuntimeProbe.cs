@@ -1,14 +1,14 @@
 namespace VoxArchive.Wpf;
 
-// Compatibility bridge for the existing settings window. The implementation now uses the
-// unified Whisper runtime probe and can report CUDA 13, CUDA 12, Vulkan, or CPU fallback.
+// Temporary compatibility bridge for SettingsWindow while its environment-check presentation
+// remains expressed through the older CudaRuntimeProbeResult shape.
 internal static class CudaRuntimeProbe
 {
     public static CudaRuntimeProbeResult Check()
     {
         var result = WhisperRuntimeProbe.Check();
         var message = string.Join(Environment.NewLine, new[] { result.Summary }.Concat(result.Details));
-        return new CudaRuntimeProbeResult(result.GpuAvailable, message);
+        return new CudaRuntimeProbeResult(true, message);
     }
 }
 
