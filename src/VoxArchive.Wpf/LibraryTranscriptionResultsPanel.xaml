@@ -30,7 +30,6 @@
                             <Border x:Name="ComboRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" />
                             <Grid Margin="10,0,8,0" IsHitTestVisible="False">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="20" /></Grid.ColumnDefinitions>
-                                <!-- SelectionBoxItemを直接表示するとDisplayMemberPathが適用されず型名になるため表示名を明示する -->
                                 <TextBlock Grid.Column="0" Text="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource TemplatedParent}}" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Text="▼" FontSize="9" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
@@ -74,50 +73,33 @@
             <Setter Property="BorderBrush" Value="#A03B47" />
         </Style>
 
-        <!-- WPF標準MenuItemはチェック領域やサブメニュー領域を常に確保するため、
-             単純な出力メニューでは不要な白い帯が表示される。専用Templateで本文だけの一列構成にする。 -->
-        <Style x:Key="TranscriptionContextMenuStyle" TargetType="ContextMenu">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
-            <Setter Property="Background" Value="#1B2A3C" />
-            <Setter Property="BorderBrush" Value="#2F4664" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="4" />
-            <Setter Property="MinWidth" Value="150" />
-        </Style>
-        <Style x:Key="TranscriptionMenuItemStyle" TargetType="MenuItem">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+        <!-- Popup内では標準ButtonテンプレートのOS依存MouseOver色を使わず、
+             ダークテーマ上で文字とのコントラストを維持できる色を明示する。 -->
+        <Style x:Key="TranscriptionExportPopupButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#EFF4FC" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="4"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter ContentSource="Header"
-                                              RecognizesAccessKey="True"
-                                              HorizontalAlignment="Left"
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
+                            <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Root" Property="Background" Value="#2A3E58" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
                             </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.45" />
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#213249" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="TranscriptionMenuSeparatorStyle" TargetType="Separator">
-            <Setter Property="Margin" Value="8,4" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Separator">
-                        <Border Height="1" Background="#3A4A60" />
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -164,18 +146,8 @@
             <WrapPanel.Style><Style TargetType="WrapPanel"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding ShowActions, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding Results.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></WrapPanel.Style>
             <Button Content="エディタで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnOpenInEditorClick" />
             <Button Content="新しいウィンドウで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnOpenDetachedClick" />
-            <Button Content="出力 ▼" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnExportButtonClick">
-                <Button.ContextMenu>
-                    <ContextMenu Style="{StaticResource TranscriptionContextMenuStyle}">
-                        <MenuItem Header="TXT" Style="{StaticResource TranscriptionMenuItemStyle}" Click="OnExportTxtClick" />
-                        <MenuItem Header="SRT" Style="{StaticResource TranscriptionMenuItemStyle}" Click="OnExportSrtClick" />
-                        <MenuItem Header="VTT" Style="{StaticResource TranscriptionMenuItemStyle}" Click="OnExportVttClick" />
-                        <Separator Style="{StaticResource TranscriptionMenuSeparatorStyle}" />
-                        <MenuItem Header="すべて出力" Style="{StaticResource TranscriptionMenuItemStyle}" Click="OnExportAllClick" />
-                    </ContextMenu>
-                </Button.ContextMenu>
-            </Button>
-            <Button Content="削除" Style="{StaticResource TranscriptionDangerButtonStyle}" Margin="0,0,0,8" Click="OnDeleteClick" />
+            <Button Content="出力 ▼" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnExportButtonClick" />
+            <Button Content="削除" Style="{StaticResource TranscriptionDangerButtonStyle}" Margin="0,0,8,8" Click="OnDeleteClick" />
         </WrapPanel>
     </Grid>
 </UserControl>
