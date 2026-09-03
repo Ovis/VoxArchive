@@ -1,6 +1,8 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -16,6 +18,7 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
 {
     private LibraryTranscriptionResultsState? _state;
     private bool _selectionChangeInProgress;
+    private Popup? _exportPopup;
 
     /// <summary>
     /// エディタで開く操作が要求されたときに発生する
@@ -99,15 +102,87 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
 
     private void OnExportButtonClick(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button button || button.ContextMenu is null)
+        if (sender is not Button button)
         {
             return;
         }
 
-        button.ContextMenu.PlacementTarget = button;
-        button.ContextMenu.IsOpen = true;
+        // ContextMenuはWindowsテーマ側の描画領域が残り、独自Templateを指定してもチェック列が露出する環境がある。
+        // 出力候補は固定かつ単純なので、OSテーマに依存しないPopupを明示的に構築して外観を完全に制御する。
+        _exportPopup ??= CreateExportPopup();
+        _exportPopup.PlacementTarget = button;
+        _exportPopup.IsOpen = true;
     }
 
+    private Popup CreateExportPopup()
+    {
+        var panel = new StackPanel
+        {
+            Width = 160
+        };
+        panel.Children.Add(CreateExportPopupButton("TXT", TranscriptionOutputFormats.Txt));
+        panel.Children.Add(CreateExportPopupButton("SRT", TranscriptionOutputFormats.Srt));
+        panel.Children.Add(CreateExportPopupButton("VTT", TranscriptionOutputFormats.Vtt));
+        panel.Children.Add(new Border
+        {
+            Height = 1,
+            Margin = new Thickness(8, 4, 8, 4),
+            Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x4A, 0x60))
+        });
+        panel.Children.Add(CreateExportPopupButton(
+            "すべて出力",
+            TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt | TranscriptionOutputFormats.Vtt));
+
+        var border = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1B, 0x2A, 0x3C)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2F, 0x46, 0x64)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(4),
+            Child = panel
+        };
+
+        return new Popup
+        {
+            AllowsTransparency = true,
+            Placement = PlacementMode.Bottom,
+            StaysOpen = false,
+            PopupAnimation = PopupAnimation.Fade,
+            Child = border
+        };
+    }
+
+    private Button CreateExportPopupButton(string label, TranscriptionOutputFormats formats)
+    {
+        var button = new Button
+        {
+            Content = label,
+            Height = 32,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(10, 0, 10, 0),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0xF4, 0xFC)),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0)
+        };
+
+        var normalBackground = Brushes.Transparent;
+        var hoverBackground = new SolidColorBrush(Color.FromRgb(0x2A, 0x3E, 0x58));
+        button.MouseEnter += (_, _) => button.Background = hoverBackground;
+        button.MouseLeave += (_, _) => button.Background = normalBackground;
+        button.Click += async (_, _) =>
+        {
+            if (_exportPopup is not null)
+            {
+                _exportPopup.IsOpen = false;
+            }
+            await ExportAsync(formats);
+        };
+        return button;
+    }
+
+    // 旧ContextMenuのXAMLイベント参照を残している間の互換ハンドラー。
+    // 実際の表示はPopupへ移行しており、次回XAML整理時にContextMenu定義と合わせて削除できる。
     private async void OnExportTxtClick(object sender, RoutedEventArgs e)
         => await ExportAsync(TranscriptionOutputFormats.Txt);
 
