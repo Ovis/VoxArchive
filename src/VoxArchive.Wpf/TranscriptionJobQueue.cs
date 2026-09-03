@@ -8,10 +8,13 @@ using Whisper.net.Logger;
 
 namespace VoxArchive.Wpf;
 
+/// <summary>
+/// 文字起こしジョブを逐次実行し、待機中・実行中の状態を管理する
+/// </summary>
 public sealed class TranscriptionJobQueue : IDisposable
 {
     private readonly Lock _stateGate = new();
-    private readonly WhisperTranscriptionService _transcriptionService;
+    private readonly TranscriptionOrchestrator _orchestrator;
     private readonly ILogger<TranscriptionJobQueue> _logger;
     private readonly Channel<TranscriptionJobRequest> _queue;
     private readonly CancellationTokenSource _cts;
@@ -20,9 +23,12 @@ public sealed class TranscriptionJobQueue : IDisposable
     private readonly ConcurrentDictionary<string, TranscriptionJobState> _jobStates = new(StringComparer.OrdinalIgnoreCase);
     private int _transcriptionDiagnosticsActive;
 
-    public TranscriptionJobQueue(WhisperTranscriptionService transcriptionService, ILogger<TranscriptionJobQueue> logger)
+    /// <summary>
+    /// Queueを初期化し、バックグラウンドの逐次実行Workerを開始する
+    /// </summary>
+    public TranscriptionJobQueue(TranscriptionOrchestrator orchestrator, ILogger<TranscriptionJobQueue> logger)
     {
-        _transcriptionService = transcriptionService;
+        _orchestrator = orchestrator;
         _logger = logger;
         _queue = Channel.CreateUnbounded<TranscriptionJobRequest>(new UnboundedChannelOptions
         {
@@ -32,7 +38,8 @@ public sealed class TranscriptionJobQueue : IDisposable
         _cts = new CancellationTokenSource();
 
         // Whisper.net のネイティブログは診断ログが有効な文字起こしジョブの実行中だけ取り込む。
-        // アプリ全体の最小ログレベルが Information のため、Whisper.net の Debug も Information として記録する。
+        // Engine抽象化後も既存の診断挙動を変えないため、このPRではログ購読をQueueに残す。
+        // ReazonSpeech追加前にエンジン固有のログブリッジへ移動する。
         _whisperLogSubscription = LogProvider.AddLogger((level, message) =>
         {
             if (Volatile.Read(ref _transcriptionDiagnosticsActive) == 0 || string.IsNullOrWhiteSpace(message))
@@ -166,7 +173,8 @@ public sealed class TranscriptionJobQueue : IDisposable
             TranscriptionJobResult result;
             try
             {
-                result = await _transcriptionService.TranscribeAsync(request, cancellationToken);
+                // QueueはASR実装を知らず、実行対象の選択と処理はOrchestratorへ委譲する。
+                result = await _orchestrator.TranscribeAsync(request, cancellationToken);
             }
             finally
             {
