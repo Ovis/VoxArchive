@@ -6,7 +6,6 @@
     <UserControl.Resources>
         <local:TranscriptionTimeConverter x:Key="TranscriptionTimeConverter" />
 
-        <!-- LibraryWindowのリソースは別Windowへ移すと継承されないため、結果パネル自身が必要な外観を持つ。 -->
         <Style x:Key="TranscriptionComboBoxItemStyle" TargetType="ComboBoxItem">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
             <Setter Property="Background" Value="#1B2A3C" />
@@ -28,7 +27,6 @@
             <Setter Property="BorderBrush" Value="#2F4664" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="10,0" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource TranscriptionComboBoxItemStyle}" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -44,9 +42,11 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="20" />
                                 </Grid.ColumnDefinitions>
-                                <ContentPresenter Grid.Column="0"
-                                                  Content="{TemplateBinding SelectionBoxItem}"
-                                                  VerticalAlignment="Center" />
+                                <!-- SelectionBoxItemを直接表示するとDisplayMemberPathが適用されず型名になるため、表示名を明示的に参照する。 -->
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Foreground="{DynamicResource TextPrimary}"
+                                           VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
                                            Text="▼"
                                            FontSize="9"
@@ -151,9 +151,38 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="TranscriptionActionButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="Background" Value="#1B2A3C" />
+            <Setter Property="BorderBrush" Value="#2F4664" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Base"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#24364C" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
-    <Grid Margin="0,14,8,0">
+    <Grid Margin="0,14,10,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="8" />
@@ -162,10 +191,15 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="8" />
             <RowDefinition Height="{Binding TranscriptHeight, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            <RowDefinition Height="8" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0">
-            <TextBlock Text="文字起こし" FontWeight="SemiBold" FontSize="16">
+            <TextBlock Text="文字起こし"
+                       Foreground="{DynamicResource TextPrimary}"
+                       FontWeight="SemiBold"
+                       FontSize="16">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Visible" />
@@ -179,7 +213,7 @@
             </TextBlock>
             <TextBlock Text="{Binding SummaryText}"
                        Foreground="{DynamicResource TextMuted}"
-                       Margin="0,0,8,0"
+                       Margin="0,0,10,0"
                        HorizontalAlignment="Right"
                        DockPanel.Dock="Right" />
         </DockPanel>
@@ -190,9 +224,15 @@
                   DisplayMemberPath="DisplayName"
                   SelectionChanged="OnResultSelectionChanged"
                   Style="{StaticResource TranscriptionComboBoxStyle}">
-            <ComboBox.IsEnabled>
-                <Binding Path="Results.Count" Converter="{x:Static local:LibraryTranscriptionResultsPanel.CountToEnabledConverter}" />
-            </ComboBox.IsEnabled>
+            <ComboBox.Style>
+                <Style TargetType="ComboBox" BasedOn="{StaticResource TranscriptionComboBoxStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Results.Count}" Value="0">
+                            <Setter Property="IsEnabled" Value="False" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ComboBox.Style>
         </ComboBox>
 
         <Grid Grid.Row="4">
@@ -227,7 +267,7 @@
                         <Style TargetType="ScrollBar" BasedOn="{StaticResource TranscriptionScrollBarStyle}" />
                     </ScrollViewer.Resources>
                     <ItemsControl ItemsSource="{Binding SelectedDocument.Segments}"
-                                  Margin="0,0,8,0">
+                                  Margin="0,0,10,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,0,0,7">
@@ -274,5 +314,28 @@
                 </TextBlock>
             </Grid>
         </Border>
+
+        <StackPanel Grid.Row="8" Orientation="Horizontal">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowActions, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Results.Count}" Value="0">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <Button Content="エディタで開く"
+                    Style="{StaticResource TranscriptionActionButtonStyle}"
+                    Margin="0,0,8,0"
+                    Click="OnOpenInEditorClick" />
+            <Button Content="新しいウィンドウで開く"
+                    Style="{StaticResource TranscriptionActionButtonStyle}"
+                    Click="OnOpenDetachedClick" />
+        </StackPanel>
     </Grid>
 </UserControl>
