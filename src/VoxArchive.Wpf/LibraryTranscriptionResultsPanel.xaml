@@ -146,6 +146,7 @@
             <WrapPanel.Style><Style TargetType="WrapPanel"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding ShowActions, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding Results.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></WrapPanel.Style>
             <Button Content="エディタで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnOpenInEditorClick" />
             <Button Content="新しいウィンドウで開く" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnOpenDetachedClick" />
+            <Button Content="再文字起こし" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnRetranscribeClick" />
             <Button Content="出力 ▼" Style="{StaticResource TranscriptionActionButtonStyle}" Margin="0,0,8,8" Click="OnExportButtonClick" />
             <Button Content="削除" Style="{StaticResource TranscriptionDangerButtonStyle}" Margin="0,0,8,8" Click="OnDeleteClick" />
         </WrapPanel>
