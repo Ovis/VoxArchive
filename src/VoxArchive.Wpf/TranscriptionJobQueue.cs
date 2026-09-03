@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Domain;
+using Whisper.net.Logger;
 
 namespace VoxArchive.Wpf;
 
@@ -14,6 +16,7 @@ public sealed class TranscriptionJobQueue : IDisposable
     private readonly Channel<TranscriptionJobRequest> _queue;
     private readonly CancellationTokenSource _cts;
     private readonly Task _workerTask;
+    private readonly IDisposable _whisperLogSubscription;
     private readonly ConcurrentDictionary<string, TranscriptionJobState> _jobStates = new(StringComparer.OrdinalIgnoreCase);
 
     public TranscriptionJobQueue(WhisperTranscriptionService transcriptionService, ILogger<TranscriptionJobQueue> logger)
@@ -26,6 +29,31 @@ public sealed class TranscriptionJobQueue : IDisposable
             SingleWriter = false
         });
         _cts = new CancellationTokenSource();
+
+        // Whisper.net のネイティブランタイム選択や CUDA 初期化結果を通常のアプリログへ取り込む。
+        // アプリ全体の最小ログレベルが Information のため、Whisper.net の Debug も Information として記録する。
+        _whisperLogSubscription = LogProvider.AddLogger((level, message) =>
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return;
+            }
+
+            var normalizedMessage = message.Trim();
+            switch (level)
+            {
+                case WhisperLogLevel.Error:
+                    _logger.LogError("Whisper.net native [{WhisperLevel}]: {Message}", level, normalizedMessage);
+                    break;
+                case WhisperLogLevel.Warning:
+                    _logger.LogWarning("Whisper.net native [{WhisperLevel}]: {Message}", level, normalizedMessage);
+                    break;
+                default:
+                    _logger.LogInformation("Whisper.net native [{WhisperLevel}]: {Message}", level, normalizedMessage);
+                    break;
+            }
+        });
+
         _workerTask = Task.Run(WorkerLoopAsync);
     }
 
@@ -39,16 +67,27 @@ public sealed class TranscriptionJobQueue : IDisposable
         {
             if (_jobStates.ContainsKey(key))
             {
+                _logger.LogInformation("Transcription job enqueue skipped because the file is already pending or running. File={File}", request.AudioFilePath);
                 return false;
             }
 
             if (!_queue.Writer.TryWrite(request))
             {
+                _logger.LogWarning("Transcription job enqueue failed because the queue writer rejected the request. File={File}", request.AudioFilePath);
                 return false;
             }
 
             _jobStates[key] = TranscriptionJobState.Pending;
         }
+
+        _logger.LogInformation(
+            "Transcription job queued. File={File}, Trigger={Trigger}, ExecutionMode={ExecutionMode}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}",
+            request.AudioFilePath,
+            request.Trigger,
+            request.Options.TranscriptionExecutionMode,
+            request.Options.TranscriptionModel,
+            request.Options.TranscriptionLanguage,
+            request.Options.TranscriptionOutputFormats);
 
         JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(request.AudioFilePath, TranscriptionJobState.Pending));
         return true;
@@ -88,21 +127,49 @@ public sealed class TranscriptionJobQueue : IDisposable
 
     private async Task<TranscriptionJobResult> ProcessAsync(TranscriptionJobRequest request, CancellationToken cancellationToken)
     {
+        var stopwatch = Stopwatch.StartNew();
+        var priority = request.Trigger == TranscriptionTrigger.AutoAfterRecord
+            ? request.Options.AutoTranscriptionPriority
+            : request.Options.ManualTranscriptionPriority;
+
+        _logger.LogInformation(
+            "Transcription job started. File={File}, Trigger={Trigger}, ExecutionMode={ExecutionMode}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}, Priority={Priority}",
+            request.AudioFilePath,
+            request.Trigger,
+            request.Options.TranscriptionExecutionMode,
+            request.Options.TranscriptionModel,
+            request.Options.TranscriptionLanguage,
+            request.Options.TranscriptionOutputFormats,
+            priority);
+
         try
         {
-            var priority = request.Trigger == TranscriptionTrigger.AutoAfterRecord
-                ? request.Options.AutoTranscriptionPriority
-                : request.Options.ManualTranscriptionPriority;
-
             if (priority == TranscriptionPriority.Low)
             {
                 await Task.Delay(300, cancellationToken);
             }
 
-            return await _transcriptionService.TranscribeAsync(request, cancellationToken);
+            var result = await _transcriptionService.TranscribeAsync(request, cancellationToken);
+            stopwatch.Stop();
+
+            _logger.LogInformation(
+                "Transcription job finished. File={File}, Succeeded={Succeeded}, ElapsedMs={ElapsedMs}, GeneratedFileCount={GeneratedFileCount}, Message={Message}",
+                request.AudioFilePath,
+                result.Succeeded,
+                stopwatch.ElapsedMilliseconds,
+                result.GeneratedFiles.Count,
+                result.Message);
+
+            return result;
         }
         catch (OperationCanceledException)
         {
+            stopwatch.Stop();
+            _logger.LogWarning(
+                "Transcription job canceled. File={File}, ElapsedMs={ElapsedMs}",
+                request.AudioFilePath,
+                stopwatch.ElapsedMilliseconds);
+
             return new TranscriptionJobResult(
                 Succeeded: false,
                 Message: "文字起こし処理がキャンセルされました。",
@@ -112,6 +179,13 @@ public sealed class TranscriptionJobQueue : IDisposable
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            _logger.LogError(
+                ex,
+                "Transcription job failed with an exception. File={File}, ElapsedMs={ElapsedMs}",
+                request.AudioFilePath,
+                stopwatch.ElapsedMilliseconds);
+
             return new TranscriptionJobResult(
                 Succeeded: false,
                 Message: $"文字起こし実行中に例外が発生しました: {ex.Message}",
@@ -163,7 +237,7 @@ public sealed class TranscriptionJobQueue : IDisposable
             }
         }, TaskScheduler.Default);
 
-
+        _whisperLogSubscription.Dispose();
         _cts.Dispose();
     }
 }
@@ -181,4 +255,3 @@ public enum TranscriptionJobState
 public sealed record TranscriptionJobStateSnapshot(string AudioFilePath, TranscriptionJobState State);
 
 public sealed record TranscriptionJobStateChangedEventArgs(string AudioFilePath, TranscriptionJobState? State);
-
