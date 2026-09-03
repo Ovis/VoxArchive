@@ -8,10 +8,10 @@ internal static class WhisperRuntimeProbe
     {
         var details = new List<string>
         {
-            DescribeRuntime("CUDA 13", "cuda", "ggml-cuda-whisper.dll"),
-            DescribeRuntime("CUDA 12", "cuda12", "ggml-cuda-whisper.dll"),
-            DescribeRuntime("Vulkan", "vulkan", "ggml-vulkan-whisper.dll"),
-            DescribeRuntime("CPU", "cpu", "whisper.dll")
+            DescribeRuntime("CUDA 13", Path.Combine("cuda", "win-x64"), "whisper.dll"),
+            DescribeRuntime("CUDA 12", Path.Combine("cuda12", "win-x64"), "whisper.dll"),
+            DescribeRuntime("Vulkan", Path.Combine("vulkan", "win-x64"), "whisper.dll"),
+            DescribeRuntime("CPU", "win-x64", "whisper.dll")
         };
 
         details.Add("自動モードでは Whisper.net が CUDA 13 → CUDA 12 → Vulkan → CPU の順で利用可能なランタイムを選択します。");
@@ -20,26 +20,12 @@ internal static class WhisperRuntimeProbe
         return new WhisperRuntimeProbeResult("Whisper.net ランタイム選択: 自動", details);
     }
 
-    private static string DescribeRuntime(string displayName, string directoryHint, string fileName)
+    private static string DescribeRuntime(string displayName, string relativeDirectory, string fileName)
     {
-        var runtimesRoot = Path.Combine(AppContext.BaseDirectory, "runtimes");
-        if (!Directory.Exists(runtimesRoot))
-        {
-            return $"{displayName}: ランタイムアセット未検出";
-        }
-
-        try
-        {
-            var found = Directory.EnumerateFiles(runtimesRoot, fileName, SearchOption.AllDirectories)
-                .FirstOrDefault(path => path.Contains(directoryHint, StringComparison.OrdinalIgnoreCase));
-            return found is null
-                ? $"{displayName}: ランタイムアセット未検出"
-                : $"{displayName}: ランタイムアセット同梱";
-        }
-        catch (Exception ex)
-        {
-            return $"{displayName}: 確認失敗 ({ex.Message})";
-        }
+        var path = Path.Combine(AppContext.BaseDirectory, "runtimes", relativeDirectory, fileName);
+        return File.Exists(path)
+            ? $"{displayName}: ランタイムアセット同梱"
+            : $"{displayName}: ランタイムアセット未検出";
     }
 }
 
