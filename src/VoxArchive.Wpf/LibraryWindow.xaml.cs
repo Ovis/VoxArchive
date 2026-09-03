@@ -38,11 +38,75 @@ public partial class LibraryWindow : System.Windows.Window
         try
         {
             await _transcriptionResultsCoordinator.InitializeAsync();
+            AttachTranscriptionResultsPanel();
         }
         catch
         {
             // Library本体は文字起こし結果が壊れていても利用できる必要があるため、起動失敗にはしない。
         }
+    }
+
+    /// <summary>
+    /// 既存の編集領域へ文字起こし結果パネルを追加する
+    /// </summary>
+    /// <remarks>
+    /// Libraryの既存DataContextや再生・編集Bindingを変更しないため、右ペインの編集領域だけを
+    /// ScrollViewerで包み、その末尾へ結果パネルを追加する。結果UIの導入によって既存操作領域が
+    /// ウィンドウ高を超えてもアクセス不能にならないようスクロール可能にする。
+    /// </remarks>
+    private void AttachTranscriptionResultsPanel()
+    {
+        var detailGrid = FindDetailGrid(this);
+        if (detailGrid is null)
+        {
+            return;
+        }
+
+        var editContent = detailGrid.Children
+            .OfType<System.Windows.UIElement>()
+            .FirstOrDefault(x => System.Windows.Controls.Grid.GetRow(x) == 9 && System.Windows.Controls.Grid.GetRowSpan(x) == 1);
+        if (editContent is null || editContent is System.Windows.Controls.ScrollViewer)
+        {
+            return;
+        }
+
+        detailGrid.Children.Remove(editContent);
+
+        var stack = new System.Windows.Controls.StackPanel();
+        stack.Children.Add(editContent);
+        stack.Children.Add(new LibraryTranscriptionResultsPanel(TranscriptionResults));
+
+        var scrollViewer = new System.Windows.Controls.ScrollViewer
+        {
+            Content = stack,
+            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled
+        };
+        System.Windows.Controls.Grid.SetRow(scrollViewer, 9);
+        detailGrid.Children.Add(scrollViewer);
+    }
+
+    private static System.Windows.Controls.Grid? FindDetailGrid(System.Windows.DependencyObject root)
+    {
+        var childCount = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is System.Windows.Controls.Grid grid &&
+                grid.RowDefinitions.Count == 10 &&
+                grid.Children.OfType<System.Windows.Controls.TextBlock>().Any(x => x.Text == "再生"))
+            {
+                return grid;
+            }
+
+            var nested = FindDetailGrid(child);
+            if (nested is not null)
+            {
+                return nested;
+            }
+        }
+
+        return null;
     }
 
     private void OnClosed(object? sender, EventArgs e)

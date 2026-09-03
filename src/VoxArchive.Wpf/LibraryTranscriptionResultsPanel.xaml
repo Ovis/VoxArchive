@@ -1,0 +1,114 @@
+<UserControl x:Class="VoxArchive.Wpf.LibraryTranscriptionResultsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinHeight="220">
+    <Grid Margin="0,14,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="8" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="8" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="8" />
+            <RowDefinition Height="180" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0">
+            <TextBlock Text="文字起こし" FontWeight="SemiBold" FontSize="16" />
+            <TextBlock Text="{Binding SummaryText}"
+                       Foreground="{DynamicResource TextMuted}"
+                       HorizontalAlignment="Right"
+                       DockPanel.Dock="Right" />
+        </DockPanel>
+
+        <ComboBox Grid.Row="2"
+                  ItemsSource="{Binding Results}"
+                  SelectedItem="{Binding SelectedResult, Mode=OneWay}"
+                  DisplayMemberPath="DisplayName"
+                  SelectionChanged="OnResultSelectionChanged">
+            <ComboBox.Style>
+                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Results.Count}" Value="0">
+                            <Setter Property="IsEnabled" Value="False" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ComboBox.Style>
+        </ComboBox>
+
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="74" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="エンジン" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,3" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedResult.EngineId}" Margin="0,0,0,3" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="モデル" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,3" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedResult.ModelId}" Margin="0,0,0,3" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="作成日時" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,0" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedResult.CreatedAt, StringFormat={}{0:yyyy/MM/dd HH:mm:ss}}" />
+        </Grid>
+
+        <Border Grid.Row="6"
+                Background="{DynamicResource ControlBg}"
+                BorderBrush="{DynamicResource ControlBorder}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="8">
+            <Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding SelectedDocument.Segments}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="56" />
+                                        <ColumnDefinition Width="52" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Start, StringFormat={}{0:F1}s}"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               FontSize="11"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Speaker}"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               FontSize="11"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Text}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Top" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <TextBlock Text="文字起こし結果はありません"
+                           Foreground="{DynamicResource TextMuted}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Results.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
