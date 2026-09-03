@@ -1,14 +1,16 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// ライブラリで文字起こし結果の一覧・メタデータ・本文を表示するパネル
+/// ライブラリで文字起こし結果の一覧・メタデータ・本文と結果操作を表示するパネル
 /// </summary>
 /// <remarks>
-/// 結果の発見と本文ロードは <see cref="LibraryTranscriptionResultsState"/> に委譲し、
-/// 本クラスは選択操作と表示先に依存しないUIイベントだけを担当する。
+/// 結果の発見・本文ロード・派生出力・正本削除は <see cref="LibraryTranscriptionResultsState"/> に委譲し、
+/// 本クラスは選択操作と確認ダイアログなどUI責務だけを持つ。
 /// </remarks>
 public partial class LibraryTranscriptionResultsPanel : UserControl
 {
@@ -94,4 +96,85 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
 
     private void OnOpenDetachedClick(object sender, RoutedEventArgs e)
         => OpenDetachedRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnExportButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.ContextMenu is null)
+        {
+            return;
+        }
+
+        button.ContextMenu.PlacementTarget = button;
+        button.ContextMenu.IsOpen = true;
+    }
+
+    private async void OnExportTxtClick(object sender, RoutedEventArgs e)
+        => await ExportAsync(TranscriptionOutputFormats.Txt);
+
+    private async void OnExportSrtClick(object sender, RoutedEventArgs e)
+        => await ExportAsync(TranscriptionOutputFormats.Srt);
+
+    private async void OnExportVttClick(object sender, RoutedEventArgs e)
+        => await ExportAsync(TranscriptionOutputFormats.Vtt);
+
+    private async void OnExportAllClick(object sender, RoutedEventArgs e)
+        => await ExportAsync(TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt | TranscriptionOutputFormats.Vtt);
+
+    private async Task ExportAsync(TranscriptionOutputFormats formats)
+    {
+        if (_state?.SelectedResult is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var generated = await _state.ExportSelectedAsync(formats);
+            ModernDialog.Show(
+                $"{generated.Count} 件の派生ファイルを出力しました。\n{string.Join(Environment.NewLine, generated.Select(Path.GetFileName))}",
+                "文字起こし出力",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            ModernDialog.Show(
+                $"文字起こし結果の出力に失敗しました。\n{ex.Message}",
+                "文字起こし出力エラー",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnDeleteClick(object sender, RoutedEventArgs e)
+    {
+        if (_state?.SelectedResult is not { } selected)
+        {
+            return;
+        }
+
+        var result = ModernDialog.Show(
+            $"選択中の文字起こし結果を削除します。\n{selected.DisplayName}\n\nTXT/SRT/VTTなどの派生ファイルは削除せず残します。",
+            "文字起こし結果の削除",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+        if (result != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            await _state.DeleteSelectedAsync();
+        }
+        catch (Exception ex)
+        {
+            ModernDialog.Show(
+                $"文字起こし結果を削除できませんでした。\n{ex.Message}",
+                "文字起こし削除エラー",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
 }
