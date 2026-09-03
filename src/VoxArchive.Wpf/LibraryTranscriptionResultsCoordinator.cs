@@ -69,16 +69,27 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
         var document = State.SelectedDocument
             ?? throw new InvalidOperationException("文字起こし結果を読み込めませんでした。");
 
+        var replaceConfirm = ModernDialog.Show(
+            $"{result.DisplayName} を再文字起こしします。\n成功した場合は現在の文字起こし結果を新しい結果で置き換えます。\n失敗またはキャンセルした場合は現在の結果を残します。",
+            "再文字起こし",
+            System.Windows.MessageBoxButton.OKCancel,
+            System.Windows.MessageBoxImage.Question,
+            System.Windows.MessageBoxResult.Cancel);
+        if (replaceConfirm != System.Windows.MessageBoxResult.OK)
+        {
+            return;
+        }
+
         var prepared = await _retranscriptionService.PrepareAsync(audioFilePath, document, result.IsLegacy);
         if (prepared.UsedCurrentSettingsFallback)
         {
-            var confirm = ModernDialog.Show(
+            var fallbackConfirm = ModernDialog.Show(
                 "この文字起こし結果には再実行に必要な設定の一部が保存されていません。\n不足分は現在のWhisper設定で補完して再文字起こしします。",
                 "再文字起こし",
                 System.Windows.MessageBoxButton.OKCancel,
                 System.Windows.MessageBoxImage.Warning,
                 System.Windows.MessageBoxResult.Cancel);
-            if (confirm != System.Windows.MessageBoxResult.OK)
+            if (fallbackConfirm != System.Windows.MessageBoxResult.OK)
             {
                 return;
             }
