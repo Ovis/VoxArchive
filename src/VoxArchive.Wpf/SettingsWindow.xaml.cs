@@ -29,7 +29,14 @@ public partial class SettingsWindow : Window
     }
 
     private SettingsWindow(WhisperModelStore whisperModelStore)
-        : this(whisperModelStore, new WhisperTranscriptionService(whisperModelStore))
+        : this(
+            whisperModelStore,
+            new WhisperTranscriptionService(
+                whisperModelStore,
+                new TranscriptionAudioPreparationService(),
+                new TranscriptionSpeechRegionDetector(),
+                new TranscriptionSpeakerLabelService(),
+                new TranscriptionExportService()))
     {
     }
 
