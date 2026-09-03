@@ -5,11 +5,22 @@ namespace VoxArchive.Wpf;
 /// </summary>
 public sealed class LibraryTranscriptionResultItem(TranscriptionResultMetadata metadata)
 {
+    /// <summary>正本JSONのパスを取得する</summary>
     public string DocumentPath => metadata.DocumentPath;
+
+    /// <summary>エンジンの安定IDを取得する</summary>
     public string EngineId => metadata.EngineId;
+
+    /// <summary>モデルの安定IDを取得する</summary>
     public string ModelId => metadata.ModelId;
+
+    /// <summary>結果の作成日時を取得する</summary>
     public DateTimeOffset CreatedAt => metadata.CreatedAt;
+
+    /// <summary>旧形式JSONから発見された結果かどうかを取得する</summary>
     public bool IsLegacy => metadata.IsLegacy;
+
+    /// <summary>結果セレクタで使用する表示名を取得する</summary>
     public string DisplayName => $"{FormatEngineName(EngineId)} / {FormatModelName(ModelId)}";
 
     private static string FormatEngineName(string engineId) => engineId switch
