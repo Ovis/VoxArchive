@@ -75,7 +75,6 @@
                     <Button x:Name="InstallButton" Content="モデル取得" Click="OnInstallClick" />
                     <Button x:Name="DeleteButton" Content="モデル削除" Click="OnDeleteClick" />
                     <Button x:Name="RefreshButton" Content="状態を再確認" Click="OnRefreshClick" />
-                    <Button x:Name="RecognitionTestButton" Content="認識テスト" Click="OnRecognitionTestClick" />
                 </WrapPanel>
 
                 <Border Grid.Row="5" Margin="0,12,0,0" Background="#0E1724" BorderBrush="#2D3E55" BorderThickness="1" CornerRadius="6" Padding="8,6">
