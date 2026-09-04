@@ -77,7 +77,14 @@ public partial class App : System.Windows.Application
                     // Whisper/ReazonSpeechの双方を同じアトミック配置・検証基盤へ接続する。
                     // HttpClientとInstallerはアプリケーション寿命で共有し、Windowを閉じても進行中取得の所有権を失わないようにする。
                     services.AddSingleton<HttpClient>();
-                    services.AddSingleton<TranscriptionModelPackageInstaller>();
+                    services.AddSingleton(sp =>
+                    {
+                        var installer = new TranscriptionModelPackageInstaller(sp.GetRequiredService<HttpClient>());
+                        var logger = sp.GetRequiredService<ILogger<TranscriptionModelPackageInstaller>>();
+                        installer.CleanupFailureHandler = (path, ex) =>
+                            logger.LogWarning(ex, "Failed to clean transcription model staging directory. Path={Path}", path);
+                        return installer;
+                    });
                     services.AddSingleton<WhisperModelStore>(sp => new WhisperModelStore(sp.GetRequiredService<TranscriptionModelPackageInstaller>()));
                     services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<WhisperModelStore>());
                     services.AddSingleton<ReazonSpeechModelProvider>(sp => new ReazonSpeechModelProvider(
