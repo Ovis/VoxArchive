@@ -90,6 +90,16 @@ public sealed class TranscriptionExportService
         return EnumerateRequestedOutputFormats(formats).Select(x => basePath + x.Extension).ToArray();
     }
 
+    /// <summary>
+    /// 現在のWhisper命名規則に従ったcanonical JSONのパスを返す
+    /// </summary>
+    /// <remarks>
+    /// TXT/SRT/VTTはユーザーが編集している可能性がある派生物であり、文字起こし結果の存在判定には使用しない。
+    /// 削除操作で正本JSONだけを削除した後も派生物を残せるよう、正本の判定を明示的に分離する。
+    /// </remarks>
+    public string BuildCanonicalDocumentPath(string audioFilePath, TranscriptionModel model)
+        => BuildOutputBasePath(audioFilePath, model) + ".json";
+
     private static IEnumerable<(TranscriptionOutputFormats Format, string Extension)> EnumerateRequestedOutputFormats(TranscriptionOutputFormats formats)
     {
         foreach (var item in OutputFormatMap) if (formats.HasFlag(item.Format)) yield return item;
