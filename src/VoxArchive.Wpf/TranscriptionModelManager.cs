@@ -15,18 +15,18 @@ public sealed class TranscriptionModelManager
 {
     private readonly Lock _gate = new();
     private readonly TranscriptionModelProviderResolver _providerResolver;
-    private readonly TranscriptionJobQueue _transcriptionQueue;
+    private readonly TranscriptionModelUsageTracker _usageTracker;
     private readonly ILogger<TranscriptionModelManager> _logger;
     private ActiveDownload? _activeDownload;
 
     /// <summary>モデル管理サービスを初期化する</summary>
     public TranscriptionModelManager(
         TranscriptionModelProviderResolver providerResolver,
-        TranscriptionJobQueue transcriptionQueue,
+        TranscriptionModelUsageTracker usageTracker,
         ILogger<TranscriptionModelManager> logger)
     {
         _providerResolver = providerResolver;
-        _transcriptionQueue = transcriptionQueue;
+        _usageTracker = usageTracker;
         _logger = logger;
     }
 
@@ -84,7 +84,7 @@ public sealed class TranscriptionModelManager
     /// <summary>指定したモデルが待機中または実行中の文字起こしJobに参照されているか確認する</summary>
     public bool IsModelProtected(TranscriptionEngineId engineId, TranscriptionModelId modelId)
     {
-        return _transcriptionQueue.IsModelInUse(engineId, modelId);
+        return _usageTracker.IsProtected(engineId, modelId);
     }
 
     /// <summary>現在実行中のモデル取得状態を取得する</summary>
@@ -99,10 +99,15 @@ public sealed class TranscriptionModelManager
     /// <summary>
     /// モデル取得へ参加する。同じモデルの取得中なら既存処理を共有し、別モデル取得中なら拒否する
     /// </summary>
+    /// <param name="engineId">取得対象Engine</param>
+    /// <param name="modelId">取得対象Model</param>
+    /// <param name="force">取得済みでも再取得する場合はtrue</param>
+    /// <param name="allowProtectedModel">実行待ちジョブ自身が必要モデルを準備する場合だけtrue。通常の管理操作ではfalseのままにする</param>
     public TranscriptionModelDownloadParticipation AcquireDownload(
         TranscriptionEngineId engineId,
         TranscriptionModelId modelId,
-        bool force)
+        bool force,
+        bool allowProtectedModel = false)
     {
         TranscriptionModelDownloadParticipation participation;
         lock (_gate)
@@ -123,7 +128,9 @@ public sealed class TranscriptionModelManager
             }
             else
             {
-                if (IsModelProtected(engineId, modelId))
+                // Queue投入済みモデルは通常の設定操作から変更できない。一方、未取得モデルで開始したジョブ自身が
+                // 実行前準備として取得する場合だけ、保護中でも取得開始を許可する。
+                if (!allowProtectedModel && IsModelProtected(engineId, modelId))
                 {
                     throw new InvalidOperationException("文字起こしで使用中のモデルは取得・再取得できません。");
                 }
@@ -178,6 +185,47 @@ public sealed class TranscriptionModelManager
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// 進行中のモデル取得をキャンセルし、取得処理が停止するまで待機する
+    /// </summary>
+    /// <remarks>
+    /// アプリ終了時にステージング領域のbest effortクリーンアップまで完了させるために使用する。
+    /// 取得処理自体が存在しない場合は何もしない。
+    /// </remarks>
+    public async Task CancelActiveDownloadAndWaitAsync()
+    {
+        Task<TranscriptionModelInstallation>? completion = null;
+        lock (_gate)
+        {
+            if (_activeDownload is null)
+            {
+                return;
+            }
+
+            completion = _activeDownload.Completion;
+            if (!_activeDownload.Cancellation.IsCancellationRequested)
+            {
+                _activeDownload.Cancellation.Cancel();
+                _activeDownload.IsCancelling = true;
+            }
+        }
+
+        RaiseStateChanged();
+        try
+        {
+            await completion;
+        }
+        catch (OperationCanceledException)
+        {
+            // 正常な終了シーケンスとして扱う
+        }
+        catch (Exception ex)
+        {
+            // 終了処理では取得失敗を理由にアプリを閉じられなくしない
+            _logger.LogWarning(ex, "Model download ended with an error while shutting down.");
+        }
     }
 
     /// <summary>指定モデルを削除する</summary>
