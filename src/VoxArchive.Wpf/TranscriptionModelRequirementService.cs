@@ -187,6 +187,9 @@ public sealed class TranscriptionModelRequirementService
 
         return app.Dispatcher.Invoke(() =>
         {
+            // キャンセル確認のOwnerはダウンロードWindow自身でなくてもよい。生成途中のWindowを
+            // ラムダから参照しないよう、現在アクティブな親Windowを先に確定して共有する。
+            var owner = app.Windows.OfType<Window>().FirstOrDefault(candidate => candidate.IsActive) ?? app.MainWindow;
             var window = new TranscriptionModelDownloadProgressWindow(
                 _modelManager,
                 request.EngineId,
@@ -204,7 +207,7 @@ public sealed class TranscriptionModelRequirementService
                     if (active is not null && active.WaiterCount > 0)
                     {
                         var confirmation = ModernDialog.Show(
-                            window,
+                            owner,
                             "このモデルの取得完了を待っている文字起こしがあります。\nモデル取得を中止すると、待機中の文字起こしも中止されます。",
                             "モデル取得の中止",
                             MessageBoxButton.OKCancel,
@@ -219,7 +222,7 @@ public sealed class TranscriptionModelRequirementService
                     _modelManager.CancelActiveDownload(request.EngineId, request.ModelId);
                 })
             {
-                Owner = app.Windows.OfType<Window>().FirstOrDefault(window => window.IsActive) ?? app.MainWindow
+                Owner = owner
             };
             window.Show();
             return window;
