@@ -16,7 +16,7 @@ public partial class SettingsWindow
     }
 
     /// <summary>
-    /// 各文字起こしタブの右罫線がTabPanelの配置境界で欠けないよう、テンプレート内に描画余白を確保する
+    /// 各文字起こしタブの右罫線がTabPanelの配置境界で欠けないよう、右罫線を1px内側にも描画する
     /// </summary>
     private void EnsureTranscriptionTabBordersVisible()
     {
@@ -28,9 +28,11 @@ public partial class SettingsWindow
                 continue;
             }
 
-            // TabPanelはヘッダーを隣接配置する際、テンプレート最右端の1pxを描画境界でクリップすることがある。
-            // タブ間の既存Marginは変えず、Border自身の右側に1pxだけ余白を設けて右罫線を内側へ収める。
-            tabRoot.Margin = new Thickness(0, 0, 1, 0);
+            // TabPanel側でテンプレート最右端の1pxが欠けても内側の1pxが残るよう、
+            // 右辺だけ2pxで描画する。外形やタブ間隔を動かさないためMarginでは補正しない。
+            tabRoot.BorderThickness = new Thickness(1, 1, 2, 1);
+            tabRoot.SnapsToDevicePixels = true;
+            tabRoot.UseLayoutRounding = true;
         }
     }
 }
