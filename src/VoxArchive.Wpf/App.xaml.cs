@@ -85,6 +85,9 @@ public partial class App : System.Windows.Application
                         ReazonSpeechModelCatalog.All));
                     services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<ReazonSpeechModelProvider>());
                     services.AddSingleton<TranscriptionModelProviderResolver>();
+                    services.AddSingleton<TranscriptionModelUsageTracker>();
+                    services.AddSingleton<TranscriptionModelManager>();
+                    services.AddSingleton<TranscriptionModelRequirementService>();
 
                     // 文字起こしエンジン固有処理から共通処理を分離し、後続の複数エンジン対応でも同じ実装を共有する。
                     services.AddSingleton<TranscriptionAudioPreparationService>();
@@ -96,13 +99,12 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<WhisperTranscriptionService>();
 
                     // QueueはEngine IDだけをResolverへ渡し、Whisper/ReazonSpeech固有実装を直接参照しない。
-                    // 両Engineとも同じ音声準備・VAD・話者ラベル・canonical document基盤を利用する。
+                    // 実行前のモデル保証も共通サービスへ委譲し、手動/自動の双方で同じ検証規則を適用する。
                     services.AddSingleton<WhisperTranscriptionEngine>();
                     services.AddSingleton<ReazonSpeechTranscriptionEngine>();
                     services.AddSingleton<ITranscriptionEngineResolver, TranscriptionEngineResolver>();
                     services.AddSingleton<TranscriptionOrchestrator>();
                     services.AddSingleton<TranscriptionJobQueue>();
-                    services.AddSingleton<TranscriptionModelManager>();
                     services.AddTransient<IRecordingPlaybackService, RecordingPlaybackService>();
                     services.AddTransient<MainWindow>();
                 })
@@ -167,6 +169,17 @@ public partial class App : System.Windows.Application
     {
         if (_host is not null)
         {
+            try
+            {
+                // 正常終了経路ではモデル取得を途中で強制終了せず、CancellationTokenが伝播して
+                // Atomic Installerのstaging掃除が完了するところまで待つ。掃除失敗はInstaller側でbest effortとして扱う。
+                _host.Services.GetService<TranscriptionModelManager>()?.CancelActiveDownloadAndWaitAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Model download cancellation threw during shutdown.");
+            }
+
             try { _host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult(); }
             catch (Exception ex)
             {
