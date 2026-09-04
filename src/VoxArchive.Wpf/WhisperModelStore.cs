@@ -5,11 +5,11 @@ using VoxArchive.Domain;
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// Whisperモデルの既存配置規則を維持しながら、共通モデルProvider境界を提供する
+/// Whisperモデルの配置と取得を管理し、共通モデルProvider境界を提供する
 /// </summary>
 /// <remarks>
-/// 既存ユーザーのダウンロード済みモデルをそのまま利用するため、この段階では保存先を
-/// <c>%LOCALAPPDATA%\VoxArchive\whisper\models</c> から移動しない。
+/// モデルはEngineを問わず <c>%LOCALAPPDATA%\VoxArchive\models</c> 配下へ集約する。
+/// 旧 <c>whisper\models</c> 配置は互換対象とせず、新しい配置だけを認識する。
 /// </remarks>
 public sealed class WhisperModelStore : ITranscriptionModelProvider
 {
@@ -19,11 +19,11 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
     private readonly HashSet<TranscriptionModel> _downloadingModels = [];
 
     /// <summary>Whisperモデルストアを初期化する</summary>
-    /// <param name="modelsDirectory">テスト等で既定保存先を上書きする場合のディレクトリ</param>
+    /// <param name="modelsDirectory">テスト等で既定保存先を上書きする場合のWhisperモデルディレクトリ</param>
     public WhisperModelStore(string? modelsDirectory = null)
     {
         _modelsDirectory = string.IsNullOrWhiteSpace(modelsDirectory)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive", "whisper", "models")
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive", "models", TranscriptionEngineId.Whisper.Value)
             : modelsDirectory;
         Directory.CreateDirectory(_modelsDirectory);
     }
@@ -39,13 +39,13 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
     /// <inheritdoc />
     public TranscriptionEngineId EngineId => TranscriptionEngineId.Whisper;
 
-    /// <summary>既存Whisperモデルの保存先を取得する</summary>
+    /// <summary>Whisperモデルの保存先を取得する</summary>
     public string ModelsDirectory => _modelsDirectory;
 
     /// <summary>指定したWhisperモデルの物理パスを取得する</summary>
     public string GetModelPath(TranscriptionModel model)
     {
-        return Path.Combine(_modelsDirectory, GetModelFileName(model));
+        return Path.Combine(_modelsDirectory, model.ToString().ToLowerInvariant().Replace("largev3", "large-v3"), GetModelFileName(model));
     }
 
     /// <summary>指定したWhisperモデルが配置済みか確認する</summary>
@@ -78,10 +78,10 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
             throw new InvalidOperationException("ダウンロード中のモデルは削除できません。");
         }
 
-        var path = GetModelPath(model);
-        if (File.Exists(path))
+        var directory = Path.GetDirectoryName(GetModelPath(model));
+        if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
         {
-            File.Delete(path);
+            Directory.Delete(directory, recursive: true);
         }
 
         return Task.CompletedTask;
@@ -94,12 +94,13 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
     }
 
     /// <summary>
-    /// 指定したWhisperモデルを既存保存先へダウンロードする
+    /// 指定したWhisperモデルを新しいEngine/Model階層へダウンロードする
     /// </summary>
     public async Task<string> DownloadAsync(TranscriptionModel model, CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(_modelsDirectory);
         var destinationPath = GetModelPath(model);
+        var modelDirectory = Path.GetDirectoryName(destinationPath)!;
+        Directory.CreateDirectory(modelDirectory);
         if (File.Exists(destinationPath))
         {
             return destinationPath;
@@ -107,8 +108,8 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
 
         lock (_downloadStateLock)
         {
-            // 同じStoreを利用する別の設定Windowから二重取得されると、先行処理が保持している一時ファイルを
-            // 後続処理が削除しようとしてIOExceptionになるため、物理ファイルを触る前に排他する。
+            // 同じStoreを利用する別の画面から二重取得されると一時ファイルを競合して操作するため、
+            // 物理ファイルへ触る前にモデル単位で排他する。
             if (!_downloadingModels.Add(model))
             {
                 throw new InvalidOperationException("このモデルは現在ダウンロード中です。");
@@ -140,7 +141,7 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
         }
         catch
         {
-            // 中断したファイルを配置済みモデルと誤認しないよう、一時ファイルは失敗時に必ず除去する。
+            // 中断したファイルを配置済みモデルと誤認しないよう、一時ファイルは失敗時に除去する。
             if (File.Exists(tmpPath))
             {
                 File.Delete(tmpPath);
@@ -160,9 +161,7 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
     }
 
     /// <inheritdoc />
-    public async Task<TranscriptionModelInstallation> InstallAsync(
-        TranscriptionModelId modelId,
-        CancellationToken cancellationToken = default)
+    public async Task<TranscriptionModelInstallation> InstallAsync(TranscriptionModelId modelId, CancellationToken cancellationToken = default)
     {
         var model = ParseModelId(modelId);
         var path = await DownloadAsync(model, cancellationToken);
