@@ -15,6 +15,8 @@ public sealed class TranscriptionJobQueue : IDisposable
 {
     private readonly Lock _stateGate = new();
     private readonly TranscriptionOrchestrator _orchestrator;
+    private readonly TranscriptionModelRequirementService _modelRequirementService;
+    private readonly TranscriptionModelUsageTracker _modelUsageTracker;
     private readonly ILogger<TranscriptionJobQueue> _logger;
     private readonly Channel<TranscriptionJobRequest> _queue;
     private readonly CancellationTokenSource _cts;
@@ -27,9 +29,15 @@ public sealed class TranscriptionJobQueue : IDisposable
     /// <summary>
     /// Queueを初期化し、バックグラウンドの逐次実行Workerを開始する
     /// </summary>
-    public TranscriptionJobQueue(TranscriptionOrchestrator orchestrator, ILogger<TranscriptionJobQueue> logger)
+    public TranscriptionJobQueue(
+        TranscriptionOrchestrator orchestrator,
+        TranscriptionModelRequirementService modelRequirementService,
+        TranscriptionModelUsageTracker modelUsageTracker,
+        ILogger<TranscriptionJobQueue> logger)
     {
         _orchestrator = orchestrator;
+        _modelRequirementService = modelRequirementService;
+        _modelUsageTracker = modelUsageTracker;
         _logger = logger;
         _queue = Channel.CreateUnbounded<TranscriptionJobRequest>(new UnboundedChannelOptions
         {
@@ -87,14 +95,16 @@ public sealed class TranscriptionJobQueue : IDisposable
                 return false;
             }
 
-            // モデル削除・再取得の保護はQueue投入直後から必要なので、Channelへ公開する前にRequest snapshotを登録する。
-            // Workerが即座に取り出して完了しても使用中情報だけが残らないよう、書き込み失敗時は同じlock内で巻き戻す。
+            // モデル削除・再取得の保護はQueue投入直後から必要なので、Channelへ公開する前に参照数を増やす。
+            // Writerが拒否した場合は同じlock内で必ず巻き戻し、保護状態だけが残らないようにする。
             _jobStates[key] = TranscriptionJobState.Pending;
             _jobRequests[key] = request;
+            _modelUsageTracker.Acquire(request.EngineId, request.ModelId);
             if (!_queue.Writer.TryWrite(request))
             {
                 _jobStates.TryRemove(key, out _);
                 _jobRequests.TryRemove(key, out _);
+                _modelUsageTracker.Release(request.EngineId, request.ModelId);
                 _logger.LogWarning("Transcription job enqueue failed because the queue writer rejected the request. File={File}", request.AudioFilePath);
                 return false;
             }
@@ -129,7 +139,7 @@ public sealed class TranscriptionJobQueue : IDisposable
     /// </summary>
     public bool IsModelInUse(TranscriptionEngineId engineId, TranscriptionModelId modelId)
     {
-        return GetModelUsageCount(engineId, modelId) > 0;
+        return _modelUsageTracker.IsProtected(engineId, modelId);
     }
 
     /// <summary>
@@ -137,7 +147,7 @@ public sealed class TranscriptionJobQueue : IDisposable
     /// </summary>
     public int GetModelUsageCount(TranscriptionEngineId engineId, TranscriptionModelId modelId)
     {
-        return _jobRequests.Values.Count(request => request.EngineId == engineId && request.ModelId == modelId);
+        return _modelUsageTracker.GetUsageCount(engineId, modelId);
     }
 
     private async Task WorkerLoopAsync()
@@ -191,6 +201,20 @@ public sealed class TranscriptionJobQueue : IDisposable
             if (priority == TranscriptionPriority.Low)
             {
                 await Task.Delay(300, cancellationToken);
+            }
+
+            // モデル確認はASR Engineへ渡す直前に行う。Settingsの軽量確認とは異なり、
+            // ここでは必須ファイルの存在と期待サイズを確認し、破損・途中配置をEngineへ渡さない。
+            var modelRequirement = await _modelRequirementService.EnsureReadyAsync(request, cancellationToken);
+            if (!modelRequirement.Ready)
+            {
+                stopwatch.Stop();
+                return new TranscriptionJobResult(
+                    Succeeded: false,
+                    Message: modelRequirement.Message,
+                    GeneratedFiles: Array.Empty<string>(),
+                    StartedAt: DateTimeOffset.Now,
+                    FinishedAt: DateTimeOffset.Now);
             }
 
             Interlocked.Exchange(ref _transcriptionDiagnosticsActive, diagnosticsEnabled ? 1 : 0);
@@ -268,7 +292,10 @@ public sealed class TranscriptionJobQueue : IDisposable
     {
         var key = NormalizePathKey(audioFilePath);
         _jobStates.TryRemove(key, out _);
-        _jobRequests.TryRemove(key, out _);
+        if (_jobRequests.TryRemove(key, out var request))
+        {
+            _modelUsageTracker.Release(request.EngineId, request.ModelId);
+        }
         JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(audioFilePath, null));
     }
 
@@ -290,6 +317,17 @@ public sealed class TranscriptionJobQueue : IDisposable
         if (!_cts.IsCancellationRequested)
         {
             _cts.Cancel();
+        }
+
+        // Workerが終了前に未処理ジョブを残した場合でも、モデル保護参照だけが残らないように解放する。
+        lock (_stateGate)
+        {
+            foreach (var request in _jobRequests.Values)
+            {
+                _modelUsageTracker.Release(request.EngineId, request.ModelId);
+            }
+            _jobRequests.Clear();
+            _jobStates.Clear();
         }
 
         _ = _workerTask.ContinueWith(task =>
