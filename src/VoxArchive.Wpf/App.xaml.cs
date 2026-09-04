@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -74,8 +75,16 @@ public partial class App : System.Windows.Application
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
                     services.AddSingleton<WhisperModelStore>();
                     // Concrete型を既存Whisper UI/Service向けに残しつつ、同じSingletonを共通Providerとして公開する。
-                    // ReazonSpeech追加時はITranscriptionModelProviderを追加登録するだけでResolverから選択できる。
                     services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<WhisperModelStore>());
+
+                    // ReazonSpeechは複数ファイルモデルなので、共通Installerをアプリケーション寿命のHttpClientと共有する。
+                    // Providerを同じITranscriptionModelProvider列へ登録し、呼び出し側はEngineIdだけで解決できる状態にする。
+                    services.AddSingleton<HttpClient>();
+                    services.AddSingleton<TranscriptionModelPackageInstaller>();
+                    services.AddSingleton<ReazonSpeechModelProvider>(sp => new ReazonSpeechModelProvider(
+                        sp.GetRequiredService<TranscriptionModelPackageInstaller>(),
+                        ReazonSpeechModelCatalog.All));
+                    services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<ReazonSpeechModelProvider>());
                     services.AddSingleton<TranscriptionModelProviderResolver>();
                     // 文字起こしエンジン固有処理から共通処理を分離し、後続の複数エンジン対応でも同じ実装を共有する。
                     services.AddSingleton<TranscriptionAudioPreparationService>();
@@ -87,7 +96,7 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<WhisperTranscriptionService>();
 
                     // QueueからWhisperへの直接依存を外し、エンジン選択をResolver/Orchestratorへ集約する。
-                    // 現在はWhisperだけを登録し、認識挙動を変えずに後続のReazonSpeech追加点を用意する。
+                    // 現在は認識EngineとしてWhisperだけを登録し、ReazonSpeechの認識処理は後続PRで追加する。
                     services.AddSingleton<WhisperTranscriptionEngine>();
                     services.AddSingleton<ITranscriptionEngineResolver, TranscriptionEngineResolver>();
                     services.AddSingleton<TranscriptionOrchestrator>();
