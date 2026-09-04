@@ -1,24 +1,31 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// 設定Window内の文字起こしタブについて、WPFのTabPanel描画に起因する罫線欠けを補正する
+/// 設定Window内の文字起こしタブについて、ヘッダー部分だけにHover表現を適用し、右罫線を確実に描画する
 /// </summary>
 public partial class SettingsWindow
 {
+    private static readonly Brush TranscriptionTabNormalBackground = CreateFrozenBrush("#10161F");
+    private static readonly Brush TranscriptionTabHoverBackground = CreateFrozenBrush("#172437");
+    private static readonly Brush TranscriptionTabSelectedBackground = CreateFrozenBrush("#1A2B40");
+    private static readonly Brush TranscriptionTabNormalBorder = CreateFrozenBrush("#283242");
+    private static readonly Brush TranscriptionTabSelectedBorder = CreateFrozenBrush("#3D5D84");
+
     /// <inheritdoc />
     protected override void OnContentRendered(EventArgs e)
     {
         base.OnContentRendered(e);
-        EnsureTranscriptionTabBordersVisible();
+        InitializeTranscriptionTabVisuals();
     }
 
     /// <summary>
-    /// 各文字起こしタブの右罫線がTabPanelの配置境界で欠けないよう、右罫線を1px内側にも描画する
+    /// TabItem全体のIsMouseOverに依存せず、実際のヘッダーBorderだけを対象にHoverと右罫線を構成する
     /// </summary>
-    private void EnsureTranscriptionTabBordersVisible()
+    private void InitializeTranscriptionTabVisuals()
     {
         foreach (var tabItem in TranscriptionTabControl.Items.OfType<TabItem>())
         {
@@ -28,11 +35,71 @@ public partial class SettingsWindow
                 continue;
             }
 
-            // TabPanel側でテンプレート最右端の1pxが欠けても内側の1pxが残るよう、
-            // 右辺だけ2pxで描画する。外形やタブ間隔を動かさないためMarginでは補正しない。
-            tabRoot.BorderThickness = new Thickness(1, 1, 2, 1);
-            tabRoot.SnapsToDevicePixels = true;
-            tabRoot.UseLayoutRounding = true;
+            // TabItem.IsMouseOverは選択中コンテンツ配下までtrueになるため、XAML側のTriggerだけでは
+            // 本文上へマウスを置いた際にもヘッダー色が変化する。Borderへローカル値を設定し、
+            // ヘッダー自身のMouseEnter/LeaveだけでHover状態を制御する。
+            var rightEdge = EnsureRightEdge(tabRoot);
+            ApplyTabVisual(tabItem, tabRoot, rightEdge, isHeaderHovered: false);
+
+            tabRoot.MouseEnter += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, isHeaderHovered: true);
+            tabRoot.MouseLeave += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, isHeaderHovered: false);
+            tabItem.Selected += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, tabRoot.IsMouseOver);
+            tabItem.Unselected += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, tabRoot.IsMouseOver);
         }
+    }
+
+    /// <summary>
+    /// TabPanel境界で外周Borderの右辺が欠けても見えるよう、ヘッダー内部へ独立した1px罫線を追加する
+    /// </summary>
+    private static Border EnsureRightEdge(Border tabRoot)
+    {
+        if (tabRoot.Child is Grid existingGrid
+            && existingGrid.Children.OfType<Border>().FirstOrDefault(child => Equals(child.Tag, "TranscriptionTabRightEdge")) is { } existingEdge)
+        {
+            return existingEdge;
+        }
+
+        var originalChild = tabRoot.Child;
+        var container = new Grid();
+        tabRoot.Child = container;
+        if (originalChild is not null)
+        {
+            container.Children.Add(originalChild);
+        }
+
+        var rightEdge = new Border
+        {
+            Tag = "TranscriptionTabRightEdge",
+            Width = 1,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            IsHitTestVisible = false,
+            SnapsToDevicePixels = true
+        };
+        container.Children.Add(rightEdge);
+        return rightEdge;
+    }
+
+    /// <summary>
+    /// 選択状態とヘッダーHover状態から、背景色と右罫線色を同期する
+    /// </summary>
+    private static void ApplyTabVisual(TabItem tabItem, Border tabRoot, Border rightEdge, bool isHeaderHovered)
+    {
+        tabRoot.Background = isHeaderHovered
+            ? TranscriptionTabHoverBackground
+            : tabItem.IsSelected
+                ? TranscriptionTabSelectedBackground
+                : TranscriptionTabNormalBackground;
+
+        rightEdge.Background = tabItem.IsSelected
+            ? TranscriptionTabSelectedBorder
+            : TranscriptionTabNormalBorder;
+    }
+
+    private static Brush CreateFrozenBrush(string color)
+    {
+        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+        brush.Freeze();
+        return brush;
     }
 }
