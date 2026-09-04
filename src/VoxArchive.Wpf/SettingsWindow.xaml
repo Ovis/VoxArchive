@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:domain="clr-namespace:VoxArchive.Domain;assembly=VoxArchive.Domain"
+        xmlns:local="clr-namespace:VoxArchive.Wpf"
         Title="設定"
         Width="780"
         Height="700"
@@ -49,7 +50,6 @@
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
                     <Setter Property="Background" Value="#243A55" />
-                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="#2A5EBD" />
@@ -77,40 +77,24 @@
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="6" />
-                            <Grid Margin="10,0,10,0" IsHitTestVisible="False">
+                            <Grid Margin="10,0" IsHitTestVisible="False">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="18" />
                                 </Grid.ColumnDefinitions>
-                                <ContentPresenter Grid.Column="0"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
+                                <ContentPresenter VerticalAlignment="Center"
                                                   Content="{TemplateBinding SelectionBoxItem}"
-                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                  ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="▼"
-                                           FontSize="10"
-                                           Foreground="{TemplateBinding Foreground}"
-                                           VerticalAlignment="Center" />
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
+                                <TextBlock Grid.Column="1" Text="▼" FontSize="10" Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center" />
                             </Grid>
                             <ToggleButton Focusable="False"
                                           IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                                          ClickMode="Press"
-                                          Background="Transparent"
-                                          BorderThickness="0"
-                                          Opacity="0">
+                                          ClickMode="Press" Background="Transparent" BorderThickness="0" Opacity="0">
                                 <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border Background="Transparent" />
-                                    </ControlTemplate>
+                                    <ControlTemplate TargetType="ToggleButton"><Border Background="Transparent" /></ControlTemplate>
                                 </ToggleButton.Template>
                             </ToggleButton>
-                            <Popup Placement="Bottom"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   PopupAnimation="Fade">
+                            <Popup Placement="Bottom" AllowsTransparency="True" Focusable="False" IsOpen="{TemplateBinding IsDropDownOpen}" PopupAnimation="Fade">
                                 <Border Margin="0,4,0,0"
                                         MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                         MaxHeight="300"
@@ -125,21 +109,13 @@
                             </Popup>
                         </Grid>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ComboRoot" Property="BorderBrush" Value="#3D5D84" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="ComboRoot" Property="Background" Value="#162131" />
-                                <Setter TargetName="ComboRoot" Property="BorderBrush" Value="#25364C" />
-                                <Setter Property="Foreground" Value="#7F8CA3" />
-                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ComboRoot" Property="BorderBrush" Value="#3D5D84" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ComboRoot" Property="Opacity" Value="0.55" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-
-
 
         <Style TargetType="CheckBox" BasedOn="{StaticResource CommonLabeledCheckBoxStyle}">
             <Setter Property="Margin" Value="0,2,0,2" />
@@ -152,6 +128,24 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="14,7" />
             <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonRoot"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonRoot" Property="Background" Value="#2A3B51" /></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonRoot" Property="Background" Value="#182333" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonRoot" Property="Opacity" Value="0.55" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -168,24 +162,47 @@
             <Setter Property="BorderBrush" Value="#3A4A60" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="#D9E2F0" />
+        </Style>
+
+        <Style x:Key="TranscriptionTabItemStyle" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="Background" Value="#10161F" />
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}" />
+            <Setter Property="Padding" Value="18,8" />
+            <Setter Property="Margin" Value="0,0,4,0" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Base"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6,6,0,0">
+                            <ContentPresenter ContentSource="Header" Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Base" Property="Background" Value="#1D2A3A" />
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabRoot" Property="Background" Value="#1A2B40" />
+                                <Setter TargetName="TabRoot" Property="BorderBrush" Value="#3D5D84" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
                             </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Base" Property="Background" Value="#16202D" />
-                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabRoot" Property="Background" Value="#172437" /></Trigger>
                         </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TranscriptionTabControlStyle" TargetType="TabControl">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0" IsItemsHost="True" Background="Transparent" />
+                            <Border Grid.Row="1" Background="#0E141D" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="0,6,6,6" Padding="14">
+                                <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" />
+                            </Border>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -194,19 +211,11 @@
         <Style x:Key="SettingsScrollThumbStyle" TargetType="Thumb">
             <Setter Property="Background" Value="#35506E" />
             <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Thumb">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Margin="1" />
-                    </ControlTemplate>
-                </Setter.Value>
+                <Setter.Value><ControlTemplate TargetType="Thumb"><Border Background="{TemplateBinding Background}" CornerRadius="5" Margin="1" /></ControlTemplate></Setter.Value>
             </Setter>
             <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4B6B92" />
-                </Trigger>
-                <Trigger Property="IsDragging" Value="True">
-                    <Setter Property="Background" Value="#5B84B5" />
-                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#4B6B92" /></Trigger>
+                <Trigger Property="IsDragging" Value="True"><Setter Property="Background" Value="#5B84B5" /></Trigger>
             </Style.Triggers>
         </Style>
 
@@ -214,13 +223,7 @@
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RepeatButton">
-                        <Border Background="{TemplateBinding Background}" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></Setter.Value></Setter>
         </Style>
 
         <Style x:Key="SettingsScrollBarStyle" TargetType="ScrollBar">
@@ -231,328 +234,206 @@
                     <ControlTemplate TargetType="ScrollBar">
                         <Border Background="{TemplateBinding Background}" CornerRadius="6">
                             <Track x:Name="PART_Track" IsDirectionReversed="True" Margin="1">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource SettingsScrollButtonStyle}" />
-                                </Track.DecreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Style="{StaticResource SettingsScrollThumbStyle}" />
-                                </Track.Thumb>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource SettingsScrollButtonStyle}" />
-                                </Track.IncreaseRepeatButton>
+                                <Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource SettingsScrollButtonStyle}" /></Track.DecreaseRepeatButton>
+                                <Track.Thumb><Thumb Style="{StaticResource SettingsScrollThumbStyle}" /></Track.Thumb>
+                                <Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource SettingsScrollButtonStyle}" /></Track.IncreaseRepeatButton>
                             </Track>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="Orientation" Value="Horizontal">
-                                <Setter Property="Width" Value="Auto" />
-                                <Setter Property="Height" Value="12" />
-                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="0">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="28" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0"
-                Background="#10161F"
-                BorderBrush="{StaticResource PanelBorder}"
-                BorderThickness="0"
-                CornerRadius="10,10,0,0"
-                MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+        <Border Grid.Row="0" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" CornerRadius="10,10,0,0" MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
             <Grid Margin="10,0,6,0">
                 <TextBlock Text="設定" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Style="{StaticResource TitleBarGlyphButtonStyle}" Width="30"
-                            Height="20"
-                            Margin="0"
-                            Padding="0"
-                            FontFamily="Segoe MDL2 Assets"
-                            FontSize="10"
-                            Content="&#xE711;"
-                            ToolTip="閉じる"
-                            Click="OnTitleBarCloseButtonClick" />
+                    <Button Style="{StaticResource TitleBarGlyphButtonStyle}" Width="30" Height="20" FontFamily="Segoe MDL2 Assets" FontSize="10" Content="&#xE711;" ToolTip="閉じる" Click="OnTitleBarCloseButtonClick" />
                 </StackPanel>
             </Grid>
         </Border>
 
         <Grid Grid.Row="1" Margin="16,14">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <ScrollViewer.Resources>
-                    <Style TargetType="ScrollBar" BasedOn="{StaticResource SettingsScrollBarStyle}" />
-                </ScrollViewer.Resources>
+                <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource SettingsScrollBarStyle}" /></ScrollViewer.Resources>
                 <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="16,14">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <DockPanel LastChildFill="False" Margin="0,0,0,12">
+                            <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="録音 / 文字起こし設定" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+                        </DockPanel>
 
-                    <DockPanel Grid.Row="0" LastChildFill="False">
-                        <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                        <TextBlock Text="録音 / 文字起こし設定" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
-                    </DockPanel>
-
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="360" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="マイク遅延補正" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="44" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="OffsetTextBox" Grid.Column="0" ToolTip="マイク音声を前後にずらしてスピーカー音声とタイミングを合わせます" Margin="0,0,6,0" />
-                                <Border Grid.Column="1" Height="36" Background="{StaticResource ControlBg}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1">
-                                    <TextBlock Text="ms" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                            </Grid>
-                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="マイクの音が遅れるときに調整します（-1000～1000ms）。" />
-                        </StackPanel>
-                    </Grid>
-
-                    <Grid Grid.Row="4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Speaker 再生ゲイン (dB)" />
-                            <TextBox x:Name="DefaultSpeakerGainTextBox" />
-                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="範囲: -60dB ～ 48dB" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Mic 再生ゲイン (dB)" />
-                            <TextBox x:Name="DefaultMicGainTextBox" />
-                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="範囲: -60dB ～ 48dB" />
-                        </StackPanel>
-                    </Grid>
-
-                    <Grid Grid.Row="6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="92" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabelStyle}" Text="録音開始/停止ショートカット" />
-                        <TextBox x:Name="StartStopHotkeyTextBox"
-                                 Grid.Row="1"
-                                 Grid.Column="0"
-                                 Margin="0,0,10,0"
-                                 IsReadOnly="True"
-                                 ToolTip="右のキー設定を押してから、登録したいキーを押してください（単体キー可）" />
-                        <TextBlock Grid.Row="2"
-                                   Grid.Column="0"
-                                   Margin="0,4,0,0"
-                                   Foreground="{StaticResource TextMuted}"
-                                   Text="キー設定を押して入力し、もう一度押して確定します。単体キーも指定可能です。" />
-                        <Button x:Name="HotkeyCaptureButton"
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                Height="36"
-                                Content="キー設定"
-                                VerticalAlignment="Top"
-                                Click="OnToggleHotkeyCaptureClick" />
-                    </Grid>
-
-                    <Grid Grid.Row="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="92" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabelStyle}" Text="保存先フォルダ" />
-                        <TextBox x:Name="OutputDirectoryTextBox" Grid.Row="1" Grid.Column="0" Margin="0,0,10,0" />
-                        <TextBlock Grid.Row="2"
-                                   Grid.Column="0"
-                                   Margin="0,4,0,0"
-                                   Foreground="{StaticResource TextMuted}"
-                                   Text="録音ファイルの保存先フォルダを指定します。" />
-                        <Button Grid.Row="1"
-                                Grid.Column="1"
-                                Height="36"
-                                Content="参照"
-                                VerticalAlignment="Top"
-                                Click="OnBrowseOutputDirectoryClick" />
-                    </Grid>
-
-
-                    <Grid Grid.Row="10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="92" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabelStyle}" Text="ffmpeg 実行ファイル" />
-                        <TextBox x:Name="FfmpegPathTextBox" Grid.Row="1" Grid.Column="0" Margin="0,0,10,0" />
-                        <TextBlock Grid.Row="2"
-                                   Grid.Column="0"
-                                   Margin="0,4,0,0"
-                                   Foreground="{StaticResource TextMuted}"
-                                   Text="空欄の場合は自動検出します。固定したい場合は ffmpeg.exe の絶対パスを指定してください。" />
-                        <Button Grid.Row="1"
-                                Grid.Column="1"
-                                Height="36"
-                                Content="参照"
-                                VerticalAlignment="Top"
-                                Click="OnBrowseFfmpegPathClick" />
-                    </Grid>
-
-                    <StackPanel Grid.Row="11" Margin="0,8,0,6">
-                        <CheckBox x:Name="RecordingMetricsLogCheckBox" Content="録音メトリクスをログに保存" />
-                        <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="有効時は AppData\\Local\\VoxArchive\\logs に録音メトリクスを出力します。" />
-                        <CheckBox x:Name="TranscriptionDiagnosticsLogCheckBox" Content="文字起こし処理の情報をログに保存" Margin="0,8,0,2" />
-                        <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="有効時は Whisper.net のランタイム選択や処理時間などの診断情報をログに出力します。" />
-                    </StackPanel>
-                    <Border Grid.Row="12" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition Width="3*" />
-                            </Grid.ColumnDefinitions>
-
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <CheckBox x:Name="TranscriptionEnabledCheckBox" Content="文字起こし機能を有効化" />
-                                <CheckBox x:Name="AutoTranscriptionCheckBox" Content="録音完了後に自動文字起こし" />
-                                <CheckBox x:Name="ToastNotificationCheckBox" Content="完了時に通知を表示" />
-
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="実行モード" Margin="0,8,0,6" />
-                                <ComboBox x:Name="ExecutionModeComboBox"
-                                          Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                          SelectedValuePath="Tag"
-                                          SelectionChanged="OnTranscriptionEnvironmentSelectionChanged">
-                                    <ComboBoxItem Content="自動" Tag="{x:Static domain:TranscriptionExecutionMode.Auto}" />
-                                    <ComboBoxItem Content="CPU固定" Tag="{x:Static domain:TranscriptionExecutionMode.CpuOnly}" />
-                                    <ComboBoxItem Content="CUDA優先" Tag="{x:Static domain:TranscriptionExecutionMode.CudaPreferred}" />
-                                </ComboBox>
-
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="モデル" Margin="0,8,0,6" />
-                                <ComboBox x:Name="ModelComboBox"
-                                          Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                          SelectedValuePath="Tag"
-                                          SelectionChanged="OnTranscriptionEnvironmentSelectionChanged">
-                                    <ComboBoxItem Content="tiny" Tag="{x:Static domain:TranscriptionModel.Tiny}" />
-                                    <ComboBoxItem Content="base" Tag="{x:Static domain:TranscriptionModel.Base}" />
-                                    <ComboBoxItem Content="small" Tag="{x:Static domain:TranscriptionModel.Small}" />
-                                    <ComboBoxItem Content="medium" Tag="{x:Static domain:TranscriptionModel.Medium}" />
-                                    <ComboBoxItem Content="large-v3" Tag="{x:Static domain:TranscriptionModel.LargeV3}" />
-                                </ComboBox>
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="言語" />
-                                <ComboBox x:Name="LanguageComboBox"
-                                          Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                          SelectedValuePath="Tag">
-                                    <ComboBoxItem Content="自動判定 (auto)" Tag="auto" />
-                                    <ComboBoxItem Content="日本語 (ja)" Tag="ja" />
-                                    <ComboBoxItem Content="英語 (en)" Tag="en" />
-                                    <ComboBoxItem Content="中国語 (zh)" Tag="zh" />
-                                    <ComboBoxItem Content="韓国語 (ko)" Tag="ko" />
-                                    <ComboBoxItem Content="フランス語 (fr)" Tag="fr" />
-                                    <ComboBoxItem Content="ドイツ語 (de)" Tag="de" />
-                                    <ComboBoxItem Content="スペイン語 (es)" Tag="es" />
-                                    <ComboBoxItem Content="イタリア語 (it)" Tag="it" />
-                                    <ComboBoxItem Content="ポルトガル語 (pt)" Tag="pt" />
-                                    <ComboBoxItem Content="ロシア語 (ru)" Tag="ru" />
-                                </ComboBox>
-
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="出力形式" Margin="0,8,0,6" />
-                                <WrapPanel>
-                                    <CheckBox x:Name="OutputTxtCheckBox" Content="txt" Margin="0,0,10,0" />
-                                    <CheckBox x:Name="OutputSrtCheckBox" Content="srt" Margin="0,0,10,0" />
-                                    <CheckBox x:Name="OutputVttCheckBox" Content="vtt" Margin="0,0,10,0" />
-                                    <CheckBox x:Name="OutputJsonCheckBox" Content="json" Margin="0" />
-                                </WrapPanel>
-
-                                <Grid Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="10" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="自動実行時優先度" />
-                                        <ComboBox x:Name="AutoPriorityComboBox"
-                                                  Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                                  SelectedValuePath="Tag">
-                                            <ComboBoxItem Content="低" Tag="{x:Static domain:TranscriptionPriority.Low}" />
-                                            <ComboBoxItem Content="通常" Tag="{x:Static domain:TranscriptionPriority.Normal}" />
-                                        </ComboBox>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="手動実行時優先度" />
-                                        <ComboBox x:Name="ManualPriorityComboBox"
-                                                  Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                                  SelectedValuePath="Tag">
-                                            <ComboBoxItem Content="低" Tag="{x:Static domain:TranscriptionPriority.Low}" />
-                                            <ComboBoxItem Content="通常" Tag="{x:Static domain:TranscriptionPriority.Normal}" />
-                                        </ComboBox>
-                                    </StackPanel>
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="マイク遅延補正" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="44"/></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="OffsetTextBox" Margin="0,0,6,0" ToolTip="マイク音声を前後にずらしてスピーカー音声とタイミングを合わせます" />
+                                    <Border Grid.Column="1" Height="36" Background="{StaticResource ControlBg}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1">
+                                        <TextBlock Text="ms" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
                                 </Grid>
-
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="モデル保存先" Margin="0,8,0,6" />
-                                <TextBox x:Name="ModelDirectoryTextBox" IsReadOnly="True" />
-                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="文字起こし結果は録音ファイルと同じフォルダへ同名で出力されます。" />
-
-                                <WrapPanel Margin="0,8,0,0">
-                                    <Button x:Name="CheckEnvironmentButton" Content="環境チェック" Click="OnCheckEnvironmentClick" />
-                                    <Button Content="モデル取得" Click="OnDownloadModelClick" />
-                                    <Button Content="モデル削除" Click="OnDeleteModelClick" />
-                                </WrapPanel>
-
-                                <Border Margin="0,8,0,0" Background="#0E1724" BorderBrush="#2D3E55" BorderThickness="1" CornerRadius="6" Padding="8,6">
-                                    <TextBlock x:Name="TranscriptionStatusTextBlock" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" />
-                                </Border>
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="マイクの音が遅れるときに調整します（-1000～1000ms）。" />
                             </StackPanel>
                         </Grid>
-                    </Border>
-                    <StackPanel Grid.Row="14" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                        <Button Width="100" Margin="0,0,8,0" Content="保存" Style="{StaticResource AccentButtonStyle}" IsDefault="True" Click="OnSaveClick" />
-                        <Button Width="100" Content="キャンセル" IsCancel="True" />
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Speaker 再生ゲイン (dB)" />
+                                <TextBox x:Name="DefaultSpeakerGainTextBox" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="範囲: -60dB ～ 48dB" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定 Mic 再生ゲイン (dB)" />
+                                <TextBox x:Name="DefaultMicGainTextBox" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="範囲: -60dB ～ 48dB" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="92"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="録音開始/停止ショートカット" />
+                            <TextBox x:Name="StartStopHotkeyTextBox" Grid.Row="1" Margin="0,0,10,0" IsReadOnly="True" />
+                            <TextBlock Grid.Row="2" Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="キー設定を押して入力し、もう一度押して確定します。単体キーも指定可能です。" />
+                            <Button x:Name="HotkeyCaptureButton" Grid.Row="1" Grid.Column="1" Height="36" Content="キー設定" VerticalAlignment="Top" Click="OnToggleHotkeyCaptureClick" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="92"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="保存先フォルダ" />
+                            <TextBox x:Name="OutputDirectoryTextBox" Grid.Row="1" Margin="0,0,10,0" />
+                            <TextBlock Grid.Row="2" Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="録音ファイルの保存先フォルダを指定します。" />
+                            <Button Grid.Row="1" Grid.Column="1" Height="36" Content="参照" VerticalAlignment="Top" Click="OnBrowseOutputDirectoryClick" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="92"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="ffmpeg 実行ファイル" />
+                            <TextBox x:Name="FfmpegPathTextBox" Grid.Row="1" Margin="0,0,10,0" />
+                            <TextBlock Grid.Row="2" Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="空欄の場合は自動検出します。固定したい場合は ffmpeg.exe の絶対パスを指定してください。" />
+                            <Button Grid.Row="1" Grid.Column="1" Height="36" Content="参照" VerticalAlignment="Top" Click="OnBrowseFfmpegPathClick" />
+                        </Grid>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <CheckBox x:Name="RecordingMetricsLogCheckBox" Content="録音メトリクスをログに保存" />
+                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="有効時は AppData\\Local\\VoxArchive\\logs に録音メトリクスを出力します。" />
+                        </StackPanel>
+
+                        <Border Height="470" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <CheckBox x:Name="TranscriptionEnabledCheckBox" Content="文字起こしを有効にする" />
+
+                                <TabControl x:Name="TranscriptionTabControl" Grid.Row="2" Style="{StaticResource TranscriptionTabControlStyle}" SelectionChanged="OnTranscriptionTabSelectionChanged">
+                                    <TabItem Header="共通" Style="{StaticResource TranscriptionTabItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <CheckBox x:Name="AutoTranscriptionCheckBox" Content="録音後に自動文字起こし" />
+
+                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定の文字起こしエンジン" Margin="0,12,0,6" />
+                                                <ComboBox x:Name="DefaultEngineComboBox">
+                                                    <ComboBoxItem Content="Whisper" Tag="whisper" />
+                                                    <ComboBoxItem Content="ReazonSpeech" Tag="reazonspeech" />
+                                                </ComboBox>
+
+                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="言語" Margin="0,12,0,6" />
+                                                <ComboBox x:Name="LanguageComboBox" SelectedValuePath="Tag">
+                                                    <ComboBoxItem Content="指定なし" Tag="" />
+                                                    <ComboBoxItem Content="日本語 (ja)" Tag="ja" />
+                                                    <ComboBoxItem Content="英語 (en)" Tag="en" />
+                                                    <ComboBoxItem Content="中国語 (zh)" Tag="zh" />
+                                                    <ComboBoxItem Content="韓国語 (ko)" Tag="ko" />
+                                                    <ComboBoxItem Content="フランス語 (fr)" Tag="fr" />
+                                                    <ComboBoxItem Content="ドイツ語 (de)" Tag="de" />
+                                                    <ComboBoxItem Content="スペイン語 (es)" Tag="es" />
+                                                    <ComboBoxItem Content="イタリア語 (it)" Tag="it" />
+                                                    <ComboBoxItem Content="ポルトガル語 (pt)" Tag="pt" />
+                                                    <ComboBoxItem Content="ロシア語 (ru)" Tag="ru" />
+                                                </ComboBox>
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="選択したエンジンやモデルによっては、この設定が使用されない場合があります。" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="出力形式" />
+                                                <WrapPanel>
+                                                    <CheckBox x:Name="OutputTxtCheckBox" Content="TXT" Margin="0,0,12,0" />
+                                                    <CheckBox x:Name="OutputSrtCheckBox" Content="SRT" Margin="0,0,12,0" />
+                                                    <CheckBox x:Name="OutputVttCheckBox" Content="VTT" />
+                                                </WrapPanel>
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="文字起こし結果の内部データ（JSON）は常に保存されます。" />
+
+                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="自動実行時優先度" Margin="0,12,0,6" />
+                                                <ComboBox x:Name="AutoPriorityComboBox" SelectedValuePath="Tag">
+                                                    <ComboBoxItem Content="低" Tag="{x:Static domain:TranscriptionPriority.Low}" />
+                                                    <ComboBoxItem Content="通常" Tag="{x:Static domain:TranscriptionPriority.Normal}" />
+                                                </ComboBox>
+
+                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="手動実行時優先度" Margin="0,12,0,6" />
+                                                <ComboBox x:Name="ManualPriorityComboBox" SelectedValuePath="Tag">
+                                                    <ComboBoxItem Content="低" Tag="{x:Static domain:TranscriptionPriority.Low}" />
+                                                    <ComboBoxItem Content="通常" Tag="{x:Static domain:TranscriptionPriority.Normal}" />
+                                                </ComboBox>
+
+                                                <CheckBox x:Name="ToastNotificationCheckBox" Content="文字起こし完了時に通知する" Margin="0,12,0,2" />
+                                                <CheckBox x:Name="TranscriptionDiagnosticsLogCheckBox" Content="診断ログを出力する" Margin="0,6,0,2" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </TabItem>
+
+                                    <TabItem Header="Whisper" Style="{StaticResource TranscriptionTabItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="実行モード" />
+                                                <ComboBox x:Name="ExecutionModeComboBox" SelectedValuePath="Tag" SelectionChanged="OnTranscriptionEnvironmentSelectionChanged">
+                                                    <ComboBoxItem Content="自動" Tag="{x:Static domain:TranscriptionExecutionMode.Auto}" />
+                                                    <ComboBoxItem Content="CPUのみ" Tag="{x:Static domain:TranscriptionExecutionMode.CpuOnly}" />
+                                                </ComboBox>
+                                                <local:TranscriptionModelManagerControl x:Name="WhisperModelManagerControl" Margin="0,12,0,0" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="実行環境" />
+                                                <Button x:Name="CheckEnvironmentButton" Content="環境チェック" HorizontalAlignment="Left" Click="OnCheckEnvironmentClick" />
+                                                <Border Margin="0,8,0,0" Background="#0E1724" BorderBrush="#2D3E55" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                                                    <TextBlock x:Name="WhisperEnvironmentStatusTextBlock" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" />
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </TabItem>
+
+                                    <TabItem Header="ReazonSpeech" Style="{StaticResource TranscriptionTabItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <local:TranscriptionModelManagerControl x:Name="ReazonSpeechModelManagerControl" Grid.Column="0" />
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="現在、ReazonSpeechはCPU実行のみ対応しています。" />
+                                                <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="選択中のモデルでは、共通設定の「言語」は使用されません。" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </TabItem>
+                                </TabControl>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                            <Button Width="100" Margin="0,0,8,0" Content="保存" Style="{StaticResource AccentButtonStyle}" IsDefault="True" Click="OnSaveClick" />
+                            <Button Width="100" Content="キャンセル" IsCancel="True" />
+                        </StackPanel>
                     </StackPanel>
-                </Grid>
-            </Border>
+                </Border>
             </ScrollViewer>
         </Grid>
     </Grid>
