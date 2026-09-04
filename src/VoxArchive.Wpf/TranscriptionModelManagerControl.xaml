@@ -35,11 +35,12 @@
                             <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" />
                             <Grid Margin="10,0" IsHitTestVisible="False">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/></Grid.ColumnDefinitions>
-                                <!-- DisplayMemberPathで生成された表示テンプレートも選択済み表示へ引き継ぐ。
-                                     これを省くとSelectionBoxItem自体が文字列化され、モデル型のプロパティ名まで表示される。 -->
-                                <ContentPresenter VerticalAlignment="Center"
-                                                  Content="{TemplateBinding SelectionBoxItem}"
-                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
+                                <!-- DisplayMemberPathはドロップダウン項目には反映されるが、独自SelectionBox描画では
+                                     record本体がToStringされる場合があるため、選択項目のDisplayNameを明示して描画する。 -->
+                                <TextBlock Text="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
                                 <TextBlock Grid.Column="1" Text="▼" FontSize="10" Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center" />
                             </Grid>
                             <ToggleButton Focusable="False" Background="Transparent" BorderThickness="0" Opacity="0"
