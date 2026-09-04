@@ -33,6 +33,12 @@ public sealed class TranscriptionModelManager
     /// <summary>取得進捗や取得開始・終了が変化したときに通知する</summary>
     public event EventHandler? StateChanged;
 
+    /// <summary>モデル取得が正常終了したときに通知する</summary>
+    public event EventHandler<TranscriptionModelDownloadCompletedEventArgs>? DownloadCompleted;
+
+    /// <summary>モデル取得が失敗したときに通知する</summary>
+    public event EventHandler<TranscriptionModelDownloadFailedEventArgs>? DownloadFailed;
+
     /// <summary>選択可能なモデル一覧を取得する</summary>
     public IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels(TranscriptionEngineId engineId)
     {
@@ -93,15 +99,12 @@ public sealed class TranscriptionModelManager
     /// <summary>
     /// モデル取得へ参加する。同じモデルの取得中なら既存処理を共有し、別モデル取得中なら拒否する
     /// </summary>
-    /// <param name="engineId">取得対象Engine</param>
-    /// <param name="modelId">取得対象Model</param>
-    /// <param name="force">既存モデルを再取得する場合はtrue</param>
-    /// <returns>取得完了を待機する参加Handle</returns>
     public TranscriptionModelDownloadParticipation AcquireDownload(
         TranscriptionEngineId engineId,
         TranscriptionModelId modelId,
         bool force)
     {
+        TranscriptionModelDownloadParticipation participation;
         lock (_gate)
         {
             if (_activeDownload is not null)
@@ -112,30 +115,37 @@ public sealed class TranscriptionModelManager
                 }
 
                 _activeDownload.WaiterCount++;
-                RaiseStateChanged();
-                return new TranscriptionModelDownloadParticipation(this, _activeDownload.Id, _activeDownload.Completion, startedDownload: false);
+                participation = new TranscriptionModelDownloadParticipation(
+                    this,
+                    _activeDownload.Id,
+                    _activeDownload.Completion,
+                    startedDownload: false);
             }
-
-            if (IsModelProtected(engineId, modelId))
+            else
             {
-                throw new InvalidOperationException("文字起こしで使用中のモデルは取得・再取得できません。");
-            }
+                if (IsModelProtected(engineId, modelId))
+                {
+                    throw new InvalidOperationException("文字起こしで使用中のモデルは取得・再取得できません。");
+                }
 
-            var provider = _providerResolver.Resolve(engineId);
-            var descriptor = provider.GetAvailableModels().FirstOrDefault(item => item.ModelId == modelId)
-                ?? throw new NotSupportedException($"モデル '{engineId}/{modelId}' はサポートされていません。");
-            var active = new ActiveDownload(
-                Guid.NewGuid(),
-                engineId,
-                modelId,
-                descriptor.DisplayName,
-                force,
-                new CancellationTokenSource());
-            _activeDownload = active;
-            active.Completion = RunDownloadAsync(active, provider);
-            RaiseStateChanged();
-            return new TranscriptionModelDownloadParticipation(this, active.Id, active.Completion, startedDownload: true);
+                var provider = _providerResolver.Resolve(engineId);
+                var descriptor = provider.GetAvailableModels().FirstOrDefault(item => item.ModelId == modelId)
+                    ?? throw new NotSupportedException($"モデル '{engineId}/{modelId}' はサポートされていません。");
+                var active = new ActiveDownload(
+                    Guid.NewGuid(),
+                    engineId,
+                    modelId,
+                    descriptor.DisplayName,
+                    force,
+                    new CancellationTokenSource());
+                _activeDownload = active;
+                active.Completion = RunDownloadAsync(active, provider);
+                participation = new TranscriptionModelDownloadParticipation(this, active.Id, active.Completion, startedDownload: true);
+            }
         }
+
+        RaiseStateChanged();
+        return participation;
     }
 
     /// <summary>
@@ -146,6 +156,7 @@ public sealed class TranscriptionModelManager
     /// </remarks>
     public bool CancelActiveDownload(TranscriptionEngineId engineId, TranscriptionModelId modelId)
     {
+        var canceled = false;
         lock (_gate)
         {
             if (_activeDownload is null || _activeDownload.EngineId != engineId || _activeDownload.ModelId != modelId)
@@ -157,11 +168,16 @@ public sealed class TranscriptionModelManager
             {
                 _activeDownload.Cancellation.Cancel();
                 _activeDownload.IsCancelling = true;
-                RaiseStateChanged();
+                canceled = true;
             }
-
-            return true;
         }
+
+        if (canceled)
+        {
+            RaiseStateChanged();
+        }
+
+        return true;
     }
 
     /// <summary>指定モデルを削除する</summary>
@@ -218,6 +234,7 @@ public sealed class TranscriptionModelManager
                 "Transcription model download completed. Engine={Engine}, Model={Model}",
                 active.EngineId,
                 active.ModelId);
+            DownloadCompleted?.Invoke(this, new TranscriptionModelDownloadCompletedEventArgs(active.EngineId, active.ModelId, active.ModelDisplayName));
             return installation;
         }
         catch (OperationCanceledException)
@@ -235,6 +252,7 @@ public sealed class TranscriptionModelManager
                 "Transcription model download failed. Engine={Engine}, Model={Model}",
                 active.EngineId,
                 active.ModelId);
+            DownloadFailed?.Invoke(this, new TranscriptionModelDownloadFailedEventArgs(active.EngineId, active.ModelId, active.ModelDisplayName, ex));
             throw;
         }
         finally
@@ -252,19 +270,23 @@ public sealed class TranscriptionModelManager
         }
     }
 
-    private void ReleaseWaiter(Guid operationId)
+    /// <summary>共有取得を待機していた参加者の登録を解除する</summary>
+    internal void ReleaseWaiter(Guid operationId)
     {
+        var changed = false;
         lock (_gate)
         {
-            if (_activeDownload?.Id != operationId || _activeDownload.WaiterCount <= 0)
+            if (_activeDownload?.Id == operationId && _activeDownload.WaiterCount > 0)
             {
-                return;
+                _activeDownload.WaiterCount--;
+                changed = true;
             }
-
-            _activeDownload.WaiterCount--;
         }
 
-        RaiseStateChanged();
+        if (changed)
+        {
+            RaiseStateChanged();
+        }
     }
 
     private void RaiseStateChanged()
@@ -306,9 +328,7 @@ public sealed class TranscriptionModelManager
     }
 }
 
-/// <summary>
-/// 進行中のモデル取得状態を表す
-/// </summary>
+/// <summary>進行中のモデル取得状態を表す</summary>
 public sealed record TranscriptionModelDownloadSnapshot(
     TranscriptionEngineId EngineId,
     TranscriptionModelId ModelId,
@@ -322,9 +342,7 @@ public sealed record TranscriptionModelDownloadSnapshot(
     public double Percent => TotalBytes <= 0 ? 0d : Math.Clamp(BytesReceived * 100d / TotalBytes, 0d, 100d);
 }
 
-/// <summary>
-/// 共有モデル取得への参加Handleを表す
-/// </summary>
+/// <summary>共有モデル取得への参加Handleを表す</summary>
 public sealed class TranscriptionModelDownloadParticipation : IDisposable
 {
     private readonly TranscriptionModelManager _manager;
@@ -360,6 +378,19 @@ public sealed class TranscriptionModelDownloadParticipation : IDisposable
         _manager.ReleaseWaiter(_operationId);
     }
 }
+
+/// <summary>モデル取得完了通知を表す</summary>
+public sealed record TranscriptionModelDownloadCompletedEventArgs(
+    TranscriptionEngineId EngineId,
+    TranscriptionModelId ModelId,
+    string ModelDisplayName);
+
+/// <summary>モデル取得失敗通知を表す</summary>
+public sealed record TranscriptionModelDownloadFailedEventArgs(
+    TranscriptionEngineId EngineId,
+    TranscriptionModelId ModelId,
+    string ModelDisplayName,
+    Exception Exception);
 
 /// <summary>
 /// 別モデルの取得がアプリケーション全体で既に進行中の場合の例外を表す
