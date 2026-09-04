@@ -56,7 +56,7 @@ public sealed class TranscriptionModelRequirementService
                     request.EngineId,
                     request.ModelId,
                     request.AudioFilePath);
-                NotifyModelUnavailable(message);
+                NotifyModelUnavailableWhenGenericToastIsDisabled(request, message);
                 return new TranscriptionModelRequirementResult(false, message);
             }
 
@@ -107,7 +107,7 @@ public sealed class TranscriptionModelRequirementService
             var message = $"現在 {ex.ActiveDownload.EngineId.Value} / {ex.ActiveDownload.ModelDisplayName} のモデルを取得中です。";
             if (request.Trigger == TranscriptionTrigger.AutoAfterRecord)
             {
-                NotifyModelUnavailable(message);
+                NotifyModelUnavailableWhenGenericToastIsDisabled(request, message);
             }
             else
             {
@@ -160,7 +160,7 @@ public sealed class TranscriptionModelRequirementService
             var message = $"モデル取得に失敗したため、文字起こしを開始できませんでした: {ex.Message}";
             if (request.Trigger == TranscriptionTrigger.AutoAfterRecord)
             {
-                NotifyModelUnavailable(message);
+                NotifyModelUnavailableWhenGenericToastIsDisabled(request, message);
             }
             return new TranscriptionModelRequirementResult(false, message);
         }
@@ -284,8 +284,15 @@ public sealed class TranscriptionModelRequirementService
             MessageBoxResult.OK));
     }
 
-    private static void NotifyModelUnavailable(string message)
-        => AppNotificationHub.Notify("VoxArchive", message, System.Windows.Forms.ToolTipIcon.Warning);
+    private static void NotifyModelUnavailableWhenGenericToastIsDisabled(TranscriptionJobRequest request, string message)
+    {
+        // 通常の文字起こし失敗Toastが有効ならJobCompleted側が通知する。
+        // OFFの場合でも自動文字起こしがモデル不足で黙って欠落しないよう、このケースだけ必ず通知する。
+        if (!request.Options.TranscriptionToastNotificationEnabled)
+        {
+            AppNotificationHub.Notify("VoxArchive", message, System.Windows.Forms.ToolTipIcon.Warning);
+        }
+    }
 }
 
 /// <summary>文字起こし実行前のモデル保証結果を表す</summary>
