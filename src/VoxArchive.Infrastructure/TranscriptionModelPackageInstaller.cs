@@ -61,6 +61,15 @@ public sealed class TranscriptionModelPackageInstaller
     }
 
     /// <summary>
+    /// 一時領域のbest effort削除に失敗した場合の通知先を取得・設定する
+    /// </summary>
+    /// <remarks>
+    /// クリーンアップ失敗は本来の取得例外を置き換えないため例外として再送出せず、
+    /// アプリケーション層が診断ログへ記録できるよう補助通知だけを提供する。
+    /// </remarks>
+    public Action<string, Exception>? CleanupFailureHandler { get; set; }
+
+    /// <summary>
     /// モデル定義に含まれる全ファイルが正しい状態で配置されているか確認する
     /// </summary>
     public bool IsInstalled(TranscriptionModelDefinition definition, string installationDirectory)
@@ -269,7 +278,7 @@ public sealed class TranscriptionModelPackageInstaller
         return string.Equals(actualHash, definition.Sha256, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void TryDeleteDirectory(string path)
+    private void TryDeleteDirectory(string path)
     {
         try
         {
@@ -278,9 +287,10 @@ public sealed class TranscriptionModelPackageInstaller
                 Directory.Delete(path, recursive: true);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 呼び出し元へ通知すべき主原因は取得処理側なので、staging掃除の失敗では例外を差し替えない。
+            // ユーザー操作を追加で妨げず、アプリケーション層の診断ログへだけ残せるよう通知する。
+            CleanupFailureHandler?.Invoke(path, ex);
         }
     }
 
