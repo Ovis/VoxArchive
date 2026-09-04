@@ -8,7 +8,7 @@ namespace VoxArchive.Wpf;
 /// </summary>
 /// <remarks>
 /// 既存のWhisper認識・派生出力処理を維持したまま、JSONだけを必須の正本へ移行する。
-/// 後続PRで認識結果と派生出力の責務をOrchestratorへ移すまで、既存サービスが生成したJSONをv2へ正規化する移行境界として機能する。
+/// Requestが保持する安定Engine/Model IDをcanonical documentへ引き継ぎ、設定列挙型と永続化表現を分離する。
 /// </remarks>
 public sealed class WhisperTranscriptionEngine(
     WhisperTranscriptionService transcriptionService,
@@ -20,6 +20,17 @@ public sealed class WhisperTranscriptionEngine(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.EngineId != TranscriptionEngineId.Whisper)
+        {
+            throw new InvalidOperationException($"Whisperエンジンへ異なるEngine IDのRequestが渡されました: {request.EngineId}");
+        }
+
+        var expectedModelId = TranscriptionModelId.FromWhisperModel(request.Options.TranscriptionModel);
+        if (request.ModelId != expectedModelId)
+        {
+            throw new InvalidOperationException(
+                $"Whisperモデル指定が一致していません。Request={request.ModelId}, Options={expectedModelId}");
+        }
 
         // canonical JSONはユーザーが追加出力としてJSONを選択しているかに関係なく必ず必要になる。
         // 既存Whisperサービスから認識済みsegmentsを安全に受け取る移行手段として、内部実行時だけJsonフラグを追加する。
@@ -37,15 +48,15 @@ public sealed class WhisperTranscriptionEngine(
             return result;
         }
 
-        var documentPath = BuildDocumentPath(request.AudioFilePath, request.Options.TranscriptionModel);
+        var documentPath = BuildDocumentPath(request.AudioFilePath, request.ModelId);
         var generatedDocument = await documentStore.LoadAsync(documentPath, cancellationToken);
         var canonicalDocument = generatedDocument with
         {
             Source = new TranscriptionSource(Path.GetFileName(request.AudioFilePath)),
             Transcription = new TranscriptionIdentity
             {
-                Engine = "whisper",
-                Model = GetModelId(request.Options.TranscriptionModel),
+                Engine = request.EngineId.Value,
+                Model = request.ModelId.Value,
                 Options = new Dictionary<string, string?>
                 {
                     ["executionMode"] = GetRequestedRuntimeId(request.Options.TranscriptionExecutionMode),
@@ -73,22 +84,12 @@ public sealed class WhisperTranscriptionEngine(
         };
     }
 
-    private static string BuildDocumentPath(string audioFilePath, TranscriptionModel model)
+    private static string BuildDocumentPath(string audioFilePath, TranscriptionModelId modelId)
     {
         var directory = Path.GetDirectoryName(audioFilePath) ?? string.Empty;
         var fileName = Path.GetFileNameWithoutExtension(audioFilePath);
-        return Path.Combine(directory, $"{fileName}-{GetModelId(model)}.json");
+        return Path.Combine(directory, $"{fileName}-{modelId.Value}.json");
     }
-
-    private static string GetModelId(TranscriptionModel model) => model switch
-    {
-        TranscriptionModel.Tiny => "tiny",
-        TranscriptionModel.Base => "base",
-        TranscriptionModel.Small => "small",
-        TranscriptionModel.Medium => "medium",
-        TranscriptionModel.LargeV3 => "large-v3",
-        _ => model.ToString().ToLowerInvariant()
-    };
 
     private static string GetRequestedRuntimeId(TranscriptionExecutionMode mode) => mode switch
     {
