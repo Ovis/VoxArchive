@@ -247,7 +247,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-
     public bool IsMicDevicePopupOpenNormal
     {
         get => _isMicDevicePopupOpenNormal;
@@ -260,7 +259,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-
     public bool IsProcessPopupOpenNormal
     {
         get => _isProcessPopupOpenNormal;
@@ -272,8 +270,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             }
         }
     }
-
-
 
     public bool IsMiniMode
     {
@@ -333,7 +329,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             }
         }
     }
-
 
     public double WindowWidth => IsMiniMode ? 320 : (_recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused ? RecordingWindowWidth : NormalWindowWidth);
     public double WindowHeight => 100;
@@ -550,13 +545,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         return Task.CompletedTask;
     }
 
-
     private Task ToggleWindowModeAsync()
     {
         IsMiniMode = !IsMiniMode;
         return Task.CompletedTask;
     }
-    
+
     public async Task SetSuppressCloseToTrayNoticeAsync(bool suppress)
     {
         if (_options.SuppressCloseToTrayNotice == suppress)
@@ -661,7 +655,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _logger.LogWarning("ライブラリ登録失敗: 録音ファイルが見つかりません。");
     }
 
-
     private void TryEnqueueAutoTranscription(string filePath)
     {
         if (!_options.TranscriptionEnabled || !_options.AutoTranscriptionAfterRecord)
@@ -701,6 +694,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 DefaultMicPlaybackGainDb = _options.DefaultMicPlaybackGainDb,
                 TranscriptionEnabled = _options.TranscriptionEnabled,
                 AutoTranscriptionAfterRecord = _options.AutoTranscriptionAfterRecord,
+                DefaultTranscriptionEngine = _options.Transcription.DefaultEngine,
+                ReazonSpeechModelId = _options.Transcription.ReazonSpeech.Model,
                 TranscriptionExecutionMode = _options.TranscriptionExecutionMode,
                 TranscriptionModel = _options.TranscriptionModel,
                 TranscriptionLanguage = _options.TranscriptionLanguage,
@@ -710,7 +705,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 TranscriptionToastNotificationEnabled = _options.TranscriptionToastNotificationEnabled,
                 FfmpegExecutablePath = _options.FfmpegExecutablePath
             };
-
 
             if (dialog.ShowDialog() != true)
             {
@@ -736,6 +730,29 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 ? TranscriptionOutputFormats.Txt
                 : dialog.TranscriptionOutputFormats;
 
+            var currentTranscription = EnsureDefaults(_options).Transcription;
+            var updatedTranscription = currentTranscription with
+            {
+                Enabled = dialog.TranscriptionEnabled,
+                AutoAfterRecord = dialog.AutoTranscriptionAfterRecord,
+                DefaultEngine = dialog.DefaultTranscriptionEngine,
+                Whisper = currentTranscription.Whisper with
+                {
+                    ExecutionMode = dialog.TranscriptionExecutionMode,
+                    Model = dialog.TranscriptionModel,
+                    Language = normalizedLanguage
+                },
+                ReazonSpeech = currentTranscription.ReazonSpeech with
+                {
+                    Model = dialog.ReazonSpeechModelId
+                },
+                OutputFormats = normalizedFormats,
+                AutoPriority = dialog.AutoTranscriptionPriority,
+                ManualPriority = dialog.ManualTranscriptionPriority,
+                ToastNotificationEnabled = dialog.TranscriptionToastNotificationEnabled,
+                DiagnosticsLogEnabled = dialog.TranscriptionDiagnosticsLogEnabled
+            };
+
             _options = EnsureDefaults(_options) with
             {
                 ChannelAlignmentMilliseconds = normalizedOffset,
@@ -744,16 +761,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 DefaultSpeakerPlaybackGainDb = normalizedSpeakerGain,
                 DefaultMicPlaybackGainDb = normalizedMicGain,
                 RecordingMetricsLogEnabled = dialog.RecordingMetricsLogEnabled,
-                TranscriptionDiagnosticsLogEnabled = dialog.TranscriptionDiagnosticsLogEnabled,
-                TranscriptionEnabled = dialog.TranscriptionEnabled,
-                AutoTranscriptionAfterRecord = dialog.AutoTranscriptionAfterRecord,
-                TranscriptionExecutionMode = dialog.TranscriptionExecutionMode,
-                TranscriptionModel = dialog.TranscriptionModel,
-                TranscriptionLanguage = normalizedLanguage,
-                TranscriptionOutputFormats = normalizedFormats,
-                AutoTranscriptionPriority = dialog.AutoTranscriptionPriority,
-                ManualTranscriptionPriority = dialog.ManualTranscriptionPriority,
-                TranscriptionToastNotificationEnabled = dialog.TranscriptionToastNotificationEnabled,
+                Transcription = updatedTranscription,
                 FfmpegExecutablePath = string.IsNullOrWhiteSpace(dialog.FfmpegExecutablePath) ? string.Empty : dialog.FfmpegExecutablePath.Trim()
             };
             StartStopHotkeyText = normalizedHotkey;
@@ -934,7 +942,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         };
     }
 
-
     private static string BuildFfmpegMissingMessage(string detail)
     {
         var baseMessage =
@@ -1071,7 +1078,6 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
 
 
 
