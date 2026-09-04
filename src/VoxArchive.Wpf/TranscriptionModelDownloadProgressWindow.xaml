@@ -36,6 +36,24 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style TargetType="ProgressBar">
+            <Setter Property="Background" Value="#0E1724" />
+            <Setter Property="Foreground" Value="{StaticResource Accent}" />
+            <Setter Property="BorderBrush" Value="#2D3E55" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" ClipToBounds="True">
+                            <Grid>
+                                <Rectangle Fill="Transparent" />
+                                <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="5" />
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border Margin="1" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10">
