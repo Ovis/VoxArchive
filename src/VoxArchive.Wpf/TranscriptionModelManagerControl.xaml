@@ -35,7 +35,11 @@
                             <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" />
                             <Grid Margin="10,0" IsHitTestVisible="False">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/></Grid.ColumnDefinitions>
-                                <ContentPresenter VerticalAlignment="Center" Content="{TemplateBinding SelectionBoxItem}" />
+                                <!-- DisplayMemberPathで生成された表示テンプレートも選択済み表示へ引き継ぐ。
+                                     これを省くとSelectionBoxItem自体が文字列化され、モデル型のプロパティ名まで表示される。 -->
+                                <ContentPresenter VerticalAlignment="Center"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
                                 <TextBlock Grid.Column="1" Text="▼" FontSize="10" Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center" />
                             </Grid>
                             <ToggleButton Focusable="False" Background="Transparent" BorderThickness="0" Opacity="0"
