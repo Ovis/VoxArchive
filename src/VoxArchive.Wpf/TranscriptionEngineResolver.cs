@@ -1,3 +1,5 @@
+using VoxArchive.Domain;
+
 namespace VoxArchive.Wpf;
 
 /// <summary>
@@ -12,11 +14,11 @@ public interface ITranscriptionEngineResolver
 }
 
 /// <summary>
-/// 登録済みの文字起こしエンジンから実行対象を選択する
+/// Requestに保存された安定Engine IDから実行対象を選択する
 /// </summary>
 /// <remarks>
-/// 現在はWhisperだけが存在するため常に同じエンジンを返す。
-/// エンジン選択情報をRequestへ追加する後続PRでは、このクラスだけに選択規則を集約する。
+/// 現在登録されている実装はWhisperだけだが、未知のIDを黙ってWhisperへフォールバックしない。
+/// エンジン追加時の設定ミスや永続化不整合を早期に検出するためである。
 /// </remarks>
 public sealed class TranscriptionEngineResolver(WhisperTranscriptionEngine whisperEngine) : ITranscriptionEngineResolver
 {
@@ -24,6 +26,11 @@ public sealed class TranscriptionEngineResolver(WhisperTranscriptionEngine whisp
     public ITranscriptionEngine Resolve(TranscriptionJobRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return whisperEngine;
+        if (request.EngineId == TranscriptionEngineId.Whisper)
+        {
+            return whisperEngine;
+        }
+
+        throw new NotSupportedException($"未対応の文字起こしエンジンです: {request.EngineId}");
     }
 }
