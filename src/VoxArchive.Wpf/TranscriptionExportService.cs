@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using TextEncoding = System.Text.Encoding;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -34,7 +35,7 @@ public sealed class TranscriptionExportService
                 TranscriptionOutputFormats.Json => BuildJsonContent(segments),
                 _ => throw new InvalidOperationException($"未対応の文字起こし出力形式です: {format}")
             };
-            await File.WriteAllTextAsync(path, text, Encoding.UTF8, cancellationToken);
+            await File.WriteAllTextAsync(path, text, TextEncoding.UTF8, cancellationToken);
             generated.Add(path);
         }
         return generated;
@@ -61,7 +62,7 @@ public sealed class TranscriptionExportService
                 TranscriptionOutputFormats.Vtt => BuildDocumentVttContent(document.Segments),
                 _ => throw new InvalidOperationException($"未対応の文字起こし派生出力形式です: {format}")
             };
-            await File.WriteAllTextAsync(path, text, Encoding.UTF8, cancellationToken);
+            await File.WriteAllTextAsync(path, text, TextEncoding.UTF8, cancellationToken);
             generated.Add(path);
         }
         return generated;
