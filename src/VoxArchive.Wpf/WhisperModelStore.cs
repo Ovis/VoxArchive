@@ -1,57 +1,108 @@
 using System.IO;
-using System.Net.Http;
 using VoxArchive.Domain;
+using VoxArchive.Infrastructure;
 
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// Whisperモデルの配置と取得を管理し、共通モデルProvider境界を提供する
+/// Whisperモデルを共通モデルパッケージ基盤へ接続するProviderを提供する
 /// </summary>
 /// <remarks>
-/// モデルはEngineを問わず <c>%LOCALAPPDATA%\VoxArchive\models</c> 配下へ集約する。
-/// 旧 <c>whisper\models</c> 配置は互換対象とせず、新しい配置だけを認識する。
+/// 保存先は <c>%LOCALAPPDATA%\VoxArchive\models\whisper\&lt;modelId&gt;</c> に統一する。
+/// 旧 <c>%LOCALAPPDATA%\VoxArchive\whisper\models</c> は互換対象とせず、検出・移行・削除も行わない。
 /// </remarks>
 public sealed class WhisperModelStore : ITranscriptionModelProvider
 {
-    private static readonly HttpClient HttpClient = new();
-    private readonly string _modelsDirectory;
+    private readonly TranscriptionModelPackageInstaller _installer;
+    private readonly IReadOnlyDictionary<string, TranscriptionModelDefinition> _definitions;
+    private readonly string _modelsRootDirectory;
     private readonly object _downloadStateLock = new();
     private readonly HashSet<TranscriptionModel> _downloadingModels = [];
 
-    /// <summary>Whisperモデルストアを初期化する</summary>
-    /// <param name="modelsDirectory">テスト等で既定保存先を上書きする場合のWhisperモデルディレクトリ</param>
-    public WhisperModelStore(string? modelsDirectory = null)
+    /// <summary>既定のモデル保存先とHTTPクライアントでWhisperモデルStoreを初期化する</summary>
+    public WhisperModelStore()
+        : this(new TranscriptionModelPackageInstaller(new HttpClient()), WhisperModelCatalog.All, null)
     {
-        _modelsDirectory = string.IsNullOrWhiteSpace(modelsDirectory)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive", "models", TranscriptionEngineId.Whisper.Value)
-            : modelsDirectory;
-        Directory.CreateDirectory(_modelsDirectory);
+    }
+
+    /// <summary>DIから共通PackageInstallerを受け取りWhisperモデルStoreを初期化する</summary>
+    public WhisperModelStore(TranscriptionModelPackageInstaller installer)
+        : this(installer, WhisperModelCatalog.All, null)
+    {
+    }
+
+    /// <summary>テスト等でモデル保存ルートを上書きしてWhisperモデルStoreを初期化する</summary>
+    public WhisperModelStore(string modelsRootDirectory)
+        : this(new TranscriptionModelPackageInstaller(new HttpClient()), WhisperModelCatalog.All, modelsRootDirectory)
+    {
+    }
+
+    /// <summary>
+    /// WhisperモデルStoreを固定モデル定義と保存ルートから初期化する
+    /// </summary>
+    internal WhisperModelStore(
+        TranscriptionModelPackageInstaller installer,
+        IEnumerable<TranscriptionModelDefinition> definitions,
+        string? modelsRootDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(installer);
+        ArgumentNullException.ThrowIfNull(definitions);
+
+        _installer = installer;
+        _modelsRootDirectory = string.IsNullOrWhiteSpace(modelsRootDirectory)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoxArchive", "models")
+            : modelsRootDirectory;
+
+        var resolvedDefinitions = new Dictionary<string, TranscriptionModelDefinition>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definition in definitions)
+        {
+            if (definition.EngineId != TranscriptionEngineId.Whisper)
+            {
+                throw new ArgumentException($"Whisper以外のモデル定義は登録できません: {definition.EngineId}", nameof(definitions));
+            }
+
+            if (!resolvedDefinitions.TryAdd(definition.ModelId.Value, definition))
+            {
+                throw new ArgumentException($"WhisperモデルIDが重複しています: {definition.ModelId}", nameof(definitions));
+            }
+        }
+
+        _definitions = resolvedDefinitions;
     }
 
     /// <summary>
     /// モデルのダウンロード状態が変化したときに通知する
     /// </summary>
     /// <remarks>
-    /// 設定画面を閉じてもダウンロード自体は継続するため、状態はWindowではなくアプリケーションで共有されるStoreが保持する。
+    /// 旧SettingsWindowとの互換用イベントであり、共通モデル管理UIではTranscriptionModelManagerの状態通知を使用する。
     /// </remarks>
     public event EventHandler<WhisperModelDownloadStateChangedEventArgs>? DownloadStateChanged;
 
     /// <inheritdoc />
     public TranscriptionEngineId EngineId => TranscriptionEngineId.Whisper;
 
-    /// <summary>Whisperモデルの保存先を取得する</summary>
-    public string ModelsDirectory => _modelsDirectory;
+    /// <summary>Whisperモデルを配置するEngineディレクトリを取得する</summary>
+    public string ModelsDirectory => Path.Combine(_modelsRootDirectory, EngineId.Value);
+
+    /// <inheritdoc />
+    public IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels()
+    {
+        return WhisperModelCatalog.All
+            .Select(definition => new TranscriptionModelDescriptor(definition.ModelId, definition.DisplayName))
+            .ToArray();
+    }
 
     /// <summary>指定したWhisperモデルの物理パスを取得する</summary>
     public string GetModelPath(TranscriptionModel model)
     {
-        return Path.Combine(_modelsDirectory, model.ToString().ToLowerInvariant().Replace("largev3", "large-v3"), GetModelFileName(model));
+        var definition = ResolveDefinition(ToModelId(model));
+        return Path.Combine(GetInstallationDirectory(definition), definition.Files[0].DestinationName);
     }
 
-    /// <summary>指定したWhisperモデルが配置済みか確認する</summary>
+    /// <summary>指定したWhisperモデルが文字起こし実行可能なサイズで配置済みか確認する</summary>
     public bool IsInstalled(TranscriptionModel model)
     {
-        return File.Exists(GetModelPath(model));
+        return IsInstalled(ToModelId(model));
     }
 
     /// <summary>指定したWhisperモデルを現在ダウンロードしているか確認する</summary>
@@ -66,119 +117,76 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
     /// <inheritdoc />
     public bool IsInstalled(TranscriptionModelId modelId)
     {
-        return IsInstalled(ParseModelId(modelId));
+        return Inspect(modelId, TranscriptionModelInspectionLevel.Size).State == TranscriptionModelPackageState.Installed;
+    }
+
+    /// <inheritdoc />
+    public TranscriptionModelInspection Inspect(TranscriptionModelId modelId, TranscriptionModelInspectionLevel level)
+    {
+        var definition = ResolveDefinition(modelId);
+        var state = _installer.Inspect(definition, GetInstallationDirectory(definition), level);
+        return new TranscriptionModelInspection(state, level);
     }
 
     /// <summary>指定したWhisperモデルを削除する</summary>
     public Task DeleteAsync(TranscriptionModel model, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (IsDownloading(model))
-        {
-            throw new InvalidOperationException("ダウンロード中のモデルは削除できません。");
-        }
-
-        var directory = Path.GetDirectoryName(GetModelPath(model));
-        if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
-        {
-            Directory.Delete(directory, recursive: true);
-        }
-
-        return Task.CompletedTask;
+        return DeleteAsync(ToModelId(model), cancellationToken);
     }
 
     /// <inheritdoc />
     public Task DeleteAsync(TranscriptionModelId modelId, CancellationToken cancellationToken = default)
     {
-        return DeleteAsync(ParseModelId(modelId), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var model = ParseModelId(modelId);
+        if (IsDownloading(model))
+        {
+            throw new InvalidOperationException("ダウンロード中のモデルは削除できません。");
+        }
+
+        var definition = ResolveDefinition(modelId);
+        TranscriptionModelPackageInstaller.Delete(definition, _modelsRootDirectory);
+        return Task.CompletedTask;
     }
 
     /// <summary>
-    /// 指定したWhisperモデルを新しいEngine/Model階層へダウンロードする
+    /// 指定したWhisperモデルを取得する
     /// </summary>
     public async Task<string> DownloadAsync(TranscriptionModel model, CancellationToken cancellationToken = default)
     {
-        var destinationPath = GetModelPath(model);
-        var modelDirectory = Path.GetDirectoryName(destinationPath)!;
-        Directory.CreateDirectory(modelDirectory);
-        if (File.Exists(destinationPath))
-        {
-            return destinationPath;
-        }
-
-        lock (_downloadStateLock)
-        {
-            // 同じStoreを利用する別の画面から二重取得されると一時ファイルを競合して操作するため、
-            // 物理ファイルへ触る前にモデル単位で排他する。
-            if (!_downloadingModels.Add(model))
-            {
-                throw new InvalidOperationException("このモデルは現在ダウンロード中です。");
-            }
-        }
-
-        DownloadStateChanged?.Invoke(this, new WhisperModelDownloadStateChangedEventArgs(model, true));
-        var tmpPath = destinationPath + ".download";
-
-        try
-        {
-            if (File.Exists(tmpPath))
-            {
-                File.Delete(tmpPath);
-            }
-
-            var url = BuildModelDownloadUrl(model);
-            using var response = await HttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken))
-            await using (var output = File.Create(tmpPath))
-            {
-                await input.CopyToAsync(output, cancellationToken);
-            }
-
-            File.Move(tmpPath, destinationPath, overwrite: true);
-            return destinationPath;
-        }
-        catch
-        {
-            // 中断したファイルを配置済みモデルと誤認しないよう、一時ファイルは失敗時に除去する。
-            if (File.Exists(tmpPath))
-            {
-                File.Delete(tmpPath);
-            }
-
-            throw;
-        }
-        finally
-        {
-            lock (_downloadStateLock)
-            {
-                _downloadingModels.Remove(model);
-            }
-
-            DownloadStateChanged?.Invoke(this, new WhisperModelDownloadStateChangedEventArgs(model, false));
-        }
+        var installation = await InstallTrackedAsync(ToModelId(model), force: false, progress: null, cancellationToken);
+        return installation.PrimaryFile;
     }
 
     /// <inheritdoc />
-    public async Task<TranscriptionModelInstallation> InstallAsync(TranscriptionModelId modelId, CancellationToken cancellationToken = default)
+    public Task<TranscriptionModelInstallation> InstallAsync(
+        TranscriptionModelId modelId,
+        CancellationToken cancellationToken = default)
     {
-        var model = ParseModelId(modelId);
-        var path = await DownloadAsync(model, cancellationToken);
-        return new TranscriptionModelInstallation(EngineId, modelId, [path]);
+        return InstallTrackedAsync(modelId, force: false, progress: null, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<TranscriptionModelInstallation> InstallManagedAsync(
+        TranscriptionModelId modelId,
+        bool force,
+        IProgress<TranscriptionModelTransferProgress>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        return InstallTrackedAsync(modelId, force, progress, cancellationToken);
     }
 
     /// <inheritdoc />
     public TranscriptionModelInstallation GetInstallation(TranscriptionModelId modelId)
     {
-        var model = ParseModelId(modelId);
-        var path = GetModelPath(model);
-        if (!File.Exists(path))
+        var definition = ResolveDefinition(modelId);
+        var inspection = Inspect(modelId, TranscriptionModelInspectionLevel.Size);
+        if (inspection.State != TranscriptionModelPackageState.Installed)
         {
-            throw new InvalidOperationException($"Whisperモデル '{modelId}' は配置されていません。");
+            throw new InvalidOperationException($"Whisperモデル '{modelId}' は文字起こしに利用できる状態で配置されていません。");
         }
 
-        return new TranscriptionModelInstallation(EngineId, modelId, [path]);
+        return BuildInstallation(definition);
     }
 
     /// <summary>Whisperモデルに対応するファイル名を取得する</summary>
@@ -195,6 +203,78 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
         };
     }
 
+    private async Task<TranscriptionModelInstallation> InstallTrackedAsync(
+        TranscriptionModelId modelId,
+        bool force,
+        IProgress<TranscriptionModelTransferProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var model = ParseModelId(modelId);
+        lock (_downloadStateLock)
+        {
+            if (!_downloadingModels.Add(model))
+            {
+                throw new InvalidOperationException("このモデルは現在ダウンロード中です。");
+            }
+        }
+
+        DownloadStateChanged?.Invoke(this, new WhisperModelDownloadStateChangedEventArgs(model, true));
+        try
+        {
+            var definition = ResolveDefinition(modelId);
+            var directory = await _installer.InstallAsync(definition, _modelsRootDirectory, force, progress, cancellationToken);
+            return BuildInstallation(definition, directory);
+        }
+        finally
+        {
+            lock (_downloadStateLock)
+            {
+                _downloadingModels.Remove(model);
+            }
+
+            DownloadStateChanged?.Invoke(this, new WhisperModelDownloadStateChangedEventArgs(model, false));
+        }
+    }
+
+    private TranscriptionModelDefinition ResolveDefinition(TranscriptionModelId modelId)
+    {
+        if (_definitions.TryGetValue(modelId.Value, out var definition))
+        {
+            return definition;
+        }
+
+        throw new NotSupportedException($"Whisperモデル '{modelId}' はサポートされていません。");
+    }
+
+    private string GetInstallationDirectory(TranscriptionModelDefinition definition)
+    {
+        return Path.Combine(_modelsRootDirectory, definition.EngineId.Value, definition.ModelId.Value);
+    }
+
+    private TranscriptionModelInstallation BuildInstallation(TranscriptionModelDefinition definition)
+    {
+        return BuildInstallation(definition, GetInstallationDirectory(definition));
+    }
+
+    private static TranscriptionModelInstallation BuildInstallation(TranscriptionModelDefinition definition, string directory)
+    {
+        var files = definition.Files.Select(file => Path.Combine(directory, file.DestinationName)).ToArray();
+        return new TranscriptionModelInstallation(definition.EngineId, definition.ModelId, files);
+    }
+
+    private static TranscriptionModelId ToModelId(TranscriptionModel model)
+    {
+        return new TranscriptionModelId(model switch
+        {
+            TranscriptionModel.Tiny => "tiny",
+            TranscriptionModel.Base => "base",
+            TranscriptionModel.Small => "small",
+            TranscriptionModel.Medium => "medium",
+            TranscriptionModel.LargeV3 => "large-v3",
+            _ => throw new ArgumentOutOfRangeException(nameof(model), model, "未対応のWhisperモデルです。")
+        });
+    }
+
     private static TranscriptionModel ParseModelId(TranscriptionModelId modelId)
     {
         return modelId.Value switch
@@ -204,14 +284,8 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
             "small" => TranscriptionModel.Small,
             "medium" => TranscriptionModel.Medium,
             "large-v3" => TranscriptionModel.LargeV3,
-            _ => throw new NotSupportedException($"Whisperモデル '{modelId}' はサポートされていません。")
+            _ => throw new NotSupportedException($"Whisperモデル '{modelId}' はサポートされていません。 ")
         };
-    }
-
-    private static string BuildModelDownloadUrl(TranscriptionModel model)
-    {
-        var file = GetModelFileName(model);
-        return $"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file}?download=true";
     }
 }
 
