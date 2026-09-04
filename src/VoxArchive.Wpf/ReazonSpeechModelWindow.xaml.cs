@@ -1,6 +1,9 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
+using Microsoft.Extensions.DependencyInjection;
+using VoxArchive.Application.Abstractions;
+using VoxArchive.Domain;
 using VoxArchive.Infrastructure;
 
 namespace VoxArchive.Wpf;
@@ -96,6 +99,63 @@ public partial class ReazonSpeechModelWindow : Window
         RefreshState();
     }
 
+    private async void OnRecognitionTestClick(object sender, RoutedEventArgs e)
+    {
+        if (_isBusy || !_modelProvider.IsInstalled(_definition.ModelId))
+        {
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "ReazonSpeech認識テストに使用する録音ファイルを選択",
+            Filter = "音声ファイル|*.flac;*.wav;*.mp3;*.m4a;*.aac;*.ogg|すべてのファイル|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        SetBusyState(true, "ReazonSpeechで認識しています...");
+        try
+        {
+            var app = System.Windows.Application.Current as App
+                ?? throw new InvalidOperationException("VoxArchiveアプリケーションを取得できません。");
+            var settingsService = app.Services.GetRequiredService<ISettingsService>();
+            var engine = app.Services.GetRequiredService<ReazonSpeechTranscriptionEngine>();
+            var currentOptions = await settingsService.LoadRecordingOptionsAsync();
+
+            // 正式なEngine選択UIを導入する前の実機検証用経路なので、既存設定を変更せず
+            // 現在のゲイン・出力設定をスナップショットしたRequestだけをReazonSpeechへ差し替える。
+            var request = new TranscriptionJobRequest(
+                dialog.FileName,
+                TranscriptionJobOptions.FromRecordingOptions(currentOptions),
+                TranscriptionTrigger.Manual)
+            {
+                EngineId = TranscriptionEngineId.ReazonSpeech,
+                ModelId = ReazonSpeechModelCatalog.JapaneseModelId
+            };
+
+            var result = await engine.TranscribeAsync(request);
+            StatusTextBlock.Foreground = result.Succeeded ? StatusDefaultBrush : StatusErrorBrush;
+            StatusTextBlock.Text = result.Succeeded
+                ? $"認識テスト完了: {string.Join(Environment.NewLine, result.GeneratedFiles)}"
+                : result.Message;
+        }
+        catch (Exception ex)
+        {
+            StatusTextBlock.Foreground = StatusErrorBrush;
+            StatusTextBlock.Text = $"認識テスト失敗: {ex.Message}";
+        }
+        finally
+        {
+            SetBusyState(false, null);
+            RefreshState(preserveStatus: true);
+        }
+    }
+
     private void RefreshState(bool preserveStatus = false)
     {
         try
@@ -105,6 +165,7 @@ public partial class ReazonSpeechModelWindow : Window
             InstallButton.IsEnabled = !installed && !_isBusy;
             DeleteButton.IsEnabled = installed && !_isBusy;
             RefreshButton.IsEnabled = !_isBusy;
+            RecognitionTestButton.IsEnabled = installed && !_isBusy;
 
             var installationDirectory = Path.Combine(_modelProvider.ModelsRootDirectory, _definition.EngineId.Value, _definition.ModelId.Value);
             ModelPathTextBlock.Text = $"保存先: {installationDirectory}";
@@ -113,7 +174,7 @@ public partial class ReazonSpeechModelWindow : Window
             {
                 StatusTextBlock.Foreground = StatusDefaultBrush;
                 StatusTextBlock.Text = installed
-                    ? "必要な全ファイルのサイズとSHA-256が一致しています。"
+                    ? "必要な全ファイルのサイズとSHA-256が一致しています。［認識テスト］で実モデルの推論も確認できます。"
                     : "モデルはまだ利用可能な状態ではありません。［モデル取得］から取得できます。";
             }
         }
@@ -122,6 +183,7 @@ public partial class ReazonSpeechModelWindow : Window
             InstallStateTextBlock.Text = "確認失敗";
             InstallButton.IsEnabled = false;
             DeleteButton.IsEnabled = false;
+            RecognitionTestButton.IsEnabled = false;
             StatusTextBlock.Foreground = StatusErrorBrush;
             StatusTextBlock.Text = $"モデル状態の確認に失敗しました: {ex.Message}";
         }
@@ -133,6 +195,7 @@ public partial class ReazonSpeechModelWindow : Window
         InstallButton.IsEnabled = false;
         DeleteButton.IsEnabled = false;
         RefreshButton.IsEnabled = !isBusy;
+        RecognitionTestButton.IsEnabled = false;
 
         if (!string.IsNullOrWhiteSpace(status))
         {
