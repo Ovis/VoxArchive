@@ -18,9 +18,7 @@ public sealed class TranscriptionExportService
         (TranscriptionOutputFormats.Json, ".json")
     ];
 
-    /// <summary>
-    /// 指定された形式の出力ファイルを録音ファイルと同じディレクトリへ生成する
-    /// </summary>
+    /// <summary>指定された形式の出力ファイルを録音ファイルと同じディレクトリへ生成する</summary>
     public async Task<IReadOnlyList<string>> WriteAsync(string audioFilePath, TranscriptionModel model, TranscriptionOutputFormats formats, IReadOnlyList<TranscribedSegment> segments, CancellationToken cancellationToken)
     {
         var basePath = BuildOutputBasePath(audioFilePath, model);
@@ -36,34 +34,23 @@ public sealed class TranscriptionExportService
                 TranscriptionOutputFormats.Json => BuildJsonContent(segments),
                 _ => throw new InvalidOperationException($"未対応の文字起こし出力形式です: {format}")
             };
-            await File.WriteAllTextAsync(path, text, System.Text.Encoding.UTF8, cancellationToken);
+            await File.WriteAllTextAsync(path, text, Encoding.UTF8, cancellationToken);
             generated.Add(path);
         }
         return generated;
     }
 
-    /// <summary>
-    /// canonical documentを正本としてTXT/SRT/VTTを再生成する
-    /// </summary>
+    /// <summary>canonical documentを正本としてTXT/SRT/VTTを再生成する</summary>
     /// <param name="documentPath">正本JSONのパス。派生ファイルは同じベース名で生成する</param>
     /// <param name="document">再出力元となるcanonical document</param>
     /// <param name="formats">生成する派生形式。JSON指定は無視する</param>
-    public async Task<IReadOnlyList<string>> WriteDerivedAsync(
-        string documentPath,
-        TranscriptionDocument document,
-        TranscriptionOutputFormats formats,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> WriteDerivedAsync(string documentPath, TranscriptionDocument document, TranscriptionOutputFormats formats, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentPath);
         ArgumentNullException.ThrowIfNull(document);
-
-        // JSONは再生成可能なexportではなく正本そのものなので、ここでは対象に含めない。
         var derivativeFormats = formats & (TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt | TranscriptionOutputFormats.Vtt);
-        var basePath = Path.Combine(
-            Path.GetDirectoryName(documentPath) ?? string.Empty,
-            Path.GetFileNameWithoutExtension(documentPath));
+        var basePath = Path.Combine(Path.GetDirectoryName(documentPath) ?? string.Empty, Path.GetFileNameWithoutExtension(documentPath));
         var generated = new List<string>(3);
-
         foreach (var (format, extension) in EnumerateRequestedOutputFormats(derivativeFormats))
         {
             var path = basePath + extension;
@@ -74,29 +61,30 @@ public sealed class TranscriptionExportService
                 TranscriptionOutputFormats.Vtt => BuildDocumentVttContent(document.Segments),
                 _ => throw new InvalidOperationException($"未対応の文字起こし派生出力形式です: {format}")
             };
-            await File.WriteAllTextAsync(path, text, System.Text.Encoding.UTF8, cancellationToken);
+            await File.WriteAllTextAsync(path, text, Encoding.UTF8, cancellationToken);
             generated.Add(path);
         }
-
         return generated;
     }
 
-    /// <summary>
-    /// 現在の命名規則に従って、指定形式で生成されるファイルパスを列挙する
-    /// </summary>
+    /// <summary>現在の命名規則に従って、指定形式で生成されるファイルパスを列挙する</summary>
     public IReadOnlyList<string> BuildOutputPaths(string audioFilePath, TranscriptionModel model, TranscriptionOutputFormats formats)
     {
         var basePath = BuildOutputBasePath(audioFilePath, model);
+
+        // Libraryの旧APIは「全形式」を指定して文字起こし結果の存在確認にも利用している。
+        // canonical JSON導入後はTXT/SRT/VTTが残っていても結果削除済みとして再文字起こしできる必要があるため、
+        // この旧来の全形式指定による存在確認では正本JSONだけを返す。通常の個別出力列挙には影響させない。
+        var allFormats = TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt | TranscriptionOutputFormats.Vtt | TranscriptionOutputFormats.Json;
+        if (formats == allFormats)
+        {
+            return [basePath + ".json"];
+        }
+
         return EnumerateRequestedOutputFormats(formats).Select(x => basePath + x.Extension).ToArray();
     }
 
-    /// <summary>
-    /// 現在のWhisper命名規則に従ったcanonical JSONのパスを返す
-    /// </summary>
-    /// <remarks>
-    /// TXT/SRT/VTTはユーザーが編集している可能性がある派生物であり、文字起こし結果の存在判定には使用しない。
-    /// 削除操作で正本JSONだけを削除した後も派生物を残せるよう、正本の判定を明示的に分離する。
-    /// </remarks>
+    /// <summary>現在のWhisper命名規則に従ったcanonical JSONのパスを返す</summary>
     public string BuildCanonicalDocumentPath(string audioFilePath, TranscriptionModel model)
         => BuildOutputBasePath(audioFilePath, model) + ".json";
 
