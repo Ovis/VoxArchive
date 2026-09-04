@@ -56,7 +56,11 @@ public partial class TranscriptionModelManagerControl : UserControl
     /// <summary>進捗表示の可視状態</summary>
     public Visibility ProgressVisibility { get => (Visibility)GetValue(ProgressVisibilityProperty); set => SetValue(ProgressVisibilityProperty, value); }
 
-    public static readonly DependencyProperty SelectedModelIdProperty = DependencyProperty.Register(nameof(SelectedModelId), typeof(string), typeof(TranscriptionModelManagerControl), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+    public static readonly DependencyProperty SelectedModelIdProperty = DependencyProperty.Register(
+        nameof(SelectedModelId),
+        typeof(string),
+        typeof(TranscriptionModelManagerControl),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedModelIdChanged));
     public static readonly DependencyProperty StatusTextProperty = DependencyProperty.Register(nameof(StatusText), typeof(string), typeof(TranscriptionModelManagerControl), new PropertyMetadata("未確認"));
     public static readonly DependencyProperty MessageTextProperty = DependencyProperty.Register(nameof(MessageText), typeof(string), typeof(TranscriptionModelManagerControl), new PropertyMetadata(string.Empty));
     public static readonly DependencyProperty InstallButtonTextProperty = DependencyProperty.Register(nameof(InstallButtonText), typeof(string), typeof(TranscriptionModelManagerControl), new PropertyMetadata("モデル取得"));
@@ -67,6 +71,9 @@ public partial class TranscriptionModelManagerControl : UserControl
     public static readonly DependencyProperty ProgressTextProperty = DependencyProperty.Register(nameof(ProgressText), typeof(string), typeof(TranscriptionModelManagerControl), new PropertyMetadata(string.Empty));
     public static readonly DependencyProperty ProgressVisibilityProperty = DependencyProperty.Register(nameof(ProgressVisibility), typeof(Visibility), typeof(TranscriptionModelManagerControl), new PropertyMetadata(Visibility.Collapsed));
 
+    /// <summary>選択モデルが変化したときに通知する</summary>
+    public event EventHandler? SelectedModelChanged;
+
     /// <summary>完全性確認が要求されたときに通知する</summary>
     public event EventHandler? VerifyRequested;
 
@@ -75,6 +82,14 @@ public partial class TranscriptionModelManagerControl : UserControl
 
     /// <summary>削除が要求されたときに通知する</summary>
     public event EventHandler? DeleteRequested;
+
+    private static void OnSelectedModelIdChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is TranscriptionModelManagerControl control && !Equals(e.OldValue, e.NewValue))
+        {
+            control.SelectedModelChanged?.Invoke(control, EventArgs.Empty);
+        }
+    }
 
     private void OnVerifyClick(object sender, RoutedEventArgs e) => VerifyRequested?.Invoke(this, EventArgs.Empty);
     private void OnInstallClick(object sender, RoutedEventArgs e) => InstallRequested?.Invoke(this, EventArgs.Empty);
