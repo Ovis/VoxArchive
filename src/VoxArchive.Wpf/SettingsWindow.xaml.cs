@@ -4,17 +4,21 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Microsoft.Extensions.DependencyInjection;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
+/// <summary>
+/// 録音・文字起こしに関するアプリケーション設定を編集するWindowを提供する
+/// </summary>
 public partial class SettingsWindow : Window
 {
     private readonly WhisperModelStore _whisperModelStore;
     private readonly WhisperTranscriptionService _whisperTranscriptionService;
+    private readonly TranscriptionModelManager _modelManager;
 
     private static readonly Brush StatusDefaultBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9BB4D1"));
-    private static readonly Brush StatusWarningBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFCA80"));
     private static readonly Brush StatusErrorBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF9A9A"));
 
     private bool _isCapturingHotkey;
@@ -23,44 +27,57 @@ public partial class SettingsWindow : Window
     private int _environmentCheckVersion;
     private int _environmentCheckInProgress;
 
+    /// <summary>
+    /// アプリケーションのDIコンテナから文字起こし関連サービスを解決して設定Windowを初期化する
+    /// </summary>
     public SettingsWindow()
-        : this(new WhisperModelStore())
     {
+        var app = System.Windows.Application.Current as App
+            ?? throw new InvalidOperationException("VoxArchiveアプリケーションを取得できません。");
+        _whisperModelStore = app.Services.GetRequiredService<WhisperModelStore>();
+        _whisperTranscriptionService = app.Services.GetRequiredService<WhisperTranscriptionService>();
+        _modelManager = app.Services.GetRequiredService<TranscriptionModelManager>();
+        InitializeWindow();
     }
 
-    private SettingsWindow(WhisperModelStore whisperModelStore)
-        : this(
-            whisperModelStore,
-            new WhisperTranscriptionService(
-                whisperModelStore,
-                new TranscriptionAudioPreparationService(),
-                new TranscriptionSpeechRegionDetector(),
-                new TranscriptionSpeakerLabelService(),
-                new TranscriptionExportService()))
-    {
-    }
-
-    public SettingsWindow(WhisperModelStore whisperModelStore, WhisperTranscriptionService whisperTranscriptionService)
+    /// <summary>
+    /// 設定Windowが利用するアプリケーション共有サービスを明示して初期化する
+    /// </summary>
+    public SettingsWindow(
+        WhisperModelStore whisperModelStore,
+        WhisperTranscriptionService whisperTranscriptionService,
+        TranscriptionModelManager modelManager)
     {
         _whisperModelStore = whisperModelStore;
         _whisperTranscriptionService = whisperTranscriptionService;
+        _modelManager = modelManager;
+        InitializeWindow();
+    }
 
+    private void InitializeWindow()
+    {
         _suppressEnvironmentAutoCheck = true;
         InitializeComponent();
-
         PreviewKeyDown += OnWindowPreviewKeyDown;
-        ModelDirectoryTextBox.Text = _whisperModelStore.ModelsDirectory;
 
+        InitializeTranscriptionTabs();
         TranscriptionExecutionMode = TranscriptionExecutionMode.Auto;
         TranscriptionModel = TranscriptionModel.Small;
+        ReazonSpeechModelId = "ja";
         AutoTranscriptionPriority = TranscriptionPriority.Low;
         ManualTranscriptionPriority = TranscriptionPriority.Normal;
-        TranscriptionLanguage = "ja";
+        TranscriptionLanguage = string.Empty;
         OutputTxtCheckBox.IsChecked = true;
-
         SetDefaultEnvironmentStatus();
 
         _suppressEnvironmentAutoCheck = false;
+    }
+
+    /// <inheritdoc />
+    protected override void OnClosed(EventArgs e)
+    {
+        _modelManager.StateChanged -= OnModelManagerStateChanged;
+        base.OnClosed(e);
     }
 
     public int AlignmentMilliseconds
@@ -97,12 +114,12 @@ public partial class SettingsWindow : Window
         set => OutputDirectoryTextBox.Text = value;
     }
 
-
     public string FfmpegExecutablePath
     {
         get => FfmpegPathTextBox.Text.Trim();
         set => FfmpegPathTextBox.Text = value;
     }
+
     public bool RecordingMetricsLogEnabled
     {
         get => RecordingMetricsLogCheckBox.IsChecked == true;
@@ -136,19 +153,35 @@ public partial class SettingsWindow : Window
     public TranscriptionExecutionMode TranscriptionExecutionMode
     {
         get => GetSelectedTag(ExecutionModeComboBox, VoxArchive.Domain.TranscriptionExecutionMode.Auto);
-        set => SelectByTag(ExecutionModeComboBox, value);
+        set
+        {
+            // CudaPreferredは旧設定との互換値としてだけ残っている。現在のUIではAutoへ正規化し、
+            // CUDA 13→CUDA 12→Vulkan→CPUの自動選択へ統一する。
+            var normalized = value == VoxArchive.Domain.TranscriptionExecutionMode.CpuOnly
+                ? VoxArchive.Domain.TranscriptionExecutionMode.CpuOnly
+                : VoxArchive.Domain.TranscriptionExecutionMode.Auto;
+            SelectByTag(ExecutionModeComboBox, normalized);
+        }
     }
 
     public TranscriptionModel TranscriptionModel
     {
-        get => GetSelectedTag(ModelComboBox, VoxArchive.Domain.TranscriptionModel.Small);
-        set => SelectByTag(ModelComboBox, value);
+        get => ParseWhisperModelId(WhisperModelManagerControl.SelectedModelId);
+        set => WhisperModelManagerControl.SelectedModelId = ToWhisperModelId(value);
     }
 
     public string TranscriptionLanguage
     {
-        get => GetSelectedStringTag(LanguageComboBox, "ja");
-        set => SelectByStringTag(LanguageComboBox, value, "ja");
+        get
+        {
+            if (LanguageComboBox.SelectedItem is ComboBoxItem item)
+            {
+                return item.Tag?.ToString()?.Trim() ?? string.Empty;
+            }
+
+            return string.Empty;
+        }
+        set => SelectLanguage(value);
     }
 
     public TranscriptionPriority AutoTranscriptionPriority
@@ -284,13 +317,10 @@ public partial class SettingsWindow : Window
 
     private void OnTranscriptionEnvironmentSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_suppressEnvironmentAutoCheck)
+        if (!_suppressEnvironmentAutoCheck)
         {
-            return;
+            SetDefaultEnvironmentStatus();
         }
-
-        // 自動実行は行わず、明示的な「環境チェック」押下時のみ判定する。
-        SetDefaultEnvironmentStatus();
     }
 
     private async Task RefreshEnvironmentStatusAsync()
@@ -306,41 +336,42 @@ public partial class SettingsWindow : Window
         try
         {
             var options = BuildTemporaryOptions();
-            var (status, cudaProbe) = await Task.Run(() =>
-                (_whisperTranscriptionService.CheckEnvironment(options), CudaRuntimeProbe.Check()));
+            var status = await Task.Run(() => _whisperTranscriptionService.CheckEnvironment(options));
             if (checkVersion != _environmentCheckVersion)
             {
                 return;
             }
 
-            var lines = new List<string>
+            if (!status.RuntimeAvailable)
             {
-                status.RuntimeMessage,
-                status.ModelMessage,
-                cudaProbe.Message,
-                status.DetailMessage
-            };
-
-            if (TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !cudaProbe.Available)
-            {
-                lines.Add("CudaPreferred が選択されていますが、Whisper.net が実行時に必要とする CUDA Runtime を利用できません。CPU にフォールバックする可能性があります。");
-            }
-
-            TranscriptionStatusTextBlock.Text = string.Join(Environment.NewLine, lines.Where(x => !string.IsNullOrWhiteSpace(x)));
-
-            if (!status.RuntimeAvailable || !status.ModelInstalled)
-            {
-                TranscriptionStatusTextBlock.Foreground = StatusErrorBrush;
+                WhisperEnvironmentStatusTextBlock.Foreground = StatusErrorBrush;
+                WhisperEnvironmentStatusTextBlock.Text = string.Join(
+                    Environment.NewLine,
+                    new[] { status.RuntimeMessage, status.DetailMessage }.Where(text => !string.IsNullOrWhiteSpace(text)));
                 return;
             }
 
-            if (TranscriptionExecutionMode == TranscriptionExecutionMode.CudaPreferred && !cudaProbe.Available)
+            WhisperEnvironmentStatusTextBlock.Foreground = StatusDefaultBrush;
+            if (TranscriptionExecutionMode == VoxArchive.Domain.TranscriptionExecutionMode.CpuOnly)
             {
-                TranscriptionStatusTextBlock.Foreground = StatusWarningBrush;
+                WhisperEnvironmentStatusTextBlock.Text = "CPU を利用できます。";
                 return;
             }
 
-            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
+            if (status.CudaAvailable)
+            {
+                WhisperEnvironmentStatusTextBlock.Text = "CUDA を利用できます。自動モードでは利用可能な処理方式を優先順位に従って選択します。";
+                return;
+            }
+
+            // CUDAが利用できない場合もVulkan/CPUへフォールバックできるため、成功状態のまま理由を補足する。
+            var runtime = WhisperRuntimeProbe.Check();
+            var availableFallback = runtime.Details.FirstOrDefault(detail =>
+                (detail.StartsWith("Vulkan", StringComparison.Ordinal) || detail.StartsWith("CPU", StringComparison.Ordinal))
+                && detail.EndsWith("利用可能", StringComparison.Ordinal));
+            WhisperEnvironmentStatusTextBlock.Text = availableFallback is null
+                ? "Whisperランタイムを利用できます。CUDAは利用できません。"
+                : $"{availableFallback.Replace(": 利用可能", string.Empty, StringComparison.Ordinal)} を利用できます。CUDAは利用できません。";
         }
         catch (Exception ex)
         {
@@ -349,8 +380,8 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            TranscriptionStatusTextBlock.Foreground = StatusErrorBrush;
-            TranscriptionStatusTextBlock.Text = $"環境チェック失敗: {ex.Message}";
+            WhisperEnvironmentStatusTextBlock.Foreground = StatusErrorBrush;
+            WhisperEnvironmentStatusTextBlock.Text = $"環境チェックに失敗しました。{Environment.NewLine}{ex.Message}";
         }
         finally
         {
@@ -359,73 +390,16 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void OnDownloadModelClick(object sender, RoutedEventArgs e)
-    {
-        _ = DownloadModelAsync();
-    }
-
-    private async Task DownloadModelAsync()
-    {
-        try
-        {
-            ToggleTranscriptionButtons(false);
-            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
-            TranscriptionStatusTextBlock.Text = "モデルをダウンロードしています...";
-            var path = await _whisperModelStore.DownloadAsync(TranscriptionModel);
-            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
-            TranscriptionStatusTextBlock.Text = $"モデル取得完了: {path}";
-        }
-        catch (Exception ex)
-        {
-            TranscriptionStatusTextBlock.Foreground = StatusErrorBrush;
-            TranscriptionStatusTextBlock.Text = $"モデル取得失敗: {ex.Message}";
-        }
-        finally
-        {
-            ToggleTranscriptionButtons(true);
-        }
-    }
-    private void OnDeleteModelClick(object sender, RoutedEventArgs e)
-    {
-        _ = DeleteModelAsync();
-    }
-    private async Task DeleteModelAsync()
-    {
-        try
-        {
-            await _whisperModelStore.DeleteAsync(TranscriptionModel);
-            TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
-            TranscriptionStatusTextBlock.Text = "モデルを削除しました。";
-        }
-        catch (Exception ex)
-        {
-            TranscriptionStatusTextBlock.Foreground = StatusErrorBrush;
-            TranscriptionStatusTextBlock.Text = $"モデル削除失敗: {ex.Message}";
-        }
-    }
     private void SetDefaultEnvironmentStatus()
     {
-        TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
-        TranscriptionStatusTextBlock.Text = "環境チェックで文字起こし実行可否を確認できます。";
+        WhisperEnvironmentStatusTextBlock.Foreground = StatusDefaultBrush;
+        WhisperEnvironmentStatusTextBlock.Text = "環境チェックで利用可能なWhisper実行方式を確認できます。";
     }
 
     private void SetEnvironmentCheckUiState(bool isChecking)
     {
-        if (CheckEnvironmentButton is null)
-        {
-            return;
-        }
-
         CheckEnvironmentButton.IsEnabled = !isChecking;
         CheckEnvironmentButton.Content = isChecking ? "確認中..." : "環境チェック";
-    }
-    private void ToggleTranscriptionButtons(bool isEnabled)
-    {
-        ExecutionModeComboBox.IsEnabled = isEnabled;
-        ModelComboBox.IsEnabled = isEnabled;
-        AutoPriorityComboBox.IsEnabled = isEnabled;
-        ManualPriorityComboBox.IsEnabled = isEnabled;
-        LanguageComboBox.IsEnabled = isEnabled;
     }
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
@@ -483,13 +457,6 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var formats = BuildOutputFormats();
-        if (formats == TranscriptionOutputFormats.None)
-        {
-            ModernDialog.Show(this, "文字起こし出力形式を1つ以上選択してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
         DialogResult = true;
     }
 
@@ -533,50 +500,27 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private static string GetSelectedStringTag(ComboBox comboBox, string defaultValue)
+    private void SelectLanguage(string? value)
     {
-        if (comboBox.SelectedItem is ComboBoxItem item)
+        var target = value?.Trim() ?? string.Empty;
+        foreach (var item in LanguageComboBox.Items.OfType<ComboBoxItem>())
         {
-            var text = item.Tag?.ToString()?.Trim();
-            if (!string.IsNullOrWhiteSpace(text))
+            var tag = item.Tag?.ToString()?.Trim() ?? string.Empty;
+            if (string.Equals(tag, target, StringComparison.OrdinalIgnoreCase))
             {
-                return text;
-            }
-        }
-
-        return defaultValue;
-    }
-
-    private static void SelectByStringTag(ComboBox comboBox, string value, string fallbackValue)
-    {
-        var target = string.IsNullOrWhiteSpace(value) ? fallbackValue : value.Trim();
-        foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
-        {
-            if (string.Equals(item.Tag?.ToString(), target, StringComparison.OrdinalIgnoreCase))
-            {
-                comboBox.SelectedItem = item;
+                LanguageComboBox.SelectedItem = item;
                 return;
             }
         }
 
-        foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
-        {
-            if (string.Equals(item.Tag?.ToString(), fallbackValue, StringComparison.OrdinalIgnoreCase))
-            {
-                comboBox.SelectedItem = item;
-                return;
-            }
-        }
-
-        if (comboBox.Items.Count > 0)
-        {
-            comboBox.SelectedIndex = 0;
-        }
+        // 未知の言語コードはUIで誤表示せず「指定なし」へ戻す。設定保存時も空文字となりWhisper側の自動判定になる。
+        LanguageComboBox.SelectedIndex = 0;
     }
 
     private TranscriptionOutputFormats BuildOutputFormats()
     {
-        var formats = TranscriptionOutputFormats.None;
+        // canonical JSONは文字起こし結果の内部データなので、UIの選択状態にかかわらず必ず保存する。
+        var formats = TranscriptionOutputFormats.Json;
         if (OutputTxtCheckBox.IsChecked == true)
         {
             formats |= TranscriptionOutputFormats.Txt;
@@ -592,11 +536,6 @@ public partial class SettingsWindow : Window
             formats |= TranscriptionOutputFormats.Vtt;
         }
 
-        if (OutputJsonCheckBox.IsChecked == true)
-        {
-            formats |= TranscriptionOutputFormats.Json;
-        }
-
         return formats;
     }
 
@@ -605,7 +544,6 @@ public partial class SettingsWindow : Window
         OutputTxtCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Txt);
         OutputSrtCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Srt);
         OutputVttCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Vtt);
-        OutputJsonCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Json);
     }
 
     private RecordingOptions BuildTemporaryOptions()
@@ -614,6 +552,31 @@ public partial class SettingsWindow : Window
         {
             TranscriptionModel = TranscriptionModel,
             TranscriptionExecutionMode = TranscriptionExecutionMode
+        };
+    }
+
+    private static string ToWhisperModelId(TranscriptionModel model)
+    {
+        return model switch
+        {
+            VoxArchive.Domain.TranscriptionModel.Tiny => "tiny",
+            VoxArchive.Domain.TranscriptionModel.Base => "base",
+            VoxArchive.Domain.TranscriptionModel.Small => "small",
+            VoxArchive.Domain.TranscriptionModel.Medium => "medium",
+            VoxArchive.Domain.TranscriptionModel.LargeV3 => "large-v3",
+            _ => "small"
+        };
+    }
+
+    private static TranscriptionModel ParseWhisperModelId(string? modelId)
+    {
+        return modelId switch
+        {
+            "tiny" => VoxArchive.Domain.TranscriptionModel.Tiny,
+            "base" => VoxArchive.Domain.TranscriptionModel.Base,
+            "medium" => VoxArchive.Domain.TranscriptionModel.Medium,
+            "large-v3" => VoxArchive.Domain.TranscriptionModel.LargeV3,
+            _ => VoxArchive.Domain.TranscriptionModel.Small
         };
     }
 }
