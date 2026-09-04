@@ -95,9 +95,10 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<TranscriptionResultDiscoveryService>();
                     services.AddSingleton<WhisperTranscriptionService>();
 
-                    // QueueからWhisperへの直接依存を外し、エンジン選択をResolver/Orchestratorへ集約する。
-                    // 現在は認識EngineとしてWhisperだけを登録し、ReazonSpeechの認識処理は後続PRで追加する。
+                    // QueueはEngine IDだけをResolverへ渡し、Whisper/ReazonSpeech固有実装を直接参照しない。
+                    // 両Engineとも同じ音声準備・VAD・話者ラベル・canonical document基盤を利用する。
                     services.AddSingleton<WhisperTranscriptionEngine>();
+                    services.AddSingleton<ReazonSpeechTranscriptionEngine>();
                     services.AddSingleton<ITranscriptionEngineResolver, TranscriptionEngineResolver>();
                     services.AddSingleton<TranscriptionOrchestrator>();
                     services.AddSingleton<TranscriptionJobQueue>();
