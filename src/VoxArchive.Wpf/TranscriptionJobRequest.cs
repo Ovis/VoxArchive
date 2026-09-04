@@ -36,6 +36,10 @@ public sealed record TranscriptionJobRequest(string AudioFilePath, Transcription
     public TranscriptionJobRequest(string AudioFilePath, RecordingOptions Options, TranscriptionTrigger Trigger)
         : this(AudioFilePath, TranscriptionJobOptions.FromRecordingOptions(Options), Trigger)
     {
+        // 現在の実行実装はWhisperだけなので、DefaultEngineをそのままRequestへ流すと未実装Engineが
+        // 設定ファイルに存在するだけで既存処理を壊してしまう。Engine選択UIを導入するPRまではWhisperを固定する。
+        EngineId = TranscriptionEngineId.Whisper;
+        ModelId = TranscriptionModelId.FromWhisperModel(Options.Transcription.Whisper.Model);
     }
 }
 
@@ -65,16 +69,18 @@ public sealed record TranscriptionJobOptions
     public static TranscriptionJobOptions FromRecordingOptions(RecordingOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        var transcription = options.Transcription;
+        var whisper = transcription.Whisper;
         return new TranscriptionJobOptions
         {
-            TranscriptionDiagnosticsLogEnabled = options.TranscriptionDiagnosticsLogEnabled,
-            TranscriptionExecutionMode = options.TranscriptionExecutionMode,
-            TranscriptionModel = options.TranscriptionModel,
-            TranscriptionLanguage = options.TranscriptionLanguage,
-            TranscriptionOutputFormats = options.TranscriptionOutputFormats,
-            AutoTranscriptionPriority = options.AutoTranscriptionPriority,
-            ManualTranscriptionPriority = options.ManualTranscriptionPriority,
-            TranscriptionToastNotificationEnabled = options.TranscriptionToastNotificationEnabled,
+            TranscriptionDiagnosticsLogEnabled = transcription.DiagnosticsLogEnabled,
+            TranscriptionExecutionMode = whisper.ExecutionMode,
+            TranscriptionModel = whisper.Model,
+            TranscriptionLanguage = whisper.Language,
+            TranscriptionOutputFormats = transcription.OutputFormats,
+            AutoTranscriptionPriority = transcription.AutoPriority,
+            ManualTranscriptionPriority = transcription.ManualPriority,
+            TranscriptionToastNotificationEnabled = transcription.ToastNotificationEnabled,
             DefaultSpeakerPlaybackGainDb = options.DefaultSpeakerPlaybackGainDb,
             DefaultMicPlaybackGainDb = options.DefaultMicPlaybackGainDb
         };
