@@ -1,3 +1,4 @@
+using System.IO;
 using VoxArchive.Application.Abstractions;
 
 namespace VoxArchive.Wpf;
@@ -41,6 +42,21 @@ public sealed class LibraryRetranscriptionService(
     public bool TryEnqueue(TranscriptionJobRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return transcriptionQueue.TryEnqueue(request);
+        if (!transcriptionQueue.TryEnqueue(request))
+        {
+            return false;
+        }
+
+        // 通常の手動文字起こしではLibraryViewModelがQueue投入成功後に開始通知を出している。
+        // 再文字起こしはその経路を通らないため、同じ設定フラグに従ってここで通知し、開始時のUXを揃える。
+        if (request.Options.TranscriptionToastNotificationEnabled)
+        {
+            AppNotificationHub.Notify(
+                "VoxArchive",
+                $"文字起こし開始: {Path.GetFileName(request.AudioFilePath)}",
+                System.Windows.Forms.ToolTipIcon.Info);
+        }
+
+        return true;
     }
 }
