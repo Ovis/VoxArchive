@@ -15,6 +15,8 @@ public partial class SettingsWindow
     private static readonly Brush TranscriptionTabNormalBorder = CreateFrozenBrush("#283242");
     private static readonly Brush TranscriptionTabSelectedBorder = CreateFrozenBrush("#3D5D84");
 
+    private bool _transcriptionTabVisualsInitialized;
+
     /// <inheritdoc />
     protected override void OnContentRendered(EventArgs e)
     {
@@ -27,6 +29,15 @@ public partial class SettingsWindow
     /// </summary>
     private void InitializeTranscriptionTabVisuals()
     {
+        if (_transcriptionTabVisualsInitialized)
+        {
+            RefreshTranscriptionTabVisuals();
+            return;
+        }
+
+        _transcriptionTabVisualsInitialized = true;
+        TranscriptionTabControl.SelectionChanged += OnTranscriptionTabVisualSelectionChanged;
+
         foreach (var tabItem in TranscriptionTabControl.Items.OfType<TabItem>())
         {
             tabItem.ApplyTemplate();
@@ -43,8 +54,32 @@ public partial class SettingsWindow
 
             tabRoot.MouseEnter += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, isHeaderHovered: true);
             tabRoot.MouseLeave += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, isHeaderHovered: false);
-            tabItem.Selected += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, tabRoot.IsMouseOver);
-            tabItem.Unselected += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, tabRoot.IsMouseOver);
+        }
+    }
+
+    /// <summary>
+    /// タブ選択が変わったときに、各ヘッダーの背景色と罫線色を現在の選択状態へ同期する
+    /// </summary>
+    private void OnTranscriptionTabVisualSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        RefreshTranscriptionTabVisuals();
+    }
+
+    /// <summary>
+    /// 現在の選択状態とヘッダー上のHover状態から、全タブの見た目を再計算する
+    /// </summary>
+    private void RefreshTranscriptionTabVisuals()
+    {
+        foreach (var tabItem in TranscriptionTabControl.Items.OfType<TabItem>())
+        {
+            tabItem.ApplyTemplate();
+            if (tabItem.Template.FindName("TabRoot", tabItem) is not Border tabRoot)
+            {
+                continue;
+            }
+
+            var rightEdge = EnsureRightEdge(tabRoot);
+            ApplyTabVisual(tabItem, tabRoot, rightEdge, tabRoot.IsMouseOver);
         }
     }
 
