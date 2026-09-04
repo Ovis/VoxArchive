@@ -94,6 +94,7 @@ public partial class SettingsWindow
         settingsPanel.Children.Insert(insertionIndex + 1, _transcriptionEngineComboBox);
 
         SelectEngineComboItem(_defaultTranscriptionEngine);
+        RefreshModelDownloadUi();
         UpdateEngineSpecificUi();
     }
 
@@ -104,8 +105,11 @@ public partial class SettingsWindow
             _defaultTranscriptionEngine = NormalizeEngineId(engineId);
         }
 
-        UpdateEngineSpecificUi();
+        // Engine切替前のWhisperモデル取得状態がボタンへ残らないよう、
+        // Engine固有表示を更新する前にモデル管理UIの可用性も再評価する。
         SetDefaultEnvironmentStatus();
+        RefreshModelDownloadUi();
+        UpdateEngineSpecificUi();
     }
 
     private void SelectEngineComboItem(string engineId)
