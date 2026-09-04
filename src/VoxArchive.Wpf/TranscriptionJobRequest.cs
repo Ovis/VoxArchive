@@ -8,7 +8,7 @@ namespace VoxArchive.Wpf;
 /// <remarks>
 /// 録音設定全体を保持すると、文字起こしと無関係な設定までジョブ実行層へ伝播するため、
 /// ジョブで実際に参照する値だけを <see cref="TranscriptionJobOptions"/> にスナップショットする。
-/// Engine/ModelはWhisper固有設定とは別に安定IDでも保持し、後続の複数エンジン対応でQueueやResolverが
+/// Engine/ModelはWhisper固有設定とは別に安定IDでも保持し、QueueやResolverが
 /// <see cref="TranscriptionModel"/> を解釈しなくて済む境界を用意する。
 /// </remarks>
 public sealed record TranscriptionJobRequest(string AudioFilePath, TranscriptionJobOptions Options, TranscriptionTrigger Trigger)
@@ -16,10 +16,6 @@ public sealed record TranscriptionJobRequest(string AudioFilePath, Transcription
     /// <summary>
     /// 実行対象エンジンの安定IDを取得する
     /// </summary>
-    /// <remarks>
-    /// 現在の設定UIはWhisperだけを扱うため既定値はWhisperとする。
-    /// 新しいエンジンからRequestを作る経路では明示的に上書きする。
-    /// </remarks>
     public TranscriptionEngineId EngineId { get; init; } = TranscriptionEngineId.Whisper;
 
     /// <summary>
@@ -36,11 +32,29 @@ public sealed record TranscriptionJobRequest(string AudioFilePath, Transcription
     public TranscriptionJobRequest(string AudioFilePath, RecordingOptions Options, TranscriptionTrigger Trigger)
         : this(AudioFilePath, TranscriptionJobOptions.FromRecordingOptions(Options), Trigger)
     {
-        // 現在の実行実装はWhisperだけなので、DefaultEngineをそのままRequestへ流すと未実装Engineが
-        // 設定ファイルに存在するだけで既存処理を壊してしまう。Engine選択UIを導入するPRまではWhisperを固定する。
-        EngineId = TranscriptionEngineId.Whisper;
-        ModelId = TranscriptionModelId.FromWhisperModel(Options.Transcription.Whisper.Model);
+        ArgumentNullException.ThrowIfNull(Options);
+
+        // DefaultEngineは永続化用の安定IDなので、列挙型名や表示名へ変換せずそのままEngine解決へ渡す。
+        // 未知IDをWhisperへ黙ってフォールバックさせると設定不整合を見逃すため、対応済みEngineだけを明示的に受理する。
+        if (string.Equals(Options.Transcription.DefaultEngine, TranscriptionEngineId.ReazonSpeech.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            EngineId = TranscriptionEngineId.ReazonSpeech;
+            ModelId = new TranscriptionModelId(NormalizeReazonSpeechModelId(Options.Transcription.ReazonSpeech.Model));
+            return;
+        }
+
+        if (string.Equals(Options.Transcription.DefaultEngine, TranscriptionEngineId.Whisper.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            EngineId = TranscriptionEngineId.Whisper;
+            ModelId = TranscriptionModelId.FromWhisperModel(Options.Transcription.Whisper.Model);
+            return;
+        }
+
+        throw new NotSupportedException($"未対応の既定文字起こしEngineです: {Options.Transcription.DefaultEngine}");
     }
+
+    private static string NormalizeReazonSpeechModelId(string? modelId)
+        => string.IsNullOrWhiteSpace(modelId) ? "ja" : modelId.Trim().ToLowerInvariant();
 }
 
 /// <summary>
@@ -49,6 +63,7 @@ public sealed record TranscriptionJobRequest(string AudioFilePath, Transcription
 /// <remarks>
 /// この型は、設定画面で保持する <see cref="RecordingOptions"/> とジョブ実行を分離するための境界である。
 /// Whisper固有設定は後続PRで型付きEngineOptionsへ移行するまで互換用に保持する。
+/// ReazonSpeechは現時点でCPU固定・日本語モデル1種類なので、共通出力/ゲイン設定だけを利用する。
 /// </remarks>
 public sealed record TranscriptionJobOptions
 {
