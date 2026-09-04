@@ -723,8 +723,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
             }
 
+            // 「指定なし」はEngine側へ言語制約を渡さない共通設定なので、空文字のまま永続化する。
+            // Whisperでは自動判定、言語固定モデルではモデル定義側の言語として解釈される。
             var normalizedLanguage = string.IsNullOrWhiteSpace(dialog.TranscriptionLanguage)
-                ? "ja"
+                ? string.Empty
                 : dialog.TranscriptionLanguage.Trim();
             var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None
                 ? TranscriptionOutputFormats.Txt
@@ -934,7 +936,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             StartStopHotkey = normalizedHotkey,
             DefaultSpeakerPlaybackGainDb = Math.Clamp(options.DefaultSpeakerPlaybackGainDb, -60d, 48d),
             DefaultMicPlaybackGainDb = Math.Clamp(options.DefaultMicPlaybackGainDb, -60d, 48d),
-            TranscriptionLanguage = string.IsNullOrWhiteSpace(options.TranscriptionLanguage) ? "ja" : options.TranscriptionLanguage.Trim(),
+            // 空文字は「指定なし」という有効な値なので、既定補完でjaへ書き換えない。
+            TranscriptionLanguage = string.IsNullOrWhiteSpace(options.TranscriptionLanguage) ? string.Empty : options.TranscriptionLanguage.Trim(),
             FfmpegExecutablePath = string.IsNullOrWhiteSpace(options.FfmpegExecutablePath) ? string.Empty : options.FfmpegExecutablePath.Trim(),
             TranscriptionOutputFormats = options.TranscriptionOutputFormats == TranscriptionOutputFormats.None
                 ? TranscriptionOutputFormats.Txt
@@ -1078,6 +1081,3 @@ public sealed class ProcessListItem
         return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
-
-
-
