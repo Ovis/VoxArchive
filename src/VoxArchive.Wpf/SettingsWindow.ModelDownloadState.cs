@@ -1,11 +1,12 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// 設定WindowへWhisperモデル取得処理のアプリケーション共有状態を反映する
+/// 設定Windowへ文字起こしモデル取得処理のアプリケーション共有状態を反映する
 /// </summary>
 public partial class SettingsWindow
 {
@@ -13,6 +14,7 @@ public partial class SettingsWindow
 
     private Button? _modelDownloadButton;
     private Button? _modelDeleteButton;
+    private Button? _reazonSpeechModelButton;
 
     /// <inheritdoc />
     protected override void OnContentRendered(EventArgs e)
@@ -23,6 +25,7 @@ public partial class SettingsWindow
         // Windowを開き直した時点でStoreの状態を読み直し、閉じる前のUI状態に依存しないようにする。
         _modelDownloadButton ??= FindButtonByContent(this, "モデル取得");
         _modelDeleteButton ??= FindButtonByContent(this, "モデル削除");
+        EnsureReazonSpeechModelButton();
         _whisperModelStore.DownloadStateChanged -= OnWhisperModelDownloadStateChanged;
         _whisperModelStore.DownloadStateChanged += OnWhisperModelDownloadStateChanged;
         ModelComboBox.SelectionChanged -= OnModelSelectionChangedForDownloadState;
@@ -36,6 +39,43 @@ public partial class SettingsWindow
         _whisperModelStore.DownloadStateChanged -= OnWhisperModelDownloadStateChanged;
         ModelComboBox.SelectionChanged -= OnModelSelectionChangedForDownloadState;
         base.OnClosed(e);
+    }
+
+    private void EnsureReazonSpeechModelButton()
+    {
+        if (_reazonSpeechModelButton is not null || _modelDeleteButton?.Parent is not WrapPanel actionPanel)
+        {
+            return;
+        }
+
+        // 既存Whisper設定の構造を大きく変更せず、ReazonSpeechの複数ファイルモデル管理を独立した画面へ分離する。
+        // 認識Engine実装前でも実モデルの取得・ハッシュ検証を実機確認できる入口として提供する。
+        _reazonSpeechModelButton = new Button
+        {
+            Content = "ReazonSpeechモデル",
+            ToolTip = "ReazonSpeechモデルの取得・削除・完全性確認"
+        };
+        _reazonSpeechModelButton.Click += OnReazonSpeechModelClick;
+        actionPanel.Children.Add(_reazonSpeechModelButton);
+    }
+
+    private void OnReazonSpeechModelClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var app = System.Windows.Application.Current as App
+                ?? throw new InvalidOperationException("VoxArchiveアプリケーションを取得できません。");
+            var provider = app.Services.GetRequiredService<ReazonSpeechModelProvider>();
+            var dialog = new ReazonSpeechModelWindow(provider)
+            {
+                Owner = this
+            };
+            _ = dialog.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            ModernDialog.Show(this, $"ReazonSpeechモデル管理を開けませんでした。{Environment.NewLine}{ex.Message}", "モデル管理", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void OnModelSelectionChangedForDownloadState(object sender, SelectionChangedEventArgs e)
