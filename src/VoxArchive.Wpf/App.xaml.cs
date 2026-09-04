@@ -1,11 +1,12 @@
-using System.Diagnostics;
 using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Application.Abstractions;
-using VoxArchive.Audio;
 using VoxArchive.Audio.Abstractions;
+using VoxArchive.Audio.NAudio;
+using VoxArchive.Encoding.Abstractions;
+using VoxArchive.Encoding.Ffmpeg;
 using VoxArchive.Infrastructure;
 using VoxArchive.Runtime;
 using ZLogger;
@@ -14,22 +15,23 @@ namespace VoxArchive.Wpf;
 
 public partial class App : System.Windows.Application
 {
-    private const string AppMutexName = "VoxArchiveRunningMutex";
     private IHost? _host;
-    private Mutex? _mutex;
 
     protected override void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
-        _mutex = new Mutex(true, AppMutexName, out var createdNew);
-        if (!createdNew)
-        {
-            _mutex.Dispose();
-            _mutex = null;
-            Shutdown(0);
-            return;
-        }
         _ = OnStartupAsync();
+    }
+
+    protected override async void OnExit(System.Windows.ExitEventArgs e)
+    {
+        if (_host is not null)
+        {
+            await _host.StopAsync();
+            _host.Dispose();
+        }
+
+        base.OnExit(e);
     }
 
     private async Task OnStartupAsync()
@@ -73,6 +75,10 @@ public partial class App : System.Windows.Application
 
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
                     services.AddSingleton<WhisperModelStore>();
+                    // Concrete型を既存Whisper UI/Service向けに残しつつ、同じSingletonを共通Providerとして公開する。
+                    // ReazonSpeech追加時はITranscriptionModelProviderを追加登録するだけでResolverから選択できる。
+                    services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<WhisperModelStore>());
+                    services.AddSingleton<TranscriptionModelProviderResolver>();
                     // 文字起こしエンジン固有処理から共通処理を分離し、後続の複数エンジン対応でも同じ実装を共有する。
                     services.AddSingleton<TranscriptionAudioPreparationService>();
                     services.AddSingleton<TranscriptionSpeechRegionDetector>();
@@ -112,58 +118,25 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
-            if (_host is not null)
-            {
-                try { _host.Services.GetService<ILogger<App>>()?.LogCritical(ex, "Application startup failed."); }
-                catch { Debug.WriteLine($"[App] Failed to log startup exception: {ex}"); }
-            }
+            System.Windows.MessageBox.Show(
+                $"VoxArchive の起動に失敗しました。\n{ex.Message}",
+                "VoxArchive",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
             Shutdown(-1);
-        }
-    }
-
-    private static async Task<RecordingRuntimeContext> EnsureStartupFfmpegPathAsync(RecordingRuntimeContext context, ILogger<App> logger)
-    {
-        if (!string.IsNullOrWhiteSpace(context.DefaultOptions.FfmpegExecutablePath)) return context;
-        if (!FfmpegRuntimeChecker.IsAvailable(string.Empty, out _, out var resolvedPath)) return context;
-        if (string.IsNullOrWhiteSpace(resolvedPath) || !Path.IsPathFullyQualified(resolvedPath)) return context;
-        var updatedOptions = context.DefaultOptions with { FfmpegExecutablePath = resolvedPath };
-        try
-        {
-            await context.SettingsService.SaveRecordingOptionsAsync(updatedOptions);
-            logger.LogInformation("起動時に ffmpeg パスを自動保存しました: {Path}", resolvedPath);
-            return context with { DefaultOptions = updatedOptions };
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "起動時の ffmpeg パス自動保存に失敗しました。検出値={Path}", resolvedPath);
-            return context;
         }
     }
 
     private static string BuildFfmpegMissingMessage(string detail)
     {
-        var baseMessage = "ffmpeg が見つかりません。録音機能は利用できません。" + Environment.NewLine
-            + "ffmpeg をインストールして PATH を通した後に再起動してください。" + Environment.NewLine + Environment.NewLine
-            + "インストール例: winget install Gyan.FFmpeg";
-        return string.IsNullOrWhiteSpace(detail) ? baseMessage : baseMessage + Environment.NewLine + Environment.NewLine + "詳細: " + detail;
-    }
+        var baseMessage =
+            "ffmpeg が見つかりません。録音を開始できません。" + Environment.NewLine +
+            "ffmpeg をインストールして PATH を通した後に再試行してください。" + Environment.NewLine +
+            Environment.NewLine +
+            "インストール例: winget install Gyan.FFmpeg";
 
-    protected override void OnExit(System.Windows.ExitEventArgs e)
-    {
-        if (_host is not null)
-        {
-            try { _host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult(); }
-            catch (Exception ex)
-            {
-                _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Host stop threw an exception during shutdown.");
-                Debug.WriteLine("[App] Host stop threw an exception during shutdown.");
-            }
-            _host.Dispose();
-            _host = null;
-        }
-        _mutex?.ReleaseMutex();
-        _mutex?.Dispose();
-        _mutex = null;
-        base.OnExit(e);
+        return string.IsNullOrWhiteSpace(detail)
+            ? baseMessage
+            : baseMessage + Environment.NewLine + Environment.NewLine + "詳細: " + detail;
     }
 }
