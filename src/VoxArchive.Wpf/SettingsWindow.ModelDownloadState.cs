@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
+using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
@@ -26,6 +27,7 @@ public partial class SettingsWindow
         _modelDownloadButton ??= FindButtonByContent(this, "モデル取得");
         _modelDeleteButton ??= FindButtonByContent(this, "モデル削除");
         EnsureReazonSpeechModelButton();
+        EnsureTranscriptionEngineSelector();
         _whisperModelStore.DownloadStateChanged -= OnWhisperModelDownloadStateChanged;
         _whisperModelStore.DownloadStateChanged += OnWhisperModelDownloadStateChanged;
         ModelComboBox.SelectionChanged -= OnModelSelectionChangedForDownloadState;
@@ -48,8 +50,8 @@ public partial class SettingsWindow
             return;
         }
 
-        // 既存Whisper設定の構造を大きく変更せず、ReazonSpeechの複数ファイルモデル管理を独立した画面へ分離する。
-        // 認識Engine実装前でも実モデルの取得・ハッシュ検証を実機確認できる入口として提供する。
+        // ReazonSpeechは複数ファイルモデルなので、現行Whisper用ボタンへ物理構成の差異を持ち込まず専用管理画面へ分離する。
+        // 設定画面全体のモデル管理UIを再編するまでは、既に実機確認済みのProvider操作をこの入口から再利用する。
         _reazonSpeechModelButton = new Button
         {
             Content = "ReazonSpeechモデル",
@@ -96,6 +98,17 @@ public partial class SettingsWindow
 
     private void RefreshModelDownloadUi()
     {
+        var isWhisper = string.Equals(DefaultTranscriptionEngine, TranscriptionEngineId.Whisper.Value, StringComparison.OrdinalIgnoreCase);
+        if (!isWhisper)
+        {
+            // 既存の「モデル取得/削除」はWhisperModelStore専用なので、ReazonSpeech選択中に誤操作できないよう遮断する。
+            // ReazonSpeech側は隣の専用モデル管理から共通PackageInstallerを利用する。
+            ApplyActionAvailability(_modelDownloadButton, false);
+            ApplyActionAvailability(_modelDeleteButton, false);
+            UpdateEngineSpecificUi();
+            return;
+        }
+
         var model = TranscriptionModel;
         var isDownloading = _whisperModelStore.IsDownloading(model);
 
