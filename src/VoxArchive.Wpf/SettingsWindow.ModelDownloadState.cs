@@ -9,6 +9,8 @@ namespace VoxArchive.Wpf;
 /// </summary>
 public partial class SettingsWindow
 {
+    private const double DisabledActionOpacity = 0.55;
+
     private Button? _modelDownloadButton;
     private Button? _modelDeleteButton;
 
@@ -57,15 +59,8 @@ public partial class SettingsWindow
         var model = TranscriptionModel;
         var isDownloading = _whisperModelStore.IsDownloading(model);
 
-        if (_modelDownloadButton is not null)
-        {
-            _modelDownloadButton.IsEnabled = !isDownloading;
-        }
-
-        if (_modelDeleteButton is not null)
-        {
-            _modelDeleteButton.IsEnabled = !isDownloading;
-        }
+        ApplyActionAvailability(_modelDownloadButton, !isDownloading);
+        ApplyActionAvailability(_modelDeleteButton, !isDownloading);
 
         // 元のWindowでも取得中はモデル選択を固定しているため、開き直したWindowでも同じ制約を維持する。
         ModelComboBox.IsEnabled = !isDownloading;
@@ -83,6 +78,21 @@ public partial class SettingsWindow
             TranscriptionStatusTextBlock.Foreground = StatusDefaultBrush;
             TranscriptionStatusTextBlock.Text = $"モデル取得済み: {_whisperModelStore.GetModelPath(model)}";
         }
+    }
+
+    private static void ApplyActionAvailability(Button? button, bool isAvailable)
+    {
+        if (button is null)
+        {
+            return;
+        }
+
+        // WPF標準Buttonの無効状態はOSテーマの明色へ置き換わり、設定画面のダークテーマから浮いてしまう。
+        // 既存のダーク配色を維持したまま他の非活性コントロールと同程度に減光し、入力経路もすべて遮断する。
+        button.IsHitTestVisible = isAvailable;
+        button.Focusable = isAvailable;
+        button.IsTabStop = isAvailable;
+        button.Opacity = isAvailable ? 1d : DisabledActionOpacity;
     }
 
     private static Button? FindButtonByContent(DependencyObject root, string content)
