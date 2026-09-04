@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private const uint ModWin = 0x0008;
     private const uint ModNoRepeat = 0x4000;
 
+    private readonly TranscriptionModelManager _modelManager;
     private MainViewModel? _viewModel;
     private HwndSource? _hwndSource;
     private bool _isStartStopHotkeyRegistered;
@@ -28,8 +29,10 @@ public partial class MainWindow : Window
     private Forms.NotifyIcon? _notifyIcon;
     private Drawing.Icon? _trayAppIcon;
 
-    public MainWindow()
+    /// <summary>メインWindowを初期化する</summary>
+    public MainWindow(TranscriptionModelManager modelManager)
     {
+        _modelManager = modelManager;
         InitializeComponent();
         InitializeTrayIcon();
         AppNotificationHub.BalloonRequested += OnBalloonRequested;
@@ -52,7 +55,7 @@ public partial class MainWindow : Window
         showLibraryItem.Click += (_, _) => OpenLibraryFromTray();
 
         var exitItem = new Forms.ToolStripMenuItem("終了");
-        exitItem.Click += (_, _) => ExitFromTray();
+        exitItem.Click += async (_, _) => await ExitFromTrayAsync();
 
         menu.Items.Add(showMainItem);
         menu.Items.Add(showLibraryItem);
@@ -211,8 +214,29 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ExitFromTray()
+    private async Task ExitFromTrayAsync()
     {
+        var activeDownload = _modelManager.GetActiveDownload();
+        if (activeDownload is not null)
+        {
+            ShowFromTray();
+            var result = ModernDialog.Show(
+                this,
+                $"{activeDownload.EngineId.Value} / {activeDownload.ModelDisplayName} のモデルを取得中です。\n取得を中止してVoxArchiveを終了しますか？",
+                "モデル取得中",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning,
+                MessageBoxResult.Cancel);
+            if (result != MessageBoxResult.OK)
+            {
+                return;
+            }
+
+            // Close後のOnExitまで待つとUI上の確認と実際のキャンセルに時間差が生じるため、
+            // 明示終了ではここで取得停止とstagingのbest effortクリーンアップ完了まで待つ。
+            await _modelManager.CancelActiveDownloadAndWaitAsync();
+        }
+
         _isExitRequested = true;
 
         if (_notifyIcon is not null)
@@ -412,4 +436,3 @@ public partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 }
-
