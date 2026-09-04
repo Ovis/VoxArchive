@@ -143,7 +143,7 @@ public partial class SettingsWindow
         // ReazonSpeechは現段階ではCPU固定かつ日本語モデル1種類なので、Whisper固有の設定は編集不可にする。
         // 値自体は保持しておき、Whisperへ戻したときに以前の設定をそのまま再利用できるようにする。
         ExecutionModeComboBox.IsEnabled = isWhisper;
-        ModelComboBox.IsEnabled = isWhisper;
+        ModelComboBox.IsEnabled = isWhisper && !_whisperModelStore.IsDownloading(TranscriptionModel);
         LanguageComboBox.IsEnabled = isWhisper;
         CheckEnvironmentButton.IsEnabled = isWhisper;
 
