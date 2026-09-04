@@ -8,7 +8,11 @@
         <Setter Property="Foreground" Value="#99A7BD" />
         <Setter Property="Padding" Value="18,8" />
         <Setter Property="Margin" Value="0,0,4,0" />
-        <Setter Property="Focusable" Value="False" />
+        <!--
+            TabItemはクリック選択時にフォーカス取得経路を利用するため、Focusableは無効化しない。
+            フォーカス枠だけを消し、標準の選択動作とキーボード操作は維持する。
+        -->
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
