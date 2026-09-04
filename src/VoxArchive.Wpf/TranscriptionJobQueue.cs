@@ -21,6 +21,7 @@ public sealed class TranscriptionJobQueue : IDisposable
     private readonly Task _workerTask;
     private readonly IDisposable _whisperLogSubscription;
     private readonly ConcurrentDictionary<string, TranscriptionJobState> _jobStates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, TranscriptionJobRequest> _jobRequests = new(StringComparer.OrdinalIgnoreCase);
     private int _transcriptionDiagnosticsActive;
 
     /// <summary>
@@ -39,7 +40,6 @@ public sealed class TranscriptionJobQueue : IDisposable
 
         // Whisper.net のネイティブログは診断ログが有効な文字起こしジョブの実行中だけ取り込む。
         // Engine抽象化後も既存の診断挙動を変えないため、このPRではログ購読をQueueに残す。
-        // ReazonSpeech追加前にエンジン固有のログブリッジへ移動する。
         _whisperLogSubscription = LogProvider.AddLogger((level, message) =>
         {
             if (Volatile.Read(ref _transcriptionDiagnosticsActive) == 0 || string.IsNullOrWhiteSpace(message))
@@ -68,6 +68,9 @@ public sealed class TranscriptionJobQueue : IDisposable
     public event EventHandler<TranscriptionJobCompletedEventArgs>? JobCompleted;
     public event EventHandler<TranscriptionJobStateChangedEventArgs>? JobStateChanged;
 
+    /// <summary>
+    /// 文字起こしRequestをQueueへ追加する
+    /// </summary>
     public bool TryEnqueue(TranscriptionJobRequest request)
     {
         var diagnosticsEnabled = request.Options.TranscriptionDiagnosticsLogEnabled;
@@ -84,23 +87,27 @@ public sealed class TranscriptionJobQueue : IDisposable
                 return false;
             }
 
+            // モデル削除・再取得の保護はQueue投入直後から必要なので、Channelへ公開する前にRequest snapshotを登録する。
+            // Workerが即座に取り出して完了しても使用中情報だけが残らないよう、書き込み失敗時は同じlock内で巻き戻す。
+            _jobStates[key] = TranscriptionJobState.Pending;
+            _jobRequests[key] = request;
             if (!_queue.Writer.TryWrite(request))
             {
+                _jobStates.TryRemove(key, out _);
+                _jobRequests.TryRemove(key, out _);
                 _logger.LogWarning("Transcription job enqueue failed because the queue writer rejected the request. File={File}", request.AudioFilePath);
                 return false;
             }
-
-            _jobStates[key] = TranscriptionJobState.Pending;
         }
 
         if (diagnosticsEnabled)
         {
             _logger.LogInformation(
-                "Transcription job queued. File={File}, Trigger={Trigger}, ExecutionMode={ExecutionMode}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}",
+                "Transcription job queued. File={File}, Trigger={Trigger}, Engine={Engine}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}",
                 request.AudioFilePath,
                 request.Trigger,
-                request.Options.TranscriptionExecutionMode,
-                request.Options.TranscriptionModel,
+                request.EngineId,
+                request.ModelId,
                 request.Options.TranscriptionLanguage,
                 request.Options.TranscriptionOutputFormats);
         }
@@ -109,11 +116,28 @@ public sealed class TranscriptionJobQueue : IDisposable
         return true;
     }
 
+    /// <summary>待機中・実行中ジョブの状態一覧を取得する</summary>
     public IReadOnlyCollection<TranscriptionJobStateSnapshot> GetStateSnapshot()
     {
         return _jobStates
             .Select(kvp => new TranscriptionJobStateSnapshot(kvp.Key, kvp.Value))
             .ToArray();
+    }
+
+    /// <summary>
+    /// 指定したEngine/Modelを参照する待機中または実行中ジョブが存在するか確認する
+    /// </summary>
+    public bool IsModelInUse(TranscriptionEngineId engineId, TranscriptionModelId modelId)
+    {
+        return GetModelUsageCount(engineId, modelId) > 0;
+    }
+
+    /// <summary>
+    /// 指定したEngine/Modelを参照する待機中・実行中ジョブ数を取得する
+    /// </summary>
+    public int GetModelUsageCount(TranscriptionEngineId engineId, TranscriptionModelId modelId)
+    {
+        return _jobRequests.Values.Count(request => request.EngineId == engineId && request.ModelId == modelId);
     }
 
     private async Task WorkerLoopAsync()
@@ -152,11 +176,11 @@ public sealed class TranscriptionJobQueue : IDisposable
         if (diagnosticsEnabled)
         {
             _logger.LogInformation(
-                "Transcription job started. File={File}, Trigger={Trigger}, ExecutionMode={ExecutionMode}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}, Priority={Priority}",
+                "Transcription job started. File={File}, Trigger={Trigger}, Engine={Engine}, Model={Model}, Language={Language}, OutputFormats={OutputFormats}, Priority={Priority}",
                 request.AudioFilePath,
                 request.Trigger,
-                request.Options.TranscriptionExecutionMode,
-                request.Options.TranscriptionModel,
+                request.EngineId,
+                request.ModelId,
                 request.Options.TranscriptionLanguage,
                 request.Options.TranscriptionOutputFormats,
                 priority);
@@ -244,6 +268,7 @@ public sealed class TranscriptionJobQueue : IDisposable
     {
         var key = NormalizePathKey(audioFilePath);
         _jobStates.TryRemove(key, out _);
+        _jobRequests.TryRemove(key, out _);
         JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(audioFilePath, null));
     }
 
