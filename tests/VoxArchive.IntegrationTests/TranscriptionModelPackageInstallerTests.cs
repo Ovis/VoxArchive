@@ -1,6 +1,6 @@
 using System.Net;
 using System.Security.Cryptography;
-using System.Text;
+using TextEncoding = System.Text.Encoding;
 using VoxArchive.Domain;
 using VoxArchive.Infrastructure;
 
@@ -17,8 +17,8 @@ public sealed class TranscriptionModelPackageInstallerTests
         {
             var files = new Dictionary<string, byte[]>
             {
-                ["https://example.invalid/encoder.onnx"] = Encoding.UTF8.GetBytes("encoder"),
-                ["https://example.invalid/tokens.txt"] = Encoding.UTF8.GetBytes("tokens")
+                ["https://example.invalid/encoder.onnx"] = TextEncoding.UTF8.GetBytes("encoder"),
+                ["https://example.invalid/tokens.txt"] = TextEncoding.UTF8.GetBytes("tokens")
             };
             using var httpClient = new HttpClient(new DictionaryHandler(files));
             var installer = new TranscriptionModelPackageInstaller(httpClient);
@@ -48,7 +48,7 @@ public sealed class TranscriptionModelPackageInstallerTests
         {
             var files = new Dictionary<string, byte[]>
             {
-                ["https://example.invalid/encoder.onnx"] = Encoding.UTF8.GetBytes("corrupted")
+                ["https://example.invalid/encoder.onnx"] = TextEncoding.UTF8.GetBytes("corrupted")
             };
             using var httpClient = new HttpClient(new DictionaryHandler(files));
             var installer = new TranscriptionModelPackageInstaller(httpClient);
