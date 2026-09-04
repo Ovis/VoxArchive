@@ -100,6 +100,7 @@ public partial class LibraryWindow : System.Windows.Window
         var panel = new LibraryTranscriptionResultsPanel(TranscriptionResults);
         panel.OpenInEditorRequested += OnOpenTranscriptionInEditorRequested;
         panel.OpenDetachedRequested += OnOpenTranscriptionResultsWindowRequested;
+        panel.RetranscribeRequested += OnRetranscribeRequested;
 
         var stack = new System.Windows.Controls.StackPanel();
         stack.Children.Add(editContent);
@@ -149,6 +150,22 @@ public partial class LibraryWindow : System.Windows.Window
 
     private void OnOpenTranscriptionResultsWindowRequested(object? sender, EventArgs e)
         => OpenTranscriptionResultsWindow();
+
+    private async void OnRetranscribeRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            await _transcriptionResultsCoordinator.RetranscribeSelectedAsync();
+        }
+        catch (Exception ex)
+        {
+            ModernDialog.Show(
+                $"再文字起こしを開始できませんでした。\n{ex.Message}",
+                "再文字起こしエラー",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+        }
+    }
 
     private static System.Windows.Controls.Grid? FindDetailGrid(System.Windows.DependencyObject root)
     {

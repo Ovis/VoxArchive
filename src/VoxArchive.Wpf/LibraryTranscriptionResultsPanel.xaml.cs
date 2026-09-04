@@ -26,6 +26,9 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
     /// <summary>独立ウィンドウで開く操作が要求されたときに発生する</summary>
     public event EventHandler? OpenDetachedRequested;
 
+    /// <summary>選択結果の再文字起こしが要求されたときに発生する</summary>
+    public event EventHandler? RetranscribeRequested;
+
     /// <summary>パネル上部の見出しを表示するかどうかを取得または設定する</summary>
     public bool ShowHeader { get; set; } = true;
 
@@ -83,6 +86,9 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
     private void OnOpenDetachedClick(object sender, RoutedEventArgs e)
         => OpenDetachedRequested?.Invoke(this, EventArgs.Empty);
 
+    private void OnRetranscribeClick(object sender, RoutedEventArgs e)
+        => RetranscribeRequested?.Invoke(this, EventArgs.Empty);
+
     private void OnExportButtonClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button)
@@ -138,8 +144,6 @@ public partial class LibraryTranscriptionResultsPanel : UserControl
             Style = (Style)FindResource("TranscriptionExportPopupButtonStyle")
         };
 
-        // 見た目はXAMLのControlTemplateへ集約し、コード側は出力操作だけを担当する。
-        // これによりOS標準ButtonのMouseOver描画に上書きされず、ビルド時の動的Template生成も不要になる。
         button.Click += async (_, _) =>
         {
             if (_exportPopup is not null)
