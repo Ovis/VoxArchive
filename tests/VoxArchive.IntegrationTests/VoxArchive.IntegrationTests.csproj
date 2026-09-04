@@ -30,9 +30,8 @@
     <ProjectReference Include="..\..\src\VoxArchive.Audio.Abstractions\VoxArchive.Audio.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\VoxArchive.Domain\VoxArchive.Domain.csproj" />
     <ProjectReference Include="..\..\src\VoxArchive.Encoding.Abstractions\VoxArchive.Encoding.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Infrastructure\VoxArchive.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\VoxArchive.Runtime\VoxArchive.Runtime.csproj" />
   </ItemGroup>
 
 </Project>
-
-
