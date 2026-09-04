@@ -5,7 +5,7 @@ using System.Windows.Media;
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// 設定Window内の文字起こしタブについて、ヘッダー部分だけにHover表現を適用し、右罫線を確実に描画する
+/// 設定Window内の文字起こしタブについて、ヘッダー部分だけにHover表現を適用し、末尾タブの右枠線を確実に描画する
 /// </summary>
 public partial class SettingsWindow
 {
@@ -25,7 +25,7 @@ public partial class SettingsWindow
     }
 
     /// <summary>
-    /// TabItem全体のIsMouseOverに依存せず、実際のヘッダーBorderだけを対象にHoverと右罫線を構成する
+    /// TabItem全体のIsMouseOverに依存せず、実際のヘッダーBorderだけを対象にHover表現を構成する
     /// </summary>
     private void InitializeTranscriptionTabVisuals()
     {
@@ -38,8 +38,10 @@ public partial class SettingsWindow
         _transcriptionTabVisualsInitialized = true;
         TranscriptionTabControl.SelectionChanged += OnTranscriptionTabVisualSelectionChanged;
 
-        foreach (var tabItem in TranscriptionTabControl.Items.OfType<TabItem>())
+        var tabItems = TranscriptionTabControl.Items.OfType<TabItem>().ToArray();
+        for (var index = 0; index < tabItems.Length; index++)
         {
+            var tabItem = tabItems[index];
             tabItem.ApplyTemplate();
             if (tabItem.Template.FindName("TabRoot", tabItem) is not Border tabRoot)
             {
@@ -49,7 +51,7 @@ public partial class SettingsWindow
             // TabItem.IsMouseOverは選択中コンテンツ配下までtrueになるため、XAML側のTriggerだけでは
             // 本文上へマウスを置いた際にもヘッダー色が変化する。Borderへローカル値を設定し、
             // ヘッダー自身のMouseEnter/LeaveだけでHover状態を制御する。
-            var rightEdge = EnsureRightEdge(tabRoot);
+            var rightEdge = index == tabItems.Length - 1 ? EnsureFinalTabRightEdge(tabRoot) : null;
             ApplyTabVisual(tabItem, tabRoot, rightEdge, isHeaderHovered: false);
 
             tabRoot.MouseEnter += (_, _) => ApplyTabVisual(tabItem, tabRoot, rightEdge, isHeaderHovered: true);
@@ -70,26 +72,28 @@ public partial class SettingsWindow
     /// </summary>
     private void RefreshTranscriptionTabVisuals()
     {
-        foreach (var tabItem in TranscriptionTabControl.Items.OfType<TabItem>())
+        var tabItems = TranscriptionTabControl.Items.OfType<TabItem>().ToArray();
+        for (var index = 0; index < tabItems.Length; index++)
         {
+            var tabItem = tabItems[index];
             tabItem.ApplyTemplate();
             if (tabItem.Template.FindName("TabRoot", tabItem) is not Border tabRoot)
             {
                 continue;
             }
 
-            var rightEdge = EnsureRightEdge(tabRoot);
+            var rightEdge = index == tabItems.Length - 1 ? EnsureFinalTabRightEdge(tabRoot) : null;
             ApplyTabVisual(tabItem, tabRoot, rightEdge, tabRoot.IsMouseOver);
         }
     }
 
     /// <summary>
-    /// TabPanel境界で外周Borderの右辺が欠けても見えるよう、ヘッダー内部へ独立した1px罫線を追加する
+    /// 右隣にタブが存在しない末尾タブだけ、外周クリップの影響を受けない位置へ右枠線を追加する
     /// </summary>
-    private static Border EnsureRightEdge(Border tabRoot)
+    private static Border EnsureFinalTabRightEdge(Border tabRoot)
     {
         if (tabRoot.Child is Grid existingGrid
-            && existingGrid.Children.OfType<Border>().FirstOrDefault(child => Equals(child.Tag, "TranscriptionTabRightEdge")) is { } existingEdge)
+            && existingGrid.Children.OfType<Border>().FirstOrDefault(child => Equals(child.Tag, "TranscriptionTabFinalRightEdge")) is { } existingEdge)
         {
             return existingEdge;
         }
@@ -104,8 +108,9 @@ public partial class SettingsWindow
 
         var rightEdge = new Border
         {
-            Tag = "TranscriptionTabRightEdge",
+            Tag = "TranscriptionTabFinalRightEdge",
             Width = 1,
+            Margin = new Thickness(0, 0, 1, 0),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Stretch,
             IsHitTestVisible = false,
@@ -116,9 +121,9 @@ public partial class SettingsWindow
     }
 
     /// <summary>
-    /// 選択状態とヘッダーHover状態から、背景色と右罫線色を同期する
+    /// 選択状態とヘッダーHover状態から、背景色と末尾タブの右枠線色を同期する
     /// </summary>
-    private static void ApplyTabVisual(TabItem tabItem, Border tabRoot, Border rightEdge, bool isHeaderHovered)
+    private static void ApplyTabVisual(TabItem tabItem, Border tabRoot, Border? rightEdge, bool isHeaderHovered)
     {
         tabRoot.Background = isHeaderHovered
             ? TranscriptionTabHoverBackground
@@ -126,9 +131,12 @@ public partial class SettingsWindow
                 ? TranscriptionTabSelectedBackground
                 : TranscriptionTabNormalBackground;
 
-        rightEdge.Background = tabItem.IsSelected
-            ? TranscriptionTabSelectedBorder
-            : TranscriptionTabNormalBorder;
+        if (rightEdge is not null)
+        {
+            rightEdge.Background = tabItem.IsSelected
+                ? TranscriptionTabSelectedBorder
+                : TranscriptionTabNormalBorder;
+        }
     }
 
     private static Brush CreateFrozenBrush(string color)
