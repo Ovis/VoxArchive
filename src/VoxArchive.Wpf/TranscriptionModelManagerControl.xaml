@@ -1,0 +1,139 @@
+<UserControl x:Class="VoxArchive.Wpf.TranscriptionModelManagerControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="Yu Gothic UI">
+    <UserControl.Resources>
+        <!-- SettingsWindow外で再利用してもWPF標準テーマへ戻らないよう、VoxArchiveの配色をControl内で完結させる。 -->
+        <SolidColorBrush x:Key="ModelControlBg" Color="#1A2330" />
+        <SolidColorBrush x:Key="ModelControlBorder" Color="#314055" />
+        <SolidColorBrush x:Key="ModelTextPrimary" Color="#F3F6FA" />
+        <SolidColorBrush x:Key="ModelTextMuted" Color="#99A7BD" />
+        <SolidColorBrush x:Key="ModelButtonBg" Color="#223042" />
+        <SolidColorBrush x:Key="ModelButtonBorder" Color="#3A4E69" />
+
+        <Style x:Key="ModelComboItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource ModelTextPrimary}" />
+            <Setter Property="Background" Value="{StaticResource ModelControlBg}" />
+            <Setter Property="Padding" Value="8,4" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#243A55" /></Trigger>
+                <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#2A5EBD" /></Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Foreground" Value="{StaticResource ModelTextPrimary}" />
+            <Setter Property="Background" Value="{StaticResource ModelControlBg}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ModelControlBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ModelComboItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" />
+                            <Grid Margin="10,0" IsHitTestVisible="False">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/></Grid.ColumnDefinitions>
+                                <!-- DisplayMemberPathはドロップダウン項目には反映されるが、独自SelectionBox描画では
+                                     record本体がToStringされる場合があるため、選択項目のDisplayNameを明示して描画する。 -->
+                                <TextBlock Text="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="1" Text="▼" FontSize="10" Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center" />
+                            </Grid>
+                            <ToggleButton Focusable="False" Background="Transparent" BorderThickness="0" Opacity="0"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton"><Border Background="Transparent" /></ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup Placement="Bottom" AllowsTransparency="True" IsOpen="{TemplateBinding IsDropDownOpen}">
+                                <Border Margin="0,4,0,0" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Background="{StaticResource ModelControlBg}" BorderBrush="{StaticResource ModelControlBorder}" BorderThickness="1" CornerRadius="6">
+                                    <ScrollViewer MaxHeight="300"><ItemsPresenter /></ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Root" Property="BorderBrush" Value="#3D5D84" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Root" Property="Opacity" Value="0.55" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource ModelTextPrimary}" />
+            <Setter Property="Background" Value="{StaticResource ModelButtonBg}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ModelButtonBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Root" Property="Background" Value="#2A3B51" /></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Root" Property="Background" Value="#182333" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Root" Property="Opacity" Value="0.55" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ProgressBar">
+            <Setter Property="Background" Value="#182231" />
+            <Setter Property="Foreground" Value="#4F78B7" />
+            <Setter Property="BorderBrush" Value="#2D3E55" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3" ClipToBounds="True">
+                            <Grid>
+                                <Rectangle x:Name="PART_Track" Fill="Transparent" />
+                                <Rectangle x:Name="PART_Indicator" Fill="{TemplateBinding Foreground}" HorizontalAlignment="Left" />
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <TextBlock Text="モデル" Foreground="{StaticResource ModelTextMuted}" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <ComboBox x:Name="ModelComboBox" DisplayMemberPath="DisplayName" SelectedValuePath="Id"
+                  ItemsSource="{Binding Models, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                  SelectedValue="{Binding SelectedModelId, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}" />
+
+        <TextBlock Text="モデル状態" Foreground="{StaticResource ModelTextMuted}" FontSize="12" FontWeight="SemiBold" Margin="0,10,0,6" />
+        <Border Height="86" Background="#0E1724" BorderBrush="#2D3E55" BorderThickness="1" CornerRadius="6" Padding="8,6">
+            <Grid>
+                <!-- 状態表示は高さ固定の領域を使うが、内容は上端基準で並べる。
+                     VerticalAlignment=Centerだと行数に応じて上側余白が変動し、空行があるように見えるため使用しない。 -->
+                <StackPanel VerticalAlignment="Top">
+                    <TextBlock Text="{Binding StatusText, RelativeSource={RelativeSource AncestorType=UserControl}}" Foreground="{StaticResource ModelTextPrimary}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding MessageText, RelativeSource={RelativeSource AncestorType=UserControl}}" Foreground="{StaticResource ModelTextMuted}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                    <StackPanel Visibility="{Binding ProgressVisibility, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        <ProgressBar Height="7" Margin="0,6,0,0" Minimum="0" Maximum="100" Value="{Binding ProgressPercent, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        <TextBlock Text="{Binding ProgressText, RelativeSource={RelativeSource AncestorType=UserControl}}" Foreground="{StaticResource ModelTextMuted}" Margin="0,3,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <WrapPanel Margin="0,8,0,0">
+            <Button Content="状態を再確認" IsEnabled="{Binding CanVerify, RelativeSource={RelativeSource AncestorType=UserControl}}" Click="OnVerifyClick" />
+            <Button Content="{Binding InstallButtonText, RelativeSource={RelativeSource AncestorType=UserControl}}" IsEnabled="{Binding CanInstall, RelativeSource={RelativeSource AncestorType=UserControl}}" Click="OnInstallClick" />
+            <Button Content="モデル削除" IsEnabled="{Binding CanDelete, RelativeSource={RelativeSource AncestorType=UserControl}}" Click="OnDeleteClick" />
+        </WrapPanel>
+    </StackPanel>
+</UserControl>

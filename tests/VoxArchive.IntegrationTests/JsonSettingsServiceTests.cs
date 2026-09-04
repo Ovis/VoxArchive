@@ -29,6 +29,17 @@ public sealed class JsonSettingsServiceTests
     }
 
     /// <summary>
+    /// 新規設定では共通UIの「指定なし」に対応する空の言語指定を既定値とすることを確認する
+    /// </summary>
+    [Test]
+    public void NewRecordingOptions_DefaultsTranscriptionLanguageToUnspecified()
+    {
+        var options = new RecordingOptions();
+
+        Assert.That(options.Transcription.Whisper.Language, Is.Empty);
+    }
+
+    /// <summary>
     /// 旧settings.jsonのフラットな文字起こし設定が新しいEngine別構造へ移行されることを確認する
     /// </summary>
     [Test]

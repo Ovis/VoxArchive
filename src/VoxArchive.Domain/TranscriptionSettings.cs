@@ -54,8 +54,14 @@ public sealed record WhisperTranscriptionSettings
     /// <summary>Whisper runtimeの要求モード</summary>
     public TranscriptionExecutionMode ExecutionMode { get; init; } = TranscriptionExecutionMode.Auto;
 
-    /// <summary>Whisperへ渡す言語指定</summary>
-    public string Language { get; init; } = "ja";
+    /// <summary>
+    /// 共通UIからWhisperへ渡す希望言語を保持する。空文字は言語を指定せずWhisperの自動判定へ委ねる
+    /// </summary>
+    /// <remarks>
+    /// ReazonSpeechのような言語固定モデルはこの値を使用しない。現行の永続化構造では既存のWhisper設定領域を
+    /// バッキングストアとして利用するが、ジョブではEngine非依存のTranscriptionLanguageとしてスナップショットする。
+    /// </remarks>
+    public string Language { get; init; } = string.Empty;
 }
 
 /// <summary>

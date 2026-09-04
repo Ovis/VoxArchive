@@ -10,7 +10,6 @@ namespace VoxArchive.Wpf;
 /// <remarks>
 /// ReazonSpeechはencoder・decoder・joiner・tokensなど複数ファイルで1モデルを構成するため、
 /// 呼び出し側が個々の物理ファイルや配置先を意識しないよう、モデル定義の解決と配置処理をこのクラスへ閉じ込める。
-/// 具体的な公式モデル定義は、固定revisionに対する全ファイルのサイズとSHA-256を検証できた段階で注入する。
 /// </remarks>
 public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
 {
@@ -65,19 +64,49 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
     public string ModelsRootDirectory => _modelsRootDirectory;
 
     /// <inheritdoc />
-    public bool IsInstalled(TranscriptionModelId modelId)
+    public IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels()
     {
-        var definition = ResolveDefinition(modelId);
-        return _installer.IsInstalled(definition, GetInstallationDirectory(definition));
+        return _definitions.Values
+            .Select(definition => new TranscriptionModelDescriptor(definition.ModelId, definition.DisplayName))
+            .ToArray();
     }
 
     /// <inheritdoc />
-    public async Task<TranscriptionModelInstallation> InstallAsync(
+    public bool IsInstalled(TranscriptionModelId modelId)
+    {
+        return Inspect(modelId, TranscriptionModelInspectionLevel.Size).State == TranscriptionModelPackageState.Installed;
+    }
+
+    /// <inheritdoc />
+    public TranscriptionModelInspection Inspect(TranscriptionModelId modelId, TranscriptionModelInspectionLevel level)
+    {
+        var definition = ResolveDefinition(modelId);
+        var state = _installer.Inspect(definition, GetInstallationDirectory(definition), level);
+        return new TranscriptionModelInspection(state, level);
+    }
+
+    /// <inheritdoc />
+    public Task<TranscriptionModelInstallation> InstallAsync(
         TranscriptionModelId modelId,
         CancellationToken cancellationToken = default)
     {
+        return InstallManagedAsync(modelId, force: false, progress: null, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<TranscriptionModelInstallation> InstallManagedAsync(
+        TranscriptionModelId modelId,
+        bool force,
+        IProgress<TranscriptionModelTransferProgress>? progress,
+        CancellationToken cancellationToken = default)
+    {
         var definition = ResolveDefinition(modelId);
-        var installationDirectory = await _installer.InstallAsync(definition, _modelsRootDirectory, cancellationToken);
+        var installationDirectory = await _installer.InstallAsync(
+            definition,
+            _modelsRootDirectory,
+            force,
+            progress,
+            cancellationToken);
         return BuildInstallation(definition, installationDirectory);
     }
 
@@ -95,9 +124,9 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
     {
         var definition = ResolveDefinition(modelId);
         var installationDirectory = GetInstallationDirectory(definition);
-        if (!_installer.IsInstalled(definition, installationDirectory))
+        if (Inspect(modelId, TranscriptionModelInspectionLevel.Size).State != TranscriptionModelPackageState.Installed)
         {
-            throw new InvalidOperationException($"ReazonSpeechモデル '{modelId}' は完全な状態で配置されていません。");
+            throw new InvalidOperationException($"ReazonSpeechモデル '{modelId}' は文字起こしに利用できる状態で配置されていません。");
         }
 
         return BuildInstallation(definition, installationDirectory);

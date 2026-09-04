@@ -73,19 +73,29 @@ public partial class App : System.Windows.Application
                     });
 
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
-                    services.AddSingleton<WhisperModelStore>();
-                    // Concrete型を既存Whisper UI/Service向けに残しつつ、同じSingletonを共通Providerとして公開する。
-                    services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<WhisperModelStore>());
 
-                    // ReazonSpeechは複数ファイルモデルなので、共通Installerをアプリケーション寿命のHttpClientと共有する。
-                    // Providerを同じITranscriptionModelProvider列へ登録し、呼び出し側はEngineIdだけで解決できる状態にする。
+                    // Whisper/ReazonSpeechの双方を同じアトミック配置・検証基盤へ接続する。
+                    // HttpClientとInstallerはアプリケーション寿命で共有し、Windowを閉じても進行中取得の所有権を失わないようにする。
                     services.AddSingleton<HttpClient>();
-                    services.AddSingleton<TranscriptionModelPackageInstaller>();
+                    services.AddSingleton(sp =>
+                    {
+                        var installer = new TranscriptionModelPackageInstaller(sp.GetRequiredService<HttpClient>());
+                        var logger = sp.GetRequiredService<ILogger<TranscriptionModelPackageInstaller>>();
+                        installer.CleanupFailureHandler = (path, ex) =>
+                            logger.LogWarning(ex, "Failed to clean transcription model staging directory. Path={Path}", path);
+                        return installer;
+                    });
+                    services.AddSingleton<WhisperModelStore>(sp => new WhisperModelStore(sp.GetRequiredService<TranscriptionModelPackageInstaller>()));
+                    services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<WhisperModelStore>());
                     services.AddSingleton<ReazonSpeechModelProvider>(sp => new ReazonSpeechModelProvider(
                         sp.GetRequiredService<TranscriptionModelPackageInstaller>(),
                         ReazonSpeechModelCatalog.All));
                     services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<ReazonSpeechModelProvider>());
                     services.AddSingleton<TranscriptionModelProviderResolver>();
+                    services.AddSingleton<TranscriptionModelUsageTracker>();
+                    services.AddSingleton<TranscriptionModelManager>();
+                    services.AddSingleton<TranscriptionModelRequirementService>();
+
                     // 文字起こしエンジン固有処理から共通処理を分離し、後続の複数エンジン対応でも同じ実装を共有する。
                     services.AddSingleton<TranscriptionAudioPreparationService>();
                     services.AddSingleton<TranscriptionSpeechRegionDetector>();
@@ -96,7 +106,7 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<WhisperTranscriptionService>();
 
                     // QueueはEngine IDだけをResolverへ渡し、Whisper/ReazonSpeech固有実装を直接参照しない。
-                    // 両Engineとも同じ音声準備・VAD・話者ラベル・canonical document基盤を利用する。
+                    // 実行前のモデル保証も共通サービスへ委譲し、手動/自動の双方で同じ検証規則を適用する。
                     services.AddSingleton<WhisperTranscriptionEngine>();
                     services.AddSingleton<ReazonSpeechTranscriptionEngine>();
                     services.AddSingleton<ITranscriptionEngineResolver, TranscriptionEngineResolver>();
@@ -166,6 +176,17 @@ public partial class App : System.Windows.Application
     {
         if (_host is not null)
         {
+            try
+            {
+                // 正常終了経路ではモデル取得を途中で強制終了せず、CancellationTokenが伝播して
+                // Atomic Installerのstaging掃除が完了するところまで待つ。掃除失敗はInstaller側でbest effortとして扱う。
+                _host.Services.GetService<TranscriptionModelManager>()?.CancelActiveDownloadAndWaitAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Model download cancellation threw during shutdown.");
+            }
+
             try { _host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult(); }
             catch (Exception ex)
             {
