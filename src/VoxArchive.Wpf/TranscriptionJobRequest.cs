@@ -70,7 +70,8 @@ public sealed record TranscriptionJobOptions
     public bool TranscriptionDiagnosticsLogEnabled { get; init; }
     public TranscriptionExecutionMode TranscriptionExecutionMode { get; init; }
     public TranscriptionModel TranscriptionModel { get; init; }
-    public string TranscriptionLanguage { get; init; } = "ja";
+    /// <summary>ユーザーが希望する認識言語。空文字は言語指定なしを表す</summary>
+    public string TranscriptionLanguage { get; init; } = string.Empty;
     public TranscriptionOutputFormats TranscriptionOutputFormats { get; init; }
     public TranscriptionPriority AutoTranscriptionPriority { get; init; }
     public TranscriptionPriority ManualTranscriptionPriority { get; init; }
