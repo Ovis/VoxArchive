@@ -73,19 +73,19 @@ public partial class App : System.Windows.Application
                     });
 
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
-                    services.AddSingleton<WhisperModelStore>();
-                    // Concrete型を既存Whisper UI/Service向けに残しつつ、同じSingletonを共通Providerとして公開する。
-                    services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<WhisperModelStore>());
 
-                    // ReazonSpeechは複数ファイルモデルなので、共通Installerをアプリケーション寿命のHttpClientと共有する。
-                    // Providerを同じITranscriptionModelProvider列へ登録し、呼び出し側はEngineIdだけで解決できる状態にする。
+                    // Whisper/ReazonSpeechの双方を同じアトミック配置・検証基盤へ接続する。
+                    // HttpClientとInstallerはアプリケーション寿命で共有し、Windowを閉じても進行中取得の所有権を失わないようにする。
                     services.AddSingleton<HttpClient>();
                     services.AddSingleton<TranscriptionModelPackageInstaller>();
+                    services.AddSingleton<WhisperModelStore>(sp => new WhisperModelStore(sp.GetRequiredService<TranscriptionModelPackageInstaller>()));
+                    services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<WhisperModelStore>());
                     services.AddSingleton<ReazonSpeechModelProvider>(sp => new ReazonSpeechModelProvider(
                         sp.GetRequiredService<TranscriptionModelPackageInstaller>(),
                         ReazonSpeechModelCatalog.All));
                     services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<ReazonSpeechModelProvider>());
                     services.AddSingleton<TranscriptionModelProviderResolver>();
+
                     // 文字起こしエンジン固有処理から共通処理を分離し、後続の複数エンジン対応でも同じ実装を共有する。
                     services.AddSingleton<TranscriptionAudioPreparationService>();
                     services.AddSingleton<TranscriptionSpeechRegionDetector>();
@@ -102,6 +102,7 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<ITranscriptionEngineResolver, TranscriptionEngineResolver>();
                     services.AddSingleton<TranscriptionOrchestrator>();
                     services.AddSingleton<TranscriptionJobQueue>();
+                    services.AddSingleton<TranscriptionModelManager>();
                     services.AddTransient<IRecordingPlaybackService, RecordingPlaybackService>();
                     services.AddTransient<MainWindow>();
                 })
