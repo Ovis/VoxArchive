@@ -45,7 +45,7 @@ public sealed class JsonSettingsServiceTests
           "TranscriptionModel": 3,
           "TranscriptionLanguage": "en",
           "TranscriptionOutputFormats": 3,
-          "AutoTranscriptionPriority": 2,
+          "AutoTranscriptionPriority": 0,
           "ManualTranscriptionPriority": 1,
           "TranscriptionToastNotificationEnabled": false
         }
@@ -65,7 +65,7 @@ public sealed class JsonSettingsServiceTests
             Assert.That(options.Transcription.Whisper.Model, Is.EqualTo(TranscriptionModel.Medium));
             Assert.That(options.Transcription.Whisper.Language, Is.EqualTo("en"));
             Assert.That(options.Transcription.OutputFormats, Is.EqualTo(TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt));
-            Assert.That(options.Transcription.AutoPriority, Is.EqualTo(TranscriptionPriority.High));
+            Assert.That(options.Transcription.AutoPriority, Is.EqualTo(TranscriptionPriority.Low));
             Assert.That(options.Transcription.ManualPriority, Is.EqualTo(TranscriptionPriority.Normal));
             Assert.That(options.Transcription.DefaultEngine, Is.EqualTo("whisper"));
         });
