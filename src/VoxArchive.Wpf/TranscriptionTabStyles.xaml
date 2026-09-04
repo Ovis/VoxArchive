@@ -1,0 +1,86 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        TabControl標準のTabPanelはタブ端の配置に独自処理を持つため、設定画面では使用しない。
+        横方向StackPanelでヘッダーを単純配置し、各TabItem自身が完全な枠線を描画する。
+    -->
+    <Style x:Key="TranscriptionTabItemStyleV2" TargetType="TabItem">
+        <Setter Property="Foreground" Value="#99A7BD" />
+        <Setter Property="Padding" Value="18,8" />
+        <Setter Property="Margin" Value="0,0,4,0" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="HeaderBorder"
+                            BorderThickness="1"
+                            CornerRadius="6,6,0,0"
+                            SnapsToDevicePixels="True">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#10161F" />
+                                <Setter Property="BorderBrush" Value="#283242" />
+                                <Style.Triggers>
+                                    <!-- 選択状態はTabItemから取得するが、Hover判定はヘッダーBorder自身だけを見る。 -->
+                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TabItem}}" Value="True">
+                                        <Setter Property="Background" Value="#1A2B40" />
+                                        <Setter Property="BorderBrush" Value="#3D5D84" />
+                                    </DataTrigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#172437" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <ContentPresenter ContentSource="Header"
+                                          Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Foreground" Value="#F3F6FA" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="TranscriptionTabControlStyleV2" TargetType="TabControl">
+        <!-- TabPanelの端処理を避けるため、ヘッダーは通常のStackPanelで左から順に配置する。 -->
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <ItemsPresenter Grid.Row="0"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Bottom" />
+
+                        <Border Grid.Row="1"
+                                Background="#0E141D"
+                                BorderBrush="#283242"
+                                BorderThickness="1"
+                                CornerRadius="0,6,6,6"
+                                Padding="14">
+                            <ContentPresenter x:Name="PART_SelectedContentHost"
+                                              ContentSource="SelectedContent" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>
