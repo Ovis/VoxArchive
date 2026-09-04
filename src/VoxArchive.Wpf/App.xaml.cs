@@ -73,6 +73,10 @@ public partial class App : System.Windows.Application
 
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
                     services.AddSingleton<WhisperModelStore>();
+                    // Concrete型を既存Whisper UI/Service向けに残しつつ、同じSingletonを共通Providerとして公開する。
+                    // ReazonSpeech追加時はITranscriptionModelProviderを追加登録するだけでResolverから選択できる。
+                    services.AddSingleton<ITranscriptionModelProvider>(sp => sp.GetRequiredService<WhisperModelStore>());
+                    services.AddSingleton<TranscriptionModelProviderResolver>();
                     // 文字起こしエンジン固有処理から共通処理を分離し、後続の複数エンジン対応でも同じ実装を共有する。
                     services.AddSingleton<TranscriptionAudioPreparationService>();
                     services.AddSingleton<TranscriptionSpeechRegionDetector>();
