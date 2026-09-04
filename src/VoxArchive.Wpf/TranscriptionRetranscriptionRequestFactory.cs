@@ -24,12 +24,14 @@ public static class TranscriptionRetranscriptionRequestFactory
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(currentOptions);
 
-        if (!string.Equals(document.Transcription.Engine, "whisper", StringComparison.OrdinalIgnoreCase))
+        var engineId = new TranscriptionEngineId(document.Transcription.Engine);
+        if (engineId != TranscriptionEngineId.Whisper)
         {
-            throw new NotSupportedException($"現在はWhisper以外の再文字起こしには対応していません: {document.Transcription.Engine}");
+            throw new NotSupportedException($"現在はWhisper以外の再文字起こしには対応していません: {engineId}");
         }
 
-        var model = ParseWhisperModel(document.Transcription.Model);
+        var modelId = new TranscriptionModelId(document.Transcription.Model);
+        var model = ParseWhisperModel(modelId);
         var usedFallback = false;
 
         var executionMode = currentOptions.TranscriptionExecutionMode;
@@ -65,9 +67,13 @@ public static class TranscriptionRetranscriptionRequestFactory
             TranscriptionLanguage = language
         };
 
-        return new RetranscriptionRequestBuildResult(
-            new TranscriptionJobRequest(audioFilePath, options, TranscriptionTrigger.Manual),
-            isLegacy || usedFallback);
+        var request = new TranscriptionJobRequest(audioFilePath, options, TranscriptionTrigger.Manual)
+        {
+            EngineId = engineId,
+            ModelId = modelId
+        };
+
+        return new RetranscriptionRequestBuildResult(request, isLegacy || usedFallback);
     }
 
     private static bool TryGetOption(TranscriptionDocument document, string key, out string value)
@@ -82,7 +88,7 @@ public static class TranscriptionRetranscriptionRequestFactory
         return false;
     }
 
-    private static TranscriptionModel ParseWhisperModel(string modelId) => modelId.ToLowerInvariant() switch
+    private static TranscriptionModel ParseWhisperModel(TranscriptionModelId modelId) => modelId.Value switch
     {
         "tiny" => TranscriptionModel.Tiny,
         "base" => TranscriptionModel.Base,
