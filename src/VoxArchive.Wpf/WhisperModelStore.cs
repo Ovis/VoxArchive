@@ -15,6 +15,8 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
 {
     private static readonly HttpClient HttpClient = new();
     private readonly string _modelsDirectory;
+    private readonly object _downloadStateLock = new();
+    private readonly HashSet<TranscriptionModel> _downloadingModels = [];
 
     /// <summary>Whisperモデルストアを初期化する</summary>
     /// <param name="modelsDirectory">テスト等で既定保存先を上書きする場合のディレクトリ</param>
@@ -25,6 +27,14 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
             : modelsDirectory;
         Directory.CreateDirectory(_modelsDirectory);
     }
+
+    /// <summary>
+    /// モデルのダウンロード状態が変化したときに通知する
+    /// </summary>
+    /// <remarks>
+    /// 設定画面を閉じてもダウンロード自体は継続するため、状態はWindowではなくアプリケーションで共有されるStoreが保持する。
+    /// </remarks>
+    public event EventHandler<WhisperModelDownloadStateChangedEventArgs>? DownloadStateChanged;
 
     /// <inheritdoc />
     public TranscriptionEngineId EngineId => TranscriptionEngineId.Whisper;
@@ -44,6 +54,15 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
         return File.Exists(GetModelPath(model));
     }
 
+    /// <summary>指定したWhisperモデルを現在ダウンロードしているか確認する</summary>
+    public bool IsDownloading(TranscriptionModel model)
+    {
+        lock (_downloadStateLock)
+        {
+            return _downloadingModels.Contains(model);
+        }
+    }
+
     /// <inheritdoc />
     public bool IsInstalled(TranscriptionModelId modelId)
     {
@@ -54,6 +73,11 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
     public Task DeleteAsync(TranscriptionModel model, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (IsDownloading(model))
+        {
+            throw new InvalidOperationException("ダウンロード中のモデルは削除できません。");
+        }
+
         var path = GetModelPath(model);
         if (File.Exists(path))
         {
@@ -81,14 +105,26 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
             return destinationPath;
         }
 
-        var tmpPath = destinationPath + ".download";
-        if (File.Exists(tmpPath))
+        lock (_downloadStateLock)
         {
-            File.Delete(tmpPath);
+            // 同じStoreを利用する別の設定Windowから二重取得されると、先行処理が保持している一時ファイルを
+            // 後続処理が削除しようとしてIOExceptionになるため、物理ファイルを触る前に排他する。
+            if (!_downloadingModels.Add(model))
+            {
+                throw new InvalidOperationException("このモデルは現在ダウンロード中です。");
+            }
         }
+
+        DownloadStateChanged?.Invoke(this, new WhisperModelDownloadStateChangedEventArgs(model, true));
+        var tmpPath = destinationPath + ".download";
 
         try
         {
+            if (File.Exists(tmpPath))
+            {
+                File.Delete(tmpPath);
+            }
+
             var url = BuildModelDownloadUrl(model);
             using var response = await HttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
@@ -111,6 +147,15 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
             }
 
             throw;
+        }
+        finally
+        {
+            lock (_downloadStateLock)
+            {
+                _downloadingModels.Remove(model);
+            }
+
+            DownloadStateChanged?.Invoke(this, new WhisperModelDownloadStateChangedEventArgs(model, false));
         }
     }
 
@@ -170,3 +215,10 @@ public sealed class WhisperModelStore : ITranscriptionModelProvider
         return $"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{file}?download=true";
     }
 }
+
+/// <summary>
+/// Whisperモデルのダウンロード状態変更を表す
+/// </summary>
+/// <param name="Model">状態が変化したモデル</param>
+/// <param name="IsDownloading">ダウンロード中になった場合はtrue、終了した場合はfalse</param>
+public sealed record WhisperModelDownloadStateChangedEventArgs(TranscriptionModel Model, bool IsDownloading);
