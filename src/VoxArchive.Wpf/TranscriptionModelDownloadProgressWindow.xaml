@@ -45,7 +45,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ProgressBar">
                         <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" ClipToBounds="True">
-                            <Grid>
+                            <Grid x:Name="PART_Track">
                                 <Rectangle Fill="Transparent" />
                                 <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="5" />
                             </Grid>
