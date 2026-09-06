@@ -30,7 +30,7 @@ public sealed class TranscriptionJobAdmissionService(
         ArgumentNullException.ThrowIfNull(recordingOptions);
 
         var settings = recordingOptions.Transcription;
-        var engineId = new TranscriptionEngineId(settings.DefaultEngine);
+        var engineId = new VoxArchive.Transcription.Abstractions.TranscriptionEngineId(settings.DefaultEngine);
         TranscriptionEngineRegistration registration;
         try
         {
@@ -84,14 +84,14 @@ public sealed class TranscriptionJobAdmissionService(
             }
         }
 
-        TranscriptionModelKey? modelKey = null;
+        TranscriptionModelId? resolvedModelId = null;
         TranscriptionModelUsageReservation? reservation = null;
         try
         {
             if (registration.ModelRequirementResolver is not null)
             {
-                var modelId = registration.ModelRequirementResolver.ResolveRequiredModel(engineOptions);
-                modelKey = new TranscriptionModelKey(engineId, modelId);
+                resolvedModelId = registration.ModelRequirementResolver.ResolveRequiredModel(engineOptions);
+                var modelKey = new TranscriptionModelKey(engineId, resolvedModelId);
 
                 // readiness確認からworker完了までモデルを保護する。
                 // この順序により、確認直後に設定画面からモデルを削除されるTOCTOUを防止する。
@@ -106,7 +106,7 @@ public sealed class TranscriptionJobAdmissionService(
                     {
                         return RejectAndRelease(
                             reservation,
-                            $"文字起こしモデル '{modelId}' が未配置または不完全です。設定画面からモデルを取得してください。");
+                            $"文字起こしモデル '{resolvedModelId}' が未配置または不完全です。設定画面からモデルを取得してください。");
                     }
                 }
 
@@ -121,7 +121,7 @@ public sealed class TranscriptionJobAdmissionService(
             var descriptor = new TranscriptionJobDescriptor(
                 audioFilePath,
                 engineId,
-                modelKey?.ModelId,
+                resolvedModelId,
                 trigger,
                 settings.DiagnosticsLogEnabled);
             var orchestrationRequest = new TranscriptionOrchestrationRequest(
@@ -130,7 +130,7 @@ public sealed class TranscriptionJobAdmissionService(
                 engineOptions,
                 recordingOptions.DefaultSpeakerPlaybackGainDb,
                 recordingOptions.DefaultMicPlaybackGainDb,
-                new TranscriptionArtifactOptions(modelKey?.ModelId, artifactFormats));
+                new TranscriptionArtifactOptions(resolvedModelId, artifactFormats));
 
             return TranscriptionAdmissionResult.Accepted(
                 new AdmittedTranscriptionJob(

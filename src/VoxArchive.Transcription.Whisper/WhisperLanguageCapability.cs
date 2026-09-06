@@ -12,7 +12,7 @@ public sealed class WhisperLanguageCapability : ITranscriptionLanguageCapability
     {
         // 空指定はWhisperの自動言語判定として扱う。
         // 空白を含む値は言語コードとして成立しないため、暗黙にautoへfallbackさせない。
-        return preferredLanguage is null || !preferredLanguage.Contains(char.IsWhiteSpace);
+        return preferredLanguage is null || !preferredLanguage.Any(char.IsWhiteSpace);
     }
 
     /// <inheritdoc />
