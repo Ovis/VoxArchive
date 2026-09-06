@@ -2,6 +2,7 @@ using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
+using ModelId = VoxArchive.Transcription.Abstractions.TranscriptionModelId;
 
 namespace VoxArchive.Application;
 
@@ -74,14 +75,15 @@ public sealed class TranscriptionJobAdmissionService(
             if (executionErrors.Count > 0) return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(executionErrors));
         }
 
-        TranscriptionModelId? resolvedModelId = null;
+        ModelId? resolvedModelId = null;
         TranscriptionModelUsageReservation? reservation = null;
         try
         {
             if (registration.ModelRequirementResolver is not null)
             {
-                resolvedModelId = registration.ModelRequirementResolver.ResolveRequiredModel(engineOptions);
-                var modelKey = new TranscriptionModelKey(engineId, resolvedModelId);
+                var modelId = registration.ModelRequirementResolver.ResolveRequiredModel(engineOptions);
+                resolvedModelId = modelId;
+                var modelKey = new TranscriptionModelKey(engineId, modelId);
                 reservation = usageTracker.Acquire(modelKey);
 
                 if (!modelManager.IsReady(modelKey))
@@ -89,7 +91,7 @@ public sealed class TranscriptionJobAdmissionService(
                     var waited = await modelManager.WaitForActiveDownloadAsync(modelKey, cancellationToken);
                     if (!waited || !modelManager.IsReady(modelKey))
                     {
-                        return RejectAndRelease(reservation, $"文字起こしモデル '{resolvedModelId}' が未配置または不完全です。設定画面からモデルを取得してください。");
+                        return RejectAndRelease(reservation, $"文字起こしモデル '{modelId}' が未配置または不完全です。設定画面からモデルを取得してください。");
                     }
                 }
 
