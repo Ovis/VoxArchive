@@ -4,6 +4,9 @@ using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.IntegrationTests;
 
+/// <summary>
+/// Engine RegistryがEngineとcapabilityの登録整合性を検証することを確認する
+/// </summary>
 public sealed class TranscriptionEngineRegistryTests
 {
     [Test]
@@ -41,12 +44,9 @@ public sealed class TranscriptionEngineRegistryTests
     private sealed class StubEngine(TranscriptionEngineId id) : ITranscriptionEngine
     {
         public TranscriptionEngineId Id { get; } = id;
-        public TranscriptionAudioRequirements AudioRequirements { get; } =
-            new(16_000, 1, TranscriptionSampleFormat.Pcm16);
+        public TranscriptionAudioRequirements AudioRequirements { get; } = new(16_000, 1, TranscriptionSampleFormat.Pcm16);
 
-        public Task<TranscriptionEngineResult> TranscribeAsync(
-            TranscriptionEngineRequest request,
-            CancellationToken cancellationToken = default)
+        public Task<TranscriptionEngineResult> TranscribeAsync(TranscriptionEngineRequest request, CancellationToken cancellationToken = default)
             => Task.FromResult(new TranscriptionEngineResult([]));
     }
 
@@ -61,5 +61,25 @@ public sealed class TranscriptionEngineRegistryTests
     private sealed class StubModelProvider(TranscriptionEngineId engineId) : ITranscriptionModelProvider
     {
         public TranscriptionEngineId EngineId { get; } = engineId;
+
+        public IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels() => [];
+
+        public bool IsReady(TranscriptionModelId modelId) => false;
+
+        public TranscriptionModelInspection Inspect(TranscriptionModelId modelId, TranscriptionModelInspectionLevel level)
+            => new(TranscriptionModelPackageState.Missing, level);
+
+        public Task<TranscriptionModelInstallation> InstallAsync(
+            TranscriptionModelId modelId,
+            bool force,
+            IProgress<TranscriptionModelTransferProgress>? progress,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task DeleteAsync(TranscriptionModelId modelId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public TranscriptionModelInstallation GetInstallation(TranscriptionModelId modelId)
+            => throw new InvalidOperationException();
     }
 }
