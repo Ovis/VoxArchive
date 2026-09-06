@@ -1,0 +1,64 @@
+using System.Text.Json;
+using VoxArchive.Transcription.Abstractions;
+
+namespace VoxArchive.Transcription.Whisper;
+
+/// <summary>
+/// Whisper固有settings JSONをtyped optionsへ変換する
+/// </summary>
+public sealed class WhisperEngineSettingsProvider : ITranscriptionEngineSettingsProvider
+{
+    /// <inheritdoc />
+    public ITranscriptionEngineOptions Deserialize(JsonElement settings, int schemaVersion)
+    {
+        if (schemaVersion != 1)
+        {
+            throw new NotSupportedException($"未対応のWhisper settings schemaVersionです: {schemaVersion}");
+        }
+
+        var modelId = ReadString(settings, "modelId") ?? "small";
+        var modeText = ReadString(settings, "executionMode") ?? "auto";
+        if (!Enum.TryParse<WhisperExecutionMode>(modeText, true, out var executionMode))
+        {
+            throw new InvalidDataException($"未対応のWhisper executionModeです: {modeText}");
+        }
+
+        return new WhisperEngineOptions
+        {
+            ModelId = new TranscriptionModelId(modelId),
+            ExecutionMode = executionMode,
+            Language = ReadString(settings, "language") ?? string.Empty,
+            DiagnosticsEnabled = ReadBoolean(settings, "diagnosticsEnabled") ?? false
+        };
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<TranscriptionValidationError> Validate(ITranscriptionEngineOptions options)
+    {
+        if (options is not WhisperEngineOptions whisper)
+        {
+            return [new("whisper.options.type", "Whisper以外のEngine optionsが渡されました。")];
+        }
+
+        var errors = new List<TranscriptionValidationError>();
+        if (string.IsNullOrWhiteSpace(whisper.ModelId.Value))
+        {
+            errors.Add(new("whisper.model.required", "Whisperモデルを選択してください。"));
+        }
+        return errors;
+    }
+
+    private static string? ReadString(JsonElement settings, string name)
+        => settings.ValueKind == JsonValueKind.Object
+           && settings.TryGetProperty(name, out var value)
+           && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static bool? ReadBoolean(JsonElement settings, string name)
+        => settings.ValueKind == JsonValueKind.Object
+           && settings.TryGetProperty(name, out var value)
+           && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean()
+            : null;
+}
