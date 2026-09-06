@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Application;
-using VoxArchive.Application.Abstractions;
 using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 using VoxArchive.Transcription.ReazonSpeech;
@@ -51,7 +50,6 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<WhisperEngineSettingsProvider>();
         services.AddSingleton<WhisperModelProvider>();
         services.AddSingleton<WhisperModelRequirementResolver>();
-        services.AddSingleton<WhisperRuntimeProbe>();
         services.AddSingleton<WhisperEngineDiagnostics>();
         services.AddSingleton<WhisperLanguageCapability>();
         services.AddSingleton<WhisperExecutionValidator>();
@@ -88,7 +86,6 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<TranscriptionOrchestrator>();
         services.AddSingleton<TranscriptionJobAdmissionService>();
         services.AddSingleton<TranscriptionJobQueue>();
-        services.AddSingleton<ITranscriptionApplicationService, TranscriptionApplicationService>();
         return services;
     }
 }
