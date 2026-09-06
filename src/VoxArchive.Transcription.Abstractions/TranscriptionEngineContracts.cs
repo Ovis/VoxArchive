@@ -1,0 +1,90 @@
+namespace VoxArchive.Transcription.Abstractions;
+
+/// <summary>
+/// エンジン固有設定のsnapshotであることを示すmarker契約
+/// </summary>
+public interface ITranscriptionEngineOptions;
+
+/// <summary>
+/// 文字起こしエンジンが要求する音声形式を表す
+/// </summary>
+public sealed record TranscriptionAudioRequirements(
+    int SampleRate,
+    int Channels,
+    TranscriptionSampleFormat SampleFormat);
+
+/// <summary>
+/// 共通基盤とエンジンの間で扱うサンプル形式を定義する
+/// </summary>
+public enum TranscriptionSampleFormat
+{
+    Pcm16 = 0,
+    Float32 = 1,
+}
+
+/// <summary>
+/// Common側が所有する前処理済み音声への読み取り専用アクセスを提供する
+/// </summary>
+public interface IPreparedTranscriptionAudio : IAsyncDisposable
+{
+    /// <summary>
+    /// 音声形式を取得する
+    /// </summary>
+    TranscriptionAudioRequirements Format { get; }
+
+    /// <summary>
+    /// 元録音基準の長さを取得する
+    /// </summary>
+    TimeSpan Duration { get; }
+
+    /// <summary>
+    /// 認識処理用の読み取りストリームを開く
+    /// </summary>
+    ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// エンジンへ渡す認識専用requestを表す
+/// </summary>
+public sealed record TranscriptionEngineRequest(
+    IPreparedTranscriptionAudio Audio,
+    ITranscriptionEngineOptions Options);
+
+/// <summary>
+/// エンジンが返す認識segmentを表す
+/// </summary>
+public sealed record RecognizedTranscriptionSegment(
+    TimeSpan Start,
+    TimeSpan End,
+    string Text,
+    IReadOnlyDictionary<string, object?>? Metadata = null);
+
+/// <summary>
+/// エンジンの認識結果を表す
+/// </summary>
+public sealed record TranscriptionEngineResult(
+    IReadOnlyList<RecognizedTranscriptionSegment> Segments,
+    IReadOnlyDictionary<string, object?>? Metadata = null);
+
+/// <summary>
+/// ASR Engineの最小実行契約を定義する
+/// </summary>
+public interface ITranscriptionEngine
+{
+    /// <summary>
+    /// Engine IDを取得する
+    /// </summary>
+    TranscriptionEngineId Id { get; }
+
+    /// <summary>
+    /// 認識入力として必要な音声形式を取得する
+    /// </summary>
+    TranscriptionAudioRequirements AudioRequirements { get; }
+
+    /// <summary>
+    /// 前処理済み音声を認識し、元録音開始を0としたabsolute timelineで結果を返す
+    /// </summary>
+    Task<TranscriptionEngineResult> TranscribeAsync(
+        TranscriptionEngineRequest request,
+        CancellationToken cancellationToken = default);
+}
