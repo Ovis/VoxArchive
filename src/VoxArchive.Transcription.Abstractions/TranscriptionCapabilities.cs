@@ -23,10 +23,30 @@ public interface ITranscriptionEngineSettingsProvider
 /// </summary>
 public interface ITranscriptionModelProvider
 {
-    /// <summary>
-    /// Engine IDを取得する
-    /// </summary>
+    /// <summary>このProviderが管理するEngine IDを取得する</summary>
     TranscriptionEngineId EngineId { get; }
+
+    /// <summary>選択可能な論理モデル一覧を取得する</summary>
+    IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels();
+
+    /// <summary>Job実行に必要な軽量readiness判定を行う</summary>
+    bool IsReady(TranscriptionModelId modelId);
+
+    /// <summary>指定レベルで配置状態を確認する</summary>
+    TranscriptionModelInspection Inspect(TranscriptionModelId modelId, TranscriptionModelInspectionLevel level);
+
+    /// <summary>モデルを取得・検証して確定配置する</summary>
+    Task<TranscriptionModelInstallation> InstallAsync(
+        TranscriptionModelId modelId,
+        bool force,
+        IProgress<TranscriptionModelTransferProgress>? progress,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>モデルを物理削除する</summary>
+    Task DeleteAsync(TranscriptionModelId modelId, CancellationToken cancellationToken = default);
+
+    /// <summary>readyなモデルの物理ファイル群を取得する</summary>
+    TranscriptionModelInstallation GetInstallation(TranscriptionModelId modelId);
 }
 
 /// <summary>
