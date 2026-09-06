@@ -49,7 +49,7 @@ public sealed class TranscriptionJobQueue : IDisposable
     /// <summary>
     /// 現在の設定をAdmissionで確定し、同一録音が未投入の場合だけQueueへ追加する
     /// </summary>
-    public async Task<TranscriptionEnqueueResult> TryEnqueueAsync(
+    public async Task<TranscriptionQueueEnqueueResult> TryEnqueueAsync(
         string audioFilePath,
         RecordingOptions recordingOptions,
         TranscriptionTrigger trigger,
@@ -60,10 +60,8 @@ public sealed class TranscriptionJobQueue : IDisposable
         {
             if (_jobStates.ContainsKey(key))
             {
-                return new TranscriptionEnqueueResult(false, "この録音は既に文字起こし待機中または実行中です。");
+                return new TranscriptionQueueEnqueueResult(false, "この録音は既に文字起こし待機中または実行中です。");
             }
-
-            // Admission中に別スレッドから同じ録音が入ることを防ぐため、先にPending予約する。
             _jobStates[key] = TranscriptionJobState.Pending;
         }
 
@@ -81,7 +79,7 @@ public sealed class TranscriptionJobQueue : IDisposable
         if (!admission.Succeeded || admission.Job is null)
         {
             ClearStateOnly(audioFilePath);
-            return new TranscriptionEnqueueResult(false, admission.Message);
+            return new TranscriptionQueueEnqueueResult(false, admission.Message);
         }
 
         var job = admission.Job;
@@ -93,7 +91,7 @@ public sealed class TranscriptionJobQueue : IDisposable
                 _jobs.TryRemove(key, out _);
                 _jobStates.TryRemove(key, out _);
                 job.Dispose();
-                return new TranscriptionEnqueueResult(false, "文字起こしQueueへ追加できませんでした。");
+                return new TranscriptionQueueEnqueueResult(false, "文字起こしQueueへ追加できませんでした。");
             }
         }
 
@@ -109,7 +107,7 @@ public sealed class TranscriptionJobQueue : IDisposable
         }
 
         JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(audioFilePath, TranscriptionJobState.Pending));
-        return new TranscriptionEnqueueResult(true, "文字起こしをキューへ追加しました。");
+        return new TranscriptionQueueEnqueueResult(true, "文字起こしをキューへ追加しました。");
     }
 
     /// <summary>待機中・実行中ジョブの状態一覧を取得する</summary>
@@ -141,9 +139,7 @@ public sealed class TranscriptionJobQueue : IDisposable
         }
     }
 
-    private async Task<TranscriptionJobResult> ProcessAsync(
-        AdmittedTranscriptionJob job,
-        CancellationToken cancellationToken)
+    private async Task<TranscriptionJobResult> ProcessAsync(AdmittedTranscriptionJob job, CancellationToken cancellationToken)
     {
         var startedAt = DateTimeOffset.Now;
         var stopwatch = Stopwatch.StartNew();
@@ -174,33 +170,18 @@ public sealed class TranscriptionJobQueue : IDisposable
                     result.GeneratedFiles.Count);
             }
 
-            return new TranscriptionJobResult(
-                true,
-                "文字起こしが完了しました。",
-                result.GeneratedFiles,
-                startedAt,
-                result.FinishedAt);
+            return new TranscriptionJobResult(true, "文字起こしが完了しました。", result.GeneratedFiles, startedAt, result.FinishedAt);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             stopwatch.Stop();
-            return new TranscriptionJobResult(
-                false,
-                "文字起こし処理がキャンセルされました。",
-                Array.Empty<string>(),
-                startedAt,
-                DateTimeOffset.Now);
+            return new TranscriptionJobResult(false, "文字起こし処理がキャンセルされました。", Array.Empty<string>(), startedAt, DateTimeOffset.Now);
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
             _logger.LogError(ex, "Transcription job failed. File={File}, ElapsedMs={ElapsedMs}", job.Descriptor.AudioFilePath, stopwatch.ElapsedMilliseconds);
-            return new TranscriptionJobResult(
-                false,
-                $"文字起こし実行中に例外が発生しました: {ex.Message}",
-                Array.Empty<string>(),
-                startedAt,
-                DateTimeOffset.Now);
+            return new TranscriptionJobResult(false, $"文字起こし実行中に例外が発生しました: {ex.Message}", Array.Empty<string>(), startedAt, DateTimeOffset.Now);
         }
     }
 
@@ -234,14 +215,12 @@ public sealed class TranscriptionJobQueue : IDisposable
     {
         _queue.Writer.TryComplete();
         if (!_cts.IsCancellationRequested) _cts.Cancel();
-
         lock (_stateGate)
         {
             foreach (var job in _jobs.Values) job.Dispose();
             _jobs.Clear();
             _jobStates.Clear();
         }
-
         _ = _workerTask.ContinueWith(task =>
         {
             if (task.IsFaulted) _logger.LogDebug(task.Exception, "Transcription worker ended with fault during dispose.");
@@ -250,7 +229,5 @@ public sealed class TranscriptionJobQueue : IDisposable
     }
 }
 
-/// <summary>
-/// Queue投入結果を表す
-/// </summary>
-public sealed record TranscriptionEnqueueResult(bool Enqueued, string Message);
+/// <summary>Application内部Queueの投入結果を表す</summary>
+public sealed record TranscriptionQueueEnqueueResult(bool Enqueued, string Message);

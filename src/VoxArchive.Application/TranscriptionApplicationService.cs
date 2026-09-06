@@ -2,6 +2,8 @@ using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
+using EngineId = VoxArchive.Transcription.Abstractions.TranscriptionEngineId;
+using ModelId = VoxArchive.Transcription.Abstractions.TranscriptionModelId;
 
 namespace VoxArchive.Application;
 
@@ -32,14 +34,14 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
     public event EventHandler? ModelStateChanged;
 
     /// <inheritdoc />
-    public async Task<TranscriptionEnqueueResult> TryEnqueueAsync(
+    public async Task<VoxArchive.Application.Abstractions.TranscriptionEnqueueResult> TryEnqueueAsync(
         string audioFilePath,
         RecordingOptions recordingOptions,
         TranscriptionTrigger trigger,
         CancellationToken cancellationToken = default)
     {
         var result = await _jobQueue.TryEnqueueAsync(audioFilePath, recordingOptions, trigger, cancellationToken);
-        return new TranscriptionEnqueueResult(result.Enqueued, result.Message);
+        return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(result.Enqueued, result.Message);
     }
 
     /// <inheritdoc />
@@ -143,10 +145,10 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
     private static TranscriptionModelStatusInfo ToStatus(TranscriptionModelPackageState state, bool isReady)
         => new(state.ToString(), isReady);
 
-    private static TranscriptionEngineId ToEngineId(string value) => new(value);
+    private static EngineId ToEngineId(string value) => new(value);
 
     private static TranscriptionModelKey ToModelKey(string engineId, string modelId)
-        => new(new TranscriptionEngineId(engineId), new TranscriptionModelId(modelId));
+        => new(new EngineId(engineId), new ModelId(modelId));
 
     private void OnJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e) => JobCompleted?.Invoke(this, e);
     private void OnJobStateChanged(object? sender, TranscriptionJobStateChangedEventArgs e) => JobStateChanged?.Invoke(this, e);
