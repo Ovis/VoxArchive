@@ -10,8 +10,24 @@ public sealed class WhisperLanguageCapability : ITranscriptionLanguageCapability
     /// <inheritdoc />
     public bool Supports(string? preferredLanguage)
     {
-        // Whisperは空指定を自動言語判定として扱える。
-        // 実在しない言語コードの厳密検証はWhisper側catalog導入時に追加し、Commonへ言語一覧を埋め込まない。
+        // 空指定はWhisperの自動言語判定として扱う。
+        // 空白を含む値は言語コードとして成立しないため、暗黙にautoへfallbackさせない。
         return preferredLanguage is null || !preferredLanguage.Contains(char.IsWhiteSpace);
+    }
+
+    /// <inheritdoc />
+    public ITranscriptionEngineOptions Resolve(
+        ITranscriptionEngineOptions options,
+        string? preferredLanguage)
+    {
+        if (options is not WhisperEngineOptions whisper)
+        {
+            throw new ArgumentException("Whisper以外のEngine optionsが渡されました。", nameof(options));
+        }
+        if (!Supports(preferredLanguage))
+        {
+            throw new NotSupportedException($"Whisperで利用できないPreferredLanguageです: {preferredLanguage}");
+        }
+        return whisper with { Language = preferredLanguage?.Trim() ?? string.Empty };
     }
 }

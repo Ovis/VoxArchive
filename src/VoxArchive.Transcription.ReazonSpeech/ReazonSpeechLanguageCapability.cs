@@ -9,11 +9,24 @@ public sealed class ReazonSpeechLanguageCapability : ITranscriptionLanguageCapab
 {
     /// <inheritdoc />
     public bool Supports(string? preferredLanguage)
+        => string.IsNullOrWhiteSpace(preferredLanguage)
+           || string.Equals(preferredLanguage.Trim(), "ja", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(preferredLanguage.Trim(), "ja-JP", StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public ITranscriptionEngineOptions Resolve(
+        ITranscriptionEngineOptions options,
+        string? preferredLanguage)
     {
-        // 空指定は「利用者が言語を限定していない」ため受理する。
-        // 日本語以外を指定した場合は暗黙に日本語認識へfallbackせずAdmissionで拒否する。
-        return string.IsNullOrWhiteSpace(preferredLanguage)
-               || string.Equals(preferredLanguage.Trim(), "ja", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(preferredLanguage.Trim(), "ja-JP", StringComparison.OrdinalIgnoreCase);
+        if (options is not ReazonSpeechEngineOptions reazon)
+        {
+            throw new ArgumentException("ReazonSpeech以外のEngine optionsが渡されました。", nameof(options));
+        }
+        if (!Supports(preferredLanguage))
+        {
+            // 日本語固定Engineへ別言語を指定した場合に黙って日本語認識しない。
+            throw new NotSupportedException($"ReazonSpeechで利用できないPreferredLanguageです: {preferredLanguage}");
+        }
+        return reazon;
     }
 }
