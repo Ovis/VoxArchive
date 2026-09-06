@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\VoxArchive.Transcription.Abstractions\VoxArchive.Transcription.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription\VoxArchive.Transcription.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="NAudio" Version="3.0.1" />
     <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.13.5" />
   </ItemGroup>
   <PropertyGroup>

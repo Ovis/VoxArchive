@@ -1,0 +1,137 @@
+using NAudio.Wave;
+using SherpaOnnx;
+using VoxArchive.Transcription;
+using VoxArchive.Transcription.Abstractions;
+
+namespace VoxArchive.Transcription.ReazonSpeech;
+
+/// <summary>
+/// ReazonSpeech k2-v2をsherpa-onnx non-streaming recognizerへ接続する
+/// </summary>
+public sealed class ReazonSpeechRecognizer
+{
+    private const int ModelSampleRate = 16_000;
+    private const int FeatureDimension = 80;
+
+    /// <summary>
+    /// 指定したVAD区間を順次認識する
+    /// </summary>
+    public async Task<IReadOnlyList<RecognizedTranscriptionSegment>> RecognizeAsync(
+        IPreparedTranscriptionAudio audio,
+        IReadOnlyList<SpeechRegion> regions,
+        ReazonSpeechEngineOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateModelFiles(options);
+        var config = CreateRecognizerConfig(options);
+
+        // ONNXモデルのロードは高コストなので、VAD区間ごとにRecognizerを作り直さず1 Jobで共有する。
+        using var recognizer = new OfflineRecognizer(config);
+        var segments = new List<RecognizedTranscriptionSegment>(regions.Count);
+        foreach (var region in regions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var samples = await ReadRegionSamplesAsync(audio, region, cancellationToken);
+            if (samples.Length == 0)
+            {
+                continue;
+            }
+
+            // Decodeはnative同期APIであり呼び出し途中を安全に強制停止できない。
+            // safe boundaryである区間間ではCancellationTokenを必ず確認し、UIスレッド自体はTask.Runで塞がない。
+            var text = await Task.Run(() => Recognize(recognizer, samples), CancellationToken.None);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                continue;
+            }
+
+            segments.Add(new RecognizedTranscriptionSegment(region.Start, region.End, text.Trim()));
+        }
+        return segments;
+    }
+
+    private static OfflineRecognizerConfig CreateRecognizerConfig(ReazonSpeechEngineOptions options)
+    {
+        var config = new OfflineRecognizerConfig();
+        config.FeatConfig.SampleRate = ModelSampleRate;
+        config.FeatConfig.FeatureDim = FeatureDimension;
+        config.ModelConfig.Transducer.Encoder = options.EncoderPath!;
+        config.ModelConfig.Transducer.Decoder = options.DecoderPath!;
+        config.ModelConfig.Transducer.Joiner = options.JoinerPath!;
+        config.ModelConfig.Tokens = options.TokensPath!;
+
+        // 現行ReazonSpeech実装の挙動を変えないためCPU固定・最大4 thread・greedy_searchを維持する。
+        config.ModelConfig.Provider = "cpu";
+        config.ModelConfig.NumThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+        config.ModelConfig.Debug = options.DiagnosticsEnabled ? 1 : 0;
+        config.DecodingMethod = "greedy_search";
+        return config;
+    }
+
+    private static string Recognize(OfflineRecognizer recognizer, float[] samples)
+    {
+        using var stream = recognizer.CreateStream();
+        stream.AcceptWaveform(ModelSampleRate, samples);
+        recognizer.Decode(stream);
+        return stream.Result.Text ?? string.Empty;
+    }
+
+    private static async Task<float[]> ReadRegionSamplesAsync(
+        IPreparedTranscriptionAudio audio,
+        SpeechRegion region,
+        CancellationToken cancellationToken)
+    {
+        await using var source = await audio.OpenReadAsync(cancellationToken);
+        using var reader = new WaveFileReader(source);
+        ISampleProvider provider = reader.ToSampleProvider();
+        if (provider.WaveFormat.SampleRate != ModelSampleRate || provider.WaveFormat.Channels != 1)
+        {
+            throw new InvalidDataException(
+                $"ReazonSpeech入力は16kHz monoである必要があります。実際={provider.WaveFormat.SampleRate}Hz/{provider.WaveFormat.Channels}ch");
+        }
+
+        var skipSamples = Math.Max(0L, (long)Math.Floor(region.Start.TotalSeconds * ModelSampleRate));
+        var requestedSamples = Math.Max(0, (int)Math.Ceiling(region.Duration.TotalSeconds * ModelSampleRate));
+        var scratch = new float[8192];
+        while (skipSamples > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var toRead = (int)Math.Min(skipSamples, scratch.Length);
+            var read = provider.Read(scratch.AsSpan(0, toRead));
+            if (read <= 0)
+            {
+                return [];
+            }
+            skipSamples -= read;
+        }
+
+        var samples = new float[requestedSamples];
+        var offset = 0;
+        while (offset < samples.Length)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var read = provider.Read(samples.AsSpan(offset));
+            if (read <= 0)
+            {
+                break;
+            }
+            offset += read;
+        }
+
+        if (offset != samples.Length)
+        {
+            Array.Resize(ref samples, offset);
+        }
+        return samples;
+    }
+
+    private static void ValidateModelFiles(ReazonSpeechEngineOptions options)
+    {
+        var files = new[] { options.EncoderPath, options.DecoderPath, options.JoinerPath, options.TokensPath };
+        if (files.Any(string.IsNullOrWhiteSpace) || files.Any(path => !File.Exists(path)))
+        {
+            throw new FileNotFoundException("ReazonSpeechモデルを構成するファイルが未配置または不完全です。");
+        }
+    }
+}
