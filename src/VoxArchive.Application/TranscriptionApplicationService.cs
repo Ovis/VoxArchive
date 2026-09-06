@@ -42,6 +42,22 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         => _jobQueue.GetStateSnapshot().Select(x => new TranscriptionJobStateInfo(x.AudioFilePath, x.State)).ToArray();
 
     /// <inheritdoc />
+    public string? FindCanonicalResultPath(string audioFilePath, RecordingOptions recordingOptions)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);
+        ArgumentNullException.ThrowIfNull(recordingOptions);
+
+        var engineId = ToEngineId(recordingOptions.Transcription.DefaultEngine);
+        var registration = _engineRegistry.Get(engineId);
+        if (!recordingOptions.Transcription.Engines.TryGetValue(engineId.Value, out var persisted)) return null;
+
+        var options = registration.SettingsProvider.Deserialize(persisted.Settings, persisted.SchemaVersion);
+        var modelId = registration.ModelRequirementResolver?.ResolveRequiredModel(options);
+        var path = TranscriptionArtifactService.BuildDocumentPath(audioFilePath, engineId, modelId);
+        return File.Exists(path) ? path : null;
+    }
+
+    /// <inheritdoc />
     public IReadOnlyList<TranscriptionModelInfo> GetAvailableModels(string engineId)
         => _modelManager.GetAvailableModels(ToEngineId(engineId)).Select(x => new TranscriptionModelInfo(x.ModelId.Value, x.DisplayName)).ToArray();
 
