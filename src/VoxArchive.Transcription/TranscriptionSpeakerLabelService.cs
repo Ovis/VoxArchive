@@ -34,8 +34,9 @@ public sealed class TranscriptionSpeakerLabelService
                 return segments.Select(x => new LabeledTranscriptionSegment(x, null)).ToArray();
             }
 
-            var sampleRate = reader.WaveFormat.SampleRate;
-            var channels = reader.WaveFormat.Channels;
+            ISampleProvider sampleProvider = reader;
+            var sampleRate = sampleProvider.WaveFormat.SampleRate;
+            var channels = sampleProvider.WaveFormat.Channels;
             var ranges = BuildSegmentFrameRanges(segments, sampleRate);
             var leftEnergy = new double[segments.Count];
             var rightEnergy = new double[segments.Count];
@@ -46,7 +47,7 @@ public sealed class TranscriptionSpeakerLabelService
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var read = reader.Read(buffer, 0, buffer.Length);
+                var read = sampleProvider.Read(buffer.AsSpan());
                 if (read <= 0)
                 {
                     break;

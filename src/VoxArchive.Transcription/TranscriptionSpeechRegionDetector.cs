@@ -31,7 +31,7 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
     private static IReadOnlyList<SpeechRegion> Detect(Stream stream, CancellationToken cancellationToken)
     {
         using var reader = new WaveFileReader(stream);
-        var sampleProvider = reader.ToSampleProvider();
+        ISampleProvider sampleProvider = reader.ToSampleProvider();
         if (sampleProvider.WaveFormat.Channels != 1)
         {
             return [new SpeechRegion(TimeSpan.Zero, reader.TotalTime)];
@@ -49,7 +49,7 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var read = sampleProvider.Read(buffer, 0, frameSamples);
+            var read = sampleProvider.Read(buffer.AsSpan());
             if (read <= 0)
             {
                 break;

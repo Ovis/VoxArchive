@@ -150,7 +150,7 @@ public sealed class TranscriptionAudioPreparationService
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var read = provider.Read(sampleBuffer, 0, sampleBuffer.Length);
+            var read = provider.Read(sampleBuffer.AsSpan());
             if (read <= 0)
             {
                 break;
