@@ -5,6 +5,8 @@
     <ProjectReference Include="..\VoxArchive.Application.Abstractions\VoxArchive.Application.Abstractions.csproj" />
     <ProjectReference Include="..\VoxArchive.Audio.Abstractions\VoxArchive.Audio.Abstractions.csproj" />
     <ProjectReference Include="..\VoxArchive.Encoding.Abstractions\VoxArchive.Encoding.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription\VoxArchive.Transcription.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription.Abstractions\VoxArchive.Transcription.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
