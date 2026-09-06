@@ -49,9 +49,7 @@ public sealed class TranscriptionJobAdmissionService(
         ITranscriptionEngineOptions engineOptions;
         try
         {
-            engineOptions = registration.SettingsProvider.Deserialize(
-                persistedEngineSettings.Settings,
-                persistedEngineSettings.SchemaVersion);
+            engineOptions = registration.SettingsProvider.Deserialize(persistedEngineSettings.Settings, persistedEngineSettings.SchemaVersion);
         }
         catch (Exception ex)
         {
@@ -62,26 +60,18 @@ public sealed class TranscriptionJobAdmissionService(
         {
             if (!registration.LanguageCapability.Supports(settings.PreferredLanguage))
             {
-                return TranscriptionAdmissionResult.Rejected(
-                    $"Engine '{engineId}' は希望言語 '{settings.PreferredLanguage}' をサポートしていません。");
+                return TranscriptionAdmissionResult.Rejected($"Engine '{engineId}' は希望言語 '{settings.PreferredLanguage}' をサポートしていません。");
             }
-
             engineOptions = registration.LanguageCapability.Resolve(engineOptions, settings.PreferredLanguage);
         }
 
         var validationErrors = registration.SettingsProvider.Validate(engineOptions);
-        if (validationErrors.Count > 0)
-        {
-            return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(validationErrors));
-        }
+        if (validationErrors.Count > 0) return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(validationErrors));
 
         if (registration.ExecutionValidator is not null)
         {
             var executionErrors = await registration.ExecutionValidator.ValidateAsync(engineOptions, cancellationToken);
-            if (executionErrors.Count > 0)
-            {
-                return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(executionErrors));
-            }
+            if (executionErrors.Count > 0) return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(executionErrors));
         }
 
         TranscriptionModelId? resolvedModelId = null;
@@ -92,21 +82,14 @@ public sealed class TranscriptionJobAdmissionService(
             {
                 resolvedModelId = registration.ModelRequirementResolver.ResolveRequiredModel(engineOptions);
                 var modelKey = new TranscriptionModelKey(engineId, resolvedModelId);
-
-                // readiness確認からworker完了までモデルを保護する。
-                // この順序により、確認直後に設定画面からモデルを削除されるTOCTOUを防止する。
                 reservation = usageTracker.Acquire(modelKey);
 
                 if (!modelManager.IsReady(modelKey))
                 {
-                    // 同一モデルの取得が既に進行中ならそのowner Taskだけを待つ。
-                    // Job Admission自身は暗黙downloadを開始せず、取得されていなければ利用者へ明示的に返す。
                     var waited = await modelManager.WaitForActiveDownloadAsync(modelKey, cancellationToken);
                     if (!waited || !modelManager.IsReady(modelKey))
                     {
-                        return RejectAndRelease(
-                            reservation,
-                            $"文字起こしモデル '{resolvedModelId}' が未配置または不完全です。設定画面からモデルを取得してください。");
+                        return RejectAndRelease(reservation, $"文字起こしモデル '{resolvedModelId}' が未配置または不完全です。設定画面からモデルを取得してください。");
                     }
                 }
 
@@ -114,31 +97,17 @@ public sealed class TranscriptionJobAdmissionService(
                 engineOptions = registration.ModelRequirementResolver.BindInstallation(engineOptions, installation);
             }
 
-            var priority = trigger == TranscriptionTrigger.AutoAfterRecord
-                ? settings.AutoPriority
-                : settings.ManualPriority;
-            var artifactFormats = ToArtifactFormats(settings.OutputFormats);
-            var descriptor = new TranscriptionJobDescriptor(
-                audioFilePath,
-                engineId,
-                resolvedModelId,
-                trigger,
-                settings.DiagnosticsLogEnabled);
+            var priority = trigger == TranscriptionTrigger.AutoAfterRecord ? settings.AutoPriority : settings.ManualPriority;
+            var descriptor = new TranscriptionJobDescriptor(audioFilePath, engineId, resolvedModelId, trigger, settings.DiagnosticsLogEnabled);
             var orchestrationRequest = new TranscriptionOrchestrationRequest(
                 audioFilePath,
                 engineId,
                 engineOptions,
                 recordingOptions.DefaultSpeakerPlaybackGainDb,
                 recordingOptions.DefaultMicPlaybackGainDb,
-                new TranscriptionArtifactOptions(resolvedModelId, artifactFormats));
+                new TranscriptionArtifactOptions(resolvedModelId, ToArtifactFormats(settings.OutputFormats)));
 
-            return TranscriptionAdmissionResult.Accepted(
-                new AdmittedTranscriptionJob(
-                    descriptor,
-                    orchestrationRequest,
-                    priority,
-                    settings.ToastNotificationEnabled,
-                    reservation));
+            return TranscriptionAdmissionResult.Accepted(new AdmittedTranscriptionJob(descriptor, orchestrationRequest, priority, reservation));
         }
         catch
         {
@@ -147,9 +116,7 @@ public sealed class TranscriptionJobAdmissionService(
         }
     }
 
-    private static TranscriptionAdmissionResult RejectAndRelease(
-        TranscriptionModelUsageReservation reservation,
-        string message)
+    private static TranscriptionAdmissionResult RejectAndRelease(TranscriptionModelUsageReservation reservation, string message)
     {
         reservation.Dispose();
         return TranscriptionAdmissionResult.Rejected(message);
@@ -164,8 +131,6 @@ public sealed class TranscriptionJobAdmissionService(
         if (formats.HasFlag(TranscriptionOutputFormats.Txt)) result |= TranscriptionArtifactFormats.Txt;
         if (formats.HasFlag(TranscriptionOutputFormats.Srt)) result |= TranscriptionArtifactFormats.Srt;
         if (formats.HasFlag(TranscriptionOutputFormats.Vtt)) result |= TranscriptionArtifactFormats.Vtt;
-
-        // canonical JSONはCommon ArtifactServiceが常に生成するため、旧Json flagは派生形式へ変換しない。
         return result;
     }
 }
@@ -177,7 +142,6 @@ public sealed record AdmittedTranscriptionJob(
     TranscriptionJobDescriptor Descriptor,
     TranscriptionOrchestrationRequest Request,
     TranscriptionPriority Priority,
-    bool ToastNotificationEnabled,
     TranscriptionModelUsageReservation? ModelReservation) : IDisposable
 {
     /// <inheritdoc />
@@ -187,14 +151,8 @@ public sealed record AdmittedTranscriptionJob(
 /// <summary>
 /// Admissionの成否を表す
 /// </summary>
-public sealed record TranscriptionAdmissionResult(
-    bool Succeeded,
-    string Message,
-    AdmittedTranscriptionJob? Job)
+public sealed record TranscriptionAdmissionResult(bool Succeeded, string Message, AdmittedTranscriptionJob? Job)
 {
-    public static TranscriptionAdmissionResult Accepted(AdmittedTranscriptionJob job)
-        => new(true, string.Empty, job);
-
-    public static TranscriptionAdmissionResult Rejected(string message)
-        => new(false, message, null);
+    public static TranscriptionAdmissionResult Accepted(AdmittedTranscriptionJob job) => new(true, string.Empty, job);
+    public static TranscriptionAdmissionResult Rejected(string message) => new(false, message, null);
 }
