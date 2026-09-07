@@ -1,6 +1,5 @@
 using NAudio.Wave;
 using SherpaOnnx;
-using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.ReazonSpeech;
@@ -47,7 +46,9 @@ public sealed class ReazonSpeechRecognizer
                 continue;
             }
 
-            segments.Add(new RecognizedTranscriptionSegment(region.Start, region.End, text.Trim()));
+            var start = SamplesToTimeSpan(region.StartSample, audio.Format.SampleRate);
+            var end = SamplesToTimeSpan(region.EndSample, audio.Format.SampleRate);
+            segments.Add(new RecognizedTranscriptionSegment(start, end, text.Trim()));
         }
         return segments;
     }
@@ -92,8 +93,9 @@ public sealed class ReazonSpeechRecognizer
                 $"ReazonSpeech入力は16kHz monoである必要があります。実際={provider.WaveFormat.SampleRate}Hz/{provider.WaveFormat.Channels}ch");
         }
 
-        var skipSamples = Math.Max(0L, (long)Math.Floor(region.Start.TotalSeconds * ModelSampleRate));
-        var requestedSamples = Math.Max(0, (int)Math.Ceiling(region.Duration.TotalSeconds * ModelSampleRate));
+        // SpeechRegionはPrepared Audio上のsample座標を正本とするため、秒への往復変換を挟まず直接切り出す。
+        var skipSamples = Math.Max(0L, region.StartSample);
+        var requestedSamples = checked((int)Math.Min(int.MaxValue, Math.Max(0L, region.Length)));
         var scratch = new float[8192];
         while (skipSamples > 0)
         {
@@ -126,6 +128,9 @@ public sealed class ReazonSpeechRecognizer
         }
         return samples;
     }
+
+    private static TimeSpan SamplesToTimeSpan(long samples, int sampleRate)
+        => TimeSpan.FromSeconds(samples / (double)sampleRate);
 
     private static void ValidateModelFiles(ReazonSpeechEngineOptions options)
     {
