@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\src\VoxArchive.Transcription\VoxArchive.Transcription.csproj" />
     <ProjectReference Include="..\..\src\VoxArchive.Transcription.Abstractions\VoxArchive.Transcription.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\VoxArchive.Transcription.ReazonSpeech\VoxArchive.Transcription.ReazonSpeech.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Transcription.Whisper\VoxArchive.Transcription.Whisper.csproj" />
   </ItemGroup>
 
 </Project>
