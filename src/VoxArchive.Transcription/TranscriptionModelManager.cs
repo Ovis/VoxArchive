@@ -182,8 +182,17 @@ public sealed class TranscriptionModelManager(
             task = _activeDownload.Completion;
         }
         RaiseStateChanged();
-        try { await task; }
-        catch (OperationCanceledException) { }
+
+        try
+        {
+            await task;
+        }
+        catch
+        {
+            // アプリ終了処理ではowner Taskの成功結果を利用しない。
+            // 既に通信失敗や検証失敗でfaultしていた場合も終了処理自体へ例外を伝播させず、
+            // RunOwnedDownloadAsyncのfinallyによるstaging/active stateの解放完了だけを待つ。
+        }
     }
 
     private async Task<TranscriptionModelInstallation> RunOwnedDownloadAsync(ActiveDownload active)
