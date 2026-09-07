@@ -50,10 +50,15 @@ public sealed record SpeechRegionDetectorSettingsSnapshot(int SchemaVersion, Jso
 /// <summary>VADが生成したSpeechRegionをASRエンジン固有の呼び出し単位へ分割する</summary>
 public interface IRecognitionChunker
 {
-    /// <summary>指定した発話区間から認識chunkを生成する</summary>
-    IReadOnlyList<RecognitionChunk> CreateChunks(
+    /// <summary>指定した発話区間とPrepared Audioから認識chunkを生成する</summary>
+    /// <remarks>
+    /// ReazonSpeechでは分割境界を決めるために実音声のRMS解析が必要になる。
+    /// I/Oを同期ブロックせず扱えるよう、Chunker契約自体を非同期とする。
+    /// </remarks>
+    Task<IReadOnlyList<RecognitionChunk>> CreateChunksAsync(
         IPreparedTranscriptionAudio audio,
-        IReadOnlyList<SpeechRegion> speechRegions);
+        IReadOnlyList<SpeechRegion> speechRegions,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>前処理済み音声から認識対象となる発話区間を検出する</summary>
