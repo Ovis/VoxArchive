@@ -91,7 +91,8 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
 
         var options = registration.SettingsProvider.Deserialize(persisted.Settings, persisted.SchemaVersion);
         var modelId = registration.ModelRequirementResolver?.ResolveRequiredModel(options);
-        var path = TranscriptionArtifactService.BuildDocumentPath(audioFilePath, engineId, modelId);
+        var artifactSuffix = registration.ArtifactNamingCapability?.BuildFileNameSuffix(modelId);
+        var path = TranscriptionArtifactService.BuildDocumentPath(audioFilePath, engineId, modelId, artifactSuffix);
         return File.Exists(path) ? path : null;
     }
 
