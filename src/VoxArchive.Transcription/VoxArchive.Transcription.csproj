@@ -3,6 +3,7 @@
     <ProjectReference Include="..\VoxArchive.Transcription.Abstractions\VoxArchive.Transcription.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
     <PackageReference Include="NAudio" Version="3.0.1" />
   </ItemGroup>
   <PropertyGroup>
