@@ -48,10 +48,16 @@ public sealed record TranscriptionEngineRequest(
 /// <summary>
 /// エンジンが返す認識segmentを表す
 /// </summary>
+/// <param name="Start">Prepared Audio上のabsolute開始時刻</param>
+/// <param name="End">Prepared Audio上のabsolute終了時刻</param>
+/// <param name="Text">認識テキスト</param>
+/// <param name="RecognitionChunkId">この結果を生成したRecognitionChunkのジョブ内ID。chunkを経由しないテスト等ではnullを許容する</param>
+/// <param name="Metadata">エンジン固有の追加情報</param>
 public sealed record RecognizedTranscriptionSegment(
     TimeSpan Start,
     TimeSpan End,
     string Text,
+    int? RecognitionChunkId = null,
     IReadOnlyDictionary<string, object?>? Metadata = null);
 
 /// <summary>
