@@ -5,6 +5,7 @@ using VoxArchive.Application.Abstractions;
 using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 using VoxArchive.Transcription.ReazonSpeech;
+using VoxArchive.Transcription.SileroVad;
 using VoxArchive.Transcription.Whisper;
 
 namespace VoxArchive.Runtime;
@@ -35,7 +36,16 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         // Commonは音声準備、VAD、話者判定、結果検証、artifact生成だけを所有する。
         services.AddSingleton<TranscriptionAudioPreparationService>();
         services.AddSingleton<TranscriptionSpeechRegionDetector>();
-        services.AddSingleton<ISpeechRegionDetector>(sp => sp.GetRequiredService<TranscriptionSpeechRegionDetector>());
+
+        // Sileroが実行可能なら優先し、未配置・初期化失敗・推論失敗時のみ既存の音量ベースVADへ戻す。
+        // モデルパスは設定値にせず、後続のモデル管理機能と共有するLocalApplicationData配下の固定規則を使用する。
+        services.AddSingleton(sp => new SileroVadDetector(SileroVadModelPath.GetDefault()));
+        services.AddSingleton<SileroPreferredSpeechRegionDetector>(sp => new(
+            sp.GetRequiredService<SileroVadDetector>(),
+            sp.GetRequiredService<TranscriptionSpeechRegionDetector>(),
+            sp.GetRequiredService<ILogger<SileroPreferredSpeechRegionDetector>>()));
+        services.AddSingleton<ISpeechRegionDetector>(sp => sp.GetRequiredService<SileroPreferredSpeechRegionDetector>());
+
         services.AddSingleton<TranscriptionSpeakerLabelService>();
         services.AddSingleton<TranscriptionEngineResultValidator>();
         services.AddSingleton<TranscriptionDocumentStore>();
