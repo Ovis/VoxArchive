@@ -69,8 +69,27 @@
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Base" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Base" Property="Background" Value="#24364C" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
         <Style x:Key="TranscriptionDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource TranscriptionActionButtonStyle}">
-            <Setter Property="Background" Value="#7C2D36" />
-            <Setter Property="BorderBrush" Value="#A03B47" />
+            <Setter Property="Background" Value="#E94545" />
+            <Setter Property="BorderBrush" Value="#E94545" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Base" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#C7473D" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#C7473D" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Base" Property="Background" Value="#A93A32" />
+                                <Setter TargetName="Base" Property="BorderBrush" Value="#A93A32" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Popup内では標準ButtonテンプレートのOS依存MouseOver色を使わず、
