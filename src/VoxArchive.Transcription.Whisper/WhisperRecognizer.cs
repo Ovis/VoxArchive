@@ -1,6 +1,5 @@
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.Whisper;
@@ -55,6 +54,7 @@ public sealed class WhisperRecognizer
                         result.Start,
                         result.End,
                         region,
+                        audio.Format.SampleRate,
                         audio.Duration);
                     collected.Add(new RecognizedTranscriptionSegment(start, end, text));
                 }
@@ -74,24 +74,34 @@ public sealed class WhisperRecognizer
     /// <remarks>
     /// Whisperは音声末尾で量子化誤差等により、実際に渡した区間より少し後ろのEndを返すことがある。
     /// Common validatorを緩めると他Engineの契約違反まで隠すため、Whisper固有adapterで実際の入力区間へ収める。
+    /// SpeechRegion自体はsample座標を正本とし、Engine境界でのみTimeSpanへ変換する。
     /// </remarks>
     internal static (TimeSpan Start, TimeSpan End) NormalizeSegmentTimeline(
         TimeSpan relativeStart,
         TimeSpan relativeEnd,
         SpeechRegion region,
+        int sampleRate,
         TimeSpan audioDuration)
     {
         ArgumentNullException.ThrowIfNull(region);
+        if (sampleRate <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleRate));
+        }
 
-        var regionStart = region.Start < TimeSpan.Zero ? TimeSpan.Zero : region.Start;
-        var regionEnd = region.End < audioDuration ? region.End : audioDuration;
+        var regionStart = SamplesToTimeSpan(region.StartSample, sampleRate);
+        var regionEnd = SamplesToTimeSpan(region.EndSample, sampleRate);
+        if (regionEnd > audioDuration)
+        {
+            regionEnd = audioDuration;
+        }
         if (regionEnd < regionStart)
         {
             regionEnd = regionStart;
         }
 
-        var absoluteStart = region.Start + relativeStart;
-        var absoluteEnd = region.Start + relativeEnd;
+        var absoluteStart = regionStart + relativeStart;
+        var absoluteEnd = regionStart + relativeEnd;
         var start = Clamp(absoluteStart, regionStart, regionEnd);
         var end = Clamp(absoluteEnd, start, regionEnd);
         return (start, end);
@@ -105,10 +115,11 @@ public sealed class WhisperRecognizer
     {
         await using var source = await audio.OpenReadAsync(cancellationToken);
         using var reader = new WaveFileReader(source);
+        var sampleRate = reader.WaveFormat.SampleRate;
         var provider = new OffsetSampleProvider(reader.ToSampleProvider())
         {
-            SkipOver = region.Start,
-            Take = region.Duration
+            SkipOver = SamplesToTimeSpan(region.StartSample, sampleRate),
+            Take = SamplesToTimeSpan(region.Length, sampleRate)
         };
 
         await Task.Run(() => WaveFileWriter.CreateWaveFile16(destinationPath, provider), cancellationToken);
@@ -156,6 +167,9 @@ public sealed class WhisperRecognizer
         }
         return $"{left} {right}";
     }
+
+    private static TimeSpan SamplesToTimeSpan(long samples, int sampleRate)
+        => TimeSpan.FromSeconds(samples / (double)sampleRate);
 
     private static TimeSpan Clamp(TimeSpan value, TimeSpan minimum, TimeSpan maximum)
     {
