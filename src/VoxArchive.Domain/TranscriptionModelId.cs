@@ -18,17 +18,6 @@ public readonly record struct TranscriptionModelId
         Value = value.Trim().ToLowerInvariant();
     }
 
-    /// <summary>現在のWhisper設定から安定IDへ変換する</summary>
-    public static TranscriptionModelId FromWhisperModel(TranscriptionModel model) => model switch
-    {
-        TranscriptionModel.Tiny => new("tiny"),
-        TranscriptionModel.Base => new("base"),
-        TranscriptionModel.Small => new("small"),
-        TranscriptionModel.Medium => new("medium"),
-        TranscriptionModel.LargeV3 => new("large-v3"),
-        _ => throw new ArgumentOutOfRangeException(nameof(model), model, "未対応のWhisperモデルです。")
-    };
-
     /// <inheritdoc />
     public override string ToString() => Value;
 }
