@@ -37,9 +37,13 @@ public sealed class ReazonSpeechRecognizer
                 continue;
             }
 
+            // ReazonSpeech K2 v2は入力前後の短い無音を前提とするため、Adapter境界で固定0.9秒を付加する。
+            // VAD paddingやRecognitionChunkのoriginal timelineは変更せず、K2へ渡す一時入力だけを拡張する。
+            var k2InputSamples = ReazonSpeechK2InputPadding.Apply(samples);
+
             // Decodeはnative同期APIであり呼び出し途中を安全に強制停止できない。
             // safe boundaryであるchunk間ではCancellationTokenを必ず確認し、UIスレッド自体はTask.Runで塞がない。
-            var text = await Task.Run(() => Recognize(recognizer, samples), CancellationToken.None);
+            var text = await Task.Run(() => Recognize(recognizer, k2InputSamples), CancellationToken.None);
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(text))
             {
