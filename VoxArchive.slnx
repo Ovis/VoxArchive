@@ -14,6 +14,10 @@
     <Project Path="src/VoxArchive.Encoding/VoxArchive.Encoding.csproj" />
     <Project Path="src/VoxArchive.Infrastructure/VoxArchive.Infrastructure.csproj" />
     <Project Path="src/VoxArchive.Runtime/VoxArchive.Runtime.csproj" />
+    <Project Path="src/VoxArchive.Transcription.Abstractions/VoxArchive.Transcription.Abstractions.csproj" />
+    <Project Path="src/VoxArchive.Transcription/VoxArchive.Transcription.csproj" />
+    <Project Path="src/VoxArchive.Transcription.Whisper/VoxArchive.Transcription.Whisper.csproj" />
+    <Project Path="src/VoxArchive.Transcription.ReazonSpeech/VoxArchive.Transcription.ReazonSpeech.csproj" />
     <Project Path="src/VoxArchive.Wpf/VoxArchive.Wpf.csproj" />
   </Folder>
   <Folder Name="/tests/">

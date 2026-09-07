@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace VoxArchive.Domain;
 
 /// <summary>
@@ -34,81 +32,13 @@ public sealed record RecordingOptions
     /// <summary>
     /// 文字起こしの共通設定とEngine別設定を取得する
     /// </summary>
+    /// <remarks>
+    /// 旧settings.jsonのフラットな文字起こし項目はInfrastructureのmigration層で変換する。
+    /// Domainへ旧accessorを残すとEngine固有型が再流入するため、現在形式ではこのプロパティだけを正本とする。
+    /// </remarks>
     public TranscriptionSettings Transcription
     {
         get => _transcription;
         init => _transcription = value ?? new TranscriptionSettings();
-    }
-
-    // 以下のプロパティは既存コードとの段階的な互換用アクセサーであり、settings.jsonには出力しない。
-    // 永続化形式の旧フィールドはJsonSettingsServiceが読み込み時にTranscriptionへ移行する。
-    [JsonIgnore]
-    public bool TranscriptionDiagnosticsLogEnabled
-    {
-        get => Transcription.DiagnosticsLogEnabled;
-        init => _transcription = _transcription with { DiagnosticsLogEnabled = value };
-    }
-
-    [JsonIgnore]
-    public bool TranscriptionEnabled
-    {
-        get => Transcription.Enabled;
-        init => _transcription = _transcription with { Enabled = value };
-    }
-
-    [JsonIgnore]
-    public bool AutoTranscriptionAfterRecord
-    {
-        get => Transcription.AutoAfterRecord;
-        init => _transcription = _transcription with { AutoAfterRecord = value };
-    }
-
-    [JsonIgnore]
-    public TranscriptionExecutionMode TranscriptionExecutionMode
-    {
-        get => Transcription.Whisper.ExecutionMode;
-        init => _transcription = _transcription with { Whisper = _transcription.Whisper with { ExecutionMode = value } };
-    }
-
-    [JsonIgnore]
-    public TranscriptionModel TranscriptionModel
-    {
-        get => Transcription.Whisper.Model;
-        init => _transcription = _transcription with { Whisper = _transcription.Whisper with { Model = value } };
-    }
-
-    [JsonIgnore]
-    public string TranscriptionLanguage
-    {
-        get => Transcription.Whisper.Language;
-        init => _transcription = _transcription with { Whisper = _transcription.Whisper with { Language = value } };
-    }
-
-    [JsonIgnore]
-    public TranscriptionOutputFormats TranscriptionOutputFormats
-    {
-        get => Transcription.OutputFormats;
-        init => _transcription = _transcription with { OutputFormats = value };
-    }
-
-    [JsonIgnore]
-    public TranscriptionPriority AutoTranscriptionPriority
-    {
-        get => Transcription.AutoPriority;
-        init => _transcription = _transcription with { AutoPriority = value };
-    }
-
-    [JsonIgnore]
-    public TranscriptionPriority ManualTranscriptionPriority
-    {
-        get => Transcription.ManualPriority;
-        init => _transcription = _transcription with { ManualPriority = value };
-    }
-
-    [JsonIgnore]
-    public bool TranscriptionToastNotificationEnabled
-    {
-        get => Transcription.ToastNotificationEnabled;
-        init => _transcription = _transcription with { ToastNotificationEnabled = value };
     }
 }

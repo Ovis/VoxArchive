@@ -1,11 +1,14 @@
 using System.Net;
 using System.Security.Cryptography;
 using TextEncoding = System.Text.Encoding;
-using VoxArchive.Domain;
-using VoxArchive.Infrastructure;
+using VoxArchive.Transcription;
+using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.IntegrationTests;
 
+/// <summary>
+/// Common model installerが不完全な配布物をreadyとして公開しないことを検証する
+/// </summary>
 [TestFixture]
 public sealed class TranscriptionModelPackageInstallerTests
 {
@@ -24,12 +27,14 @@ public sealed class TranscriptionModelPackageInstallerTests
             var installer = new TranscriptionModelPackageInstaller(httpClient);
             var definition = CreateDefinition(files);
 
-            var installedDirectory = await installer.InstallAsync(definition, root);
+            var installedDirectory = await installer.InstallAsync(definition, root, force: false, progress: null);
 
             Assert.Multiple(() =>
             {
                 Assert.That(installedDirectory, Is.EqualTo(Path.Combine(root, "reazonspeech", "ja")));
-                Assert.That(installer.IsInstalled(definition, installedDirectory), Is.True);
+                Assert.That(
+                    installer.Inspect(definition, installedDirectory, TranscriptionModelInspectionLevel.Hash),
+                    Is.EqualTo(TranscriptionModelPackageState.Installed));
                 Assert.That(File.Exists(Path.Combine(installedDirectory, "encoder.onnx")), Is.True);
                 Assert.That(File.Exists(Path.Combine(installedDirectory, "tokens.txt")), Is.True);
             });
@@ -52,8 +57,8 @@ public sealed class TranscriptionModelPackageInstallerTests
             };
             using var httpClient = new HttpClient(new DictionaryHandler(files));
             var installer = new TranscriptionModelPackageInstaller(httpClient);
-            var definition = new TranscriptionModelDefinition(
-                TranscriptionEngineId.ReazonSpeech,
+            var definition = new TranscriptionModelPackageDefinition(
+                new TranscriptionEngineId("reazonspeech"),
                 new TranscriptionModelId("ja"),
                 "日本語",
                 "k2-v2",
@@ -61,7 +66,7 @@ public sealed class TranscriptionModelPackageInstallerTests
                 "Apache-2.0",
                 [new TranscriptionModelFileDefinition(new Uri("https://example.invalid/encoder.onnx"), "encoder.onnx", files.Values.Single().Length, new string('0', 64))]);
 
-            Assert.ThrowsAsync<InvalidDataException>(() => installer.InstallAsync(definition, root));
+            Assert.ThrowsAsync<InvalidDataException>(() => installer.InstallAsync(definition, root, force: false, progress: null));
             Assert.That(Directory.Exists(Path.Combine(root, "reazonspeech", "ja")), Is.False);
         }
         finally
@@ -70,9 +75,9 @@ public sealed class TranscriptionModelPackageInstallerTests
         }
     }
 
-    private static TranscriptionModelDefinition CreateDefinition(IReadOnlyDictionary<string, byte[]> files)
+    private static TranscriptionModelPackageDefinition CreateDefinition(IReadOnlyDictionary<string, byte[]> files)
         => new(
-            TranscriptionEngineId.ReazonSpeech,
+            new TranscriptionEngineId("reazonspeech"),
             new TranscriptionModelId("ja"),
             "日本語",
             "k2-v2",

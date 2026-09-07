@@ -6,7 +6,11 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
+using ApplicationTranscriptionJobCompletedEventArgs = VoxArchive.Application.Abstractions.TranscriptionJobCompletedEventArgs;
+using ApplicationTranscriptionJobStateChangedEventArgs = VoxArchive.Application.Abstractions.TranscriptionJobStateChangedEventArgs;
+using ApplicationTranscriptionTrigger = VoxArchive.Application.Abstractions.TranscriptionTrigger;
 
 namespace VoxArchive.Wpf;
 
@@ -18,10 +22,9 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private readonly IDisposable _catalogSession;
     private readonly IRecordingPlaybackService _playbackService;
     private readonly DispatcherTimer _positionTimer;
-    private readonly TranscriptionJobQueue _transcriptionQueue;
+    private readonly ITranscriptionApplicationService _transcriptionService;
+    private readonly ManualTranscriptionEnqueueCoordinator _manualTranscriptionCoordinator;
     private readonly Func<RecordingOptions> _optionsProvider;
-
-    private const TranscriptionOutputFormats AllTranscriptionOutputFormats = TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt | TranscriptionOutputFormats.Vtt | TranscriptionOutputFormats.Json;
 
     private LibraryRecordingItem? _selectedItem;
     private string _editableTitle = string.Empty;
@@ -46,7 +49,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     public LibraryViewModel(
         RecordingCatalogService catalogService,
-        TranscriptionJobQueue transcriptionQueue,
+        ITranscriptionApplicationService transcriptionService,
+        ManualTranscriptionEnqueueCoordinator manualTranscriptionCoordinator,
         Func<RecordingOptions> optionsProvider,
         IRecordingPlaybackService playbackService,
         double defaultSpeakerGainDb = 0d,
@@ -54,13 +58,14 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     {
         _catalogService = catalogService;
         _catalogSession = _catalogService.AcquireInteractiveSession();
-        _transcriptionQueue = transcriptionQueue;
+        _transcriptionService = transcriptionService;
+        _manualTranscriptionCoordinator = manualTranscriptionCoordinator;
         _optionsProvider = optionsProvider;
 
-        _transcriptionQueue.JobCompleted += OnTranscriptionJobCompleted;
-        _transcriptionQueue.JobStateChanged += OnTranscriptionJobStateChanged;
+        _transcriptionService.JobCompleted += OnTranscriptionJobCompleted;
+        _transcriptionService.JobStateChanged += OnTranscriptionJobStateChanged;
 
-        foreach (var snapshot in _transcriptionQueue.GetStateSnapshot())
+        foreach (var snapshot in _transcriptionService.GetJobStates())
         {
             lock (_transcribingFilesGate)
             {
@@ -689,15 +694,17 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             return Task.CompletedTask;
         }
-        var options = _optionsProvider();
-        if (!TryGetExistingTranscriptionFilePath(SelectedItem.FilePath, options.TranscriptionModel, out var outputPath))
+
+        var outputPath = _transcriptionService.FindCanonicalResultPath(SelectedItem.FilePath, _optionsProvider());
+        if (outputPath is null)
         {
-            StatusText = "指定モデルの文字起こしファイルが見つかりません。";
+            StatusText = "現在設定に対応する文字起こしファイルが見つかりません。";
             return Task.CompletedTask;
         }
+
         try
         {
-            Process.Start(new ProcessStartInfo(outputPath!)
+            Process.Start(new ProcessStartInfo(outputPath)
             {
                 UseShellExecute = true
             });
@@ -715,8 +722,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             return false;
         }
-        var options = _optionsProvider();
-        return TryGetExistingTranscriptionFilePath(SelectedItem.FilePath, options.TranscriptionModel, out _);
+
+        return _transcriptionService.FindCanonicalResultPath(SelectedItem.FilePath, _optionsProvider()) is not null;
     }
     private bool CanTranscribe()
     {
@@ -726,8 +733,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
         var options = _optionsProvider();
         return !IsTranscribingForPath(SelectedItem.FilePath)
-            && options.TranscriptionEnabled
-            && !TryGetExistingTranscriptionFilePath(SelectedItem.FilePath, options.TranscriptionModel, out _);
+            && options.Transcription.Enabled
+            && _transcriptionService.FindCanonicalResultPath(SelectedItem.FilePath, options) is null;
     }
     public void NotifyOptionsChanged()
     {
@@ -749,25 +756,24 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             }
 
             var options = _optionsProvider();
-            if (!options.TranscriptionEnabled)
+            if (!options.Transcription.Enabled)
             {
                 StatusText = "文字起こし機能が無効です。設定画面で有効化してください。";
                 return;
             }
 
-            var queued = _transcriptionQueue.TryEnqueue(new TranscriptionJobRequest(
-                AudioFilePath: SelectedItem.FilePath,
-                Options: options,
-                Trigger: TranscriptionTrigger.Manual));
-            if (!queued)
+            var result = await _manualTranscriptionCoordinator.TryEnqueueAsync(SelectedItem.FilePath, options);
+            if (!result.Enqueued)
             {
-                StatusText = IsTranscribingForPath(SelectedItem.FilePath) ? "このファイルは既に文字起こしキューに投入済みです。" : "文字起こしキューへの投入に失敗しました。";
+                StatusText = IsTranscribingForPath(SelectedItem.FilePath)
+                    ? "このファイルは既に文字起こしキューに投入済みです。"
+                    : result.Message;
                 return;
             }
 
             OnPropertyChanged(nameof(IsTranscribing));
             RaiseCommands();
-            if (options.TranscriptionToastNotificationEnabled)
+            if (options.Transcription.ToastNotificationEnabled)
             {
                 AppNotificationHub.Notify("VoxArchive", $"文字起こし開始: {Path.GetFileName(SelectedItem.FilePath)}", System.Windows.Forms.ToolTipIcon.Info);
             }
@@ -784,20 +790,21 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void OnTranscriptionJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e)
+    private void OnTranscriptionJobCompleted(object? sender, ApplicationTranscriptionJobCompletedEventArgs e)
     {
         var app = System.Windows.Application.Current;
         if (app is null)
         {
             return;
-        }
+        }
+
         _ = app.Dispatcher.BeginInvoke(() =>
         {
             OnPropertyChanged(nameof(IsTranscribing));
             RaiseCommands();
         });
     }
-    private void OnTranscriptionJobStateChanged(object? sender, TranscriptionJobStateChangedEventArgs e)
+    private void OnTranscriptionJobStateChanged(object? sender, ApplicationTranscriptionJobStateChangedEventArgs e)
     {
         var key = NormalizePathKey(e.AudioFilePath);
         lock (_transcribingFilesGate)
@@ -816,7 +823,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         if (app is null)
         {
             return;
-        }
+        }
+
         _ = app.Dispatcher.BeginInvoke(() =>
         {
             OnPropertyChanged(nameof(IsTranscribing));
@@ -1203,24 +1211,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         ResetPlaybackSpeedCommand.RaiseCanExecuteChanged();
     }
 
-    private static bool TryGetExistingTranscriptionFilePath(string audioFilePath, TranscriptionModel model, out string? outputPath)
-    {
-        outputPath = null;
-        var candidates = WhisperTranscriptionService.BuildOutputPaths(audioFilePath, model, AllTranscriptionOutputFormats);
-        foreach (var path in candidates)
-        {
-            if (!File.Exists(path))
-            {
-                continue;
-            }
-
-            outputPath = path;
-            return true;
-        }
-
-        return false;
-    }
-
     private static string BuildDefaultMonoMixFileName(string sourcePath, MonoMixdownOutputFormat format)
     {
         var baseName = Path.GetFileNameWithoutExtension(sourcePath);
@@ -1273,8 +1263,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
-        _transcriptionQueue.JobCompleted -= OnTranscriptionJobCompleted;
-        _transcriptionQueue.JobStateChanged -= OnTranscriptionJobStateChanged;
+        _transcriptionService.JobCompleted -= OnTranscriptionJobCompleted;
+        _transcriptionService.JobStateChanged -= OnTranscriptionJobStateChanged;
         foreach (var item in Items)
         {
             item.PropertyChanged -= OnItemPropertyChanged;
@@ -1285,7 +1275,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _catalogSession.Dispose();
     }
 }
-
 
 
 

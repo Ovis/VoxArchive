@@ -1,7 +1,6 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
-using VoxArchive.Domain;
+using VoxArchive.Application.Abstractions;
 
 namespace VoxArchive.Wpf;
 
@@ -9,104 +8,81 @@ namespace VoxArchive.Wpf;
 /// 進行中の文字起こしモデル取得を表示し、ユーザーからの取得キャンセル操作を受け付ける
 /// </summary>
 /// <remarks>
-/// Window自身はダウンロード処理を所有せず、アプリケーション共有の
-/// <see cref="TranscriptionModelManager"/> が公開する状態を表示するだけとする。
-/// Windowを閉じても取得は継続し、明示的なキャンセルボタンだけが取得または待機を中断する。
+/// Window自身はモデル取得を所有せず、WPFが呼び出すApplication Use Caseの進捗だけを表示する。
+/// Windowを閉じても取得は継続し、明示的なキャンセル操作だけをApplication Facadeへ委譲する。
 /// </remarks>
 public partial class TranscriptionModelDownloadProgressWindow : Window
 {
-    private readonly TranscriptionModelManager _modelManager;
-    private readonly TranscriptionEngineId _engineId;
-    private readonly TranscriptionModelId _modelId;
-    private readonly bool _ownsDownload;
     private readonly Action _cancelAction;
-    private bool _closeRequestedByCompletion;
 
     /// <summary>モデル取得進捗Windowを初期化する</summary>
     public TranscriptionModelDownloadProgressWindow(
-        TranscriptionModelManager modelManager,
-        TranscriptionEngineId engineId,
-        TranscriptionModelId modelId,
-        bool ownsDownload,
+        TranscriptionMissingModelInfo model,
         Action cancelAction)
     {
-        _modelManager = modelManager;
-        _engineId = engineId;
-        _modelId = modelId;
-        _ownsDownload = ownsDownload;
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(cancelAction);
+
         _cancelAction = cancelAction;
 
         InitializeComponent();
-        _modelManager.StateChanged += OnModelManagerStateChanged;
-        Closing += OnClosing;
-        Closed += OnClosed;
-        RefreshState();
+        ModelNameTextBlock.Text = $"{GetEngineDisplayName(model.EngineId)} / {model.DisplayName}";
+        ProgressTextBlock.Text = "モデル取得を開始しています...";
     }
 
-    /// <summary>取得完了後にWindowを閉じる</summary>
+    /// <summary>取得進捗を表示へ反映する</summary>
+    public void Report(TranscriptionModelTransferInfo progress)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => Report(progress));
+            return;
+        }
+
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        ProgressTextBlock.Text = progress.TotalBytes > 0
+            ? $"{progress.Percent:F0}%（{FormatBytes(progress.BytesReceived)} / {FormatBytes(progress.TotalBytes)}）"
+            : $"{FormatBytes(progress.BytesReceived)} 取得済み";
+        DownloadProgressBar.Value = progress.Percent;
+    }
+
+    /// <summary>モデル取得完了後にWindowを閉じる</summary>
     public void CloseAfterCompletion()
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            // Application側のfinally直後にDisposeされてもWindowだけ残らないよう、
+            // 完了時のCloseはUIスレッドで同期的に完了させる。
+            Dispatcher.Invoke(CloseAfterCompletion);
+            return;
+        }
+
         if (!IsVisible)
         {
             return;
         }
 
-        _closeRequestedByCompletion = true;
         Close();
-    }
-
-    private void OnModelManagerStateChanged(object? sender, EventArgs e)
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            _ = Dispatcher.BeginInvoke(RefreshState);
-            return;
-        }
-
-        RefreshState();
-    }
-
-    private void RefreshState()
-    {
-        var active = _modelManager.GetActiveDownload();
-        if (active is null || active.EngineId != _engineId || active.ModelId != _modelId)
-        {
-            ProgressTextBlock.Text = "取得処理を終了しています...";
-            DownloadProgressBar.Value = 100;
-            CancelDownloadButton.IsEnabled = false;
-            return;
-        }
-
-        ModelNameTextBlock.Text = $"{GetEngineDisplayName(active.EngineId)} / {active.ModelDisplayName}";
-        ProgressTextBlock.Text = active.TotalBytes > 0
-            ? $"{active.Percent:F0}%（{FormatBytes(active.BytesReceived)} / {FormatBytes(active.TotalBytes)}）"
-            : $"{FormatBytes(active.BytesReceived)} 取得済み";
-        DownloadProgressBar.Value = active.Percent;
-        CancelDownloadButton.Content = _ownsDownload ? "取得をキャンセル" : "待機をキャンセル";
-        CancelDownloadButton.IsEnabled = !active.IsCancelling;
     }
 
     private void OnCancelDownloadClick(object sender, RoutedEventArgs e)
     {
+        // キャンセルの実体はApplication側が所有する。
+        // Window側では二重操作を防ぐため表示だけを先に無効化する。
         CancelDownloadButton.IsEnabled = false;
+        CancelDownloadButton.Content = "取得をキャンセル中";
         _cancelAction();
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
     {
+        // ×は進捗表示だけを閉じる。モデル取得まで止めるとWindow寿命が処理寿命を所有してしまうため、
+        // 取得停止は明示的なキャンセルボタンだけで行う。
         Close();
-    }
-
-    private void OnClosing(object? sender, CancelEventArgs e)
-    {
-        // ユーザーが×で閉じる操作は進捗表示だけを閉じる。取得や文字起こし要求は継続する。
-        // 完了処理から閉じる場合も同じく追加の副作用は持たせない。
-        _ = _closeRequestedByCompletion;
-    }
-
-    private void OnClosed(object? sender, EventArgs e)
-    {
-        _modelManager.StateChanged -= OnModelManagerStateChanged;
     }
 
     private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -117,8 +93,14 @@ public partial class TranscriptionModelDownloadProgressWindow : Window
         }
     }
 
-    private static string GetEngineDisplayName(TranscriptionEngineId engineId)
-        => engineId == TranscriptionEngineId.ReazonSpeech ? "ReazonSpeech" : "Whisper";
+    private static string GetEngineDisplayName(string engineId)
+    {
+        return engineId.Equals("reazonspeech", StringComparison.OrdinalIgnoreCase)
+            ? "ReazonSpeech"
+            : engineId.Equals("whisper", StringComparison.OrdinalIgnoreCase)
+                ? "Whisper"
+                : engineId;
+    }
 
     private static string FormatBytes(long value)
     {
@@ -132,6 +114,8 @@ public partial class TranscriptionModelDownloadProgressWindow : Window
             unitIndex++;
         }
 
-        return unitIndex == 0 ? $"{display:F0} {units[unitIndex]}" : $"{display:F1} {units[unitIndex]}";
+        return unitIndex == 0
+            ? $"{display:F0} {units[unitIndex]}"
+            : $"{display:F1} {units[unitIndex]}";
     }
 }

@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
+using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -14,9 +15,7 @@ namespace VoxArchive.Wpf;
 /// </summary>
 public partial class SettingsWindow : Window
 {
-    private readonly WhisperModelStore _whisperModelStore;
-    private readonly WhisperTranscriptionService _whisperTranscriptionService;
-    private readonly TranscriptionModelManager _modelManager;
+    private readonly ITranscriptionApplicationService _transcriptionService;
 
     private static readonly Brush StatusDefaultBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9BB4D1"));
     private static readonly Brush StatusErrorBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF9A9A"));
@@ -28,29 +27,22 @@ public partial class SettingsWindow : Window
     private int _environmentCheckInProgress;
 
     /// <summary>
-    /// アプリケーションのDIコンテナから文字起こし関連サービスを解決して設定Windowを初期化する
+    /// アプリケーションのDIコンテナから文字起こしFacadeを解決して設定Windowを初期化する
     /// </summary>
     public SettingsWindow()
     {
         var app = System.Windows.Application.Current as App
             ?? throw new InvalidOperationException("VoxArchiveアプリケーションを取得できません。");
-        _whisperModelStore = app.Services.GetRequiredService<WhisperModelStore>();
-        _whisperTranscriptionService = app.Services.GetRequiredService<WhisperTranscriptionService>();
-        _modelManager = app.Services.GetRequiredService<TranscriptionModelManager>();
+        _transcriptionService = app.Services.GetRequiredService<ITranscriptionApplicationService>();
         InitializeWindow();
     }
 
     /// <summary>
-    /// 設定Windowが利用するアプリケーション共有サービスを明示して初期化する
+    /// 設定Windowが利用する文字起こしFacadeを明示して初期化する
     /// </summary>
-    public SettingsWindow(
-        WhisperModelStore whisperModelStore,
-        WhisperTranscriptionService whisperTranscriptionService,
-        TranscriptionModelManager modelManager)
+    public SettingsWindow(ITranscriptionApplicationService transcriptionService)
     {
-        _whisperModelStore = whisperModelStore;
-        _whisperTranscriptionService = whisperTranscriptionService;
-        _modelManager = modelManager;
+        _transcriptionService = transcriptionService;
         InitializeWindow();
     }
 
@@ -61,8 +53,7 @@ public partial class SettingsWindow : Window
         PreviewKeyDown += OnWindowPreviewKeyDown;
 
         InitializeTranscriptionTabs();
-        TranscriptionExecutionMode = TranscriptionExecutionMode.Auto;
-        TranscriptionModel = TranscriptionModel.Small;
+        WhisperModelId = "small";
         ReazonSpeechModelId = "ja";
         AutoTranscriptionPriority = TranscriptionPriority.Low;
         ManualTranscriptionPriority = TranscriptionPriority.Normal;
@@ -76,7 +67,7 @@ public partial class SettingsWindow : Window
     /// <inheritdoc />
     protected override void OnClosed(EventArgs e)
     {
-        _modelManager.StateChanged -= OnModelManagerStateChanged;
+        _transcriptionService.ModelStateChanged -= OnModelManagerStateChanged;
         base.OnClosed(e);
     }
 
@@ -150,24 +141,34 @@ public partial class SettingsWindow : Window
         set => ToastNotificationCheckBox.IsChecked = value;
     }
 
-    public TranscriptionExecutionMode TranscriptionExecutionMode
+    /// <summary>
+    /// Whisperが公開する実行方式descriptorを設定画面へ投影する
+    /// </summary>
+    public IReadOnlyList<TranscriptionExecutionModeInfo> WhisperExecutionModes
     {
-        get => GetSelectedTag(ExecutionModeComboBox, VoxArchive.Domain.TranscriptionExecutionMode.Auto);
-        set
-        {
-            // CudaPreferredは旧設定との互換値としてだけ残っている。現在のUIではAutoへ正規化し、
-            // CUDA 13→CUDA 12→Vulkan→CPUの自動選択へ統一する。
-            var normalized = value == VoxArchive.Domain.TranscriptionExecutionMode.CpuOnly
-                ? VoxArchive.Domain.TranscriptionExecutionMode.CpuOnly
-                : VoxArchive.Domain.TranscriptionExecutionMode.Auto;
-            SelectByTag(ExecutionModeComboBox, normalized);
-        }
+        set => PopulateExecutionModes(value);
     }
 
-    public TranscriptionModel TranscriptionModel
+    /// <summary>
+    /// Whisperへ要求する実行方式をEngineが公開する安定文字列IDで取得・設定する
+    /// </summary>
+    public string WhisperExecutionMode
     {
-        get => ParseWhisperModelId(WhisperModelManagerControl.SelectedModelId);
-        set => WhisperModelManagerControl.SelectedModelId = ToWhisperModelId(value);
+        get => (ExecutionModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString()?.Trim() ?? string.Empty;
+        set => SelectExecutionMode(value);
+    }
+
+    /// <summary>
+    /// Whisperで使用する論理モデルIDを取得・設定する
+    /// </summary>
+    public string WhisperModelId
+    {
+        get => string.IsNullOrWhiteSpace(WhisperModelManagerControl.SelectedModelId)
+            ? "small"
+            : WhisperModelManagerControl.SelectedModelId!;
+        set => WhisperModelManagerControl.SelectedModelId = string.IsNullOrWhiteSpace(value)
+            ? "small"
+            : value.Trim().ToLowerInvariant();
     }
 
     public string TranscriptionLanguage
@@ -186,13 +187,13 @@ public partial class SettingsWindow : Window
 
     public TranscriptionPriority AutoTranscriptionPriority
     {
-        get => GetSelectedTag(AutoPriorityComboBox, VoxArchive.Domain.TranscriptionPriority.Low);
+        get => GetSelectedTag(AutoPriorityComboBox, TranscriptionPriority.Low);
         set => SelectByTag(AutoPriorityComboBox, value);
     }
 
     public TranscriptionPriority ManualTranscriptionPriority
     {
-        get => GetSelectedTag(ManualPriorityComboBox, VoxArchive.Domain.TranscriptionPriority.Normal);
+        get => GetSelectedTag(ManualPriorityComboBox, TranscriptionPriority.Normal);
         set => SelectByTag(ManualPriorityComboBox, value);
     }
 
@@ -335,43 +336,36 @@ public partial class SettingsWindow : Window
 
         try
         {
-            var options = BuildTemporaryOptions();
-            var status = await Task.Run(() => _whisperTranscriptionService.CheckEnvironment(options));
+            var diagnostics = await _transcriptionService.DiagnoseEngineAsync("whisper");
             if (checkVersion != _environmentCheckVersion)
             {
                 return;
             }
 
-            if (!status.RuntimeAvailable)
-            {
-                WhisperEnvironmentStatusTextBlock.Foreground = StatusErrorBrush;
-                WhisperEnvironmentStatusTextBlock.Text = string.Join(
-                    Environment.NewLine,
-                    new[] { status.RuntimeMessage, status.DetailMessage }.Where(text => !string.IsNullOrWhiteSpace(text)));
-                return;
-            }
+            var errors = diagnostics
+                .Where(x => x.Level == TranscriptionDiagnosticLevel.Error)
+                .Select(x => x.Message)
+                .ToArray();
+            var warnings = diagnostics
+                .Where(x => x.Level == TranscriptionDiagnosticLevel.Warning)
+                .Select(x => x.Message)
+                .ToArray();
+            var information = diagnostics
+                .Where(x => x.Level == TranscriptionDiagnosticLevel.Information)
+                .Select(x => x.Message)
+                .ToArray();
 
-            WhisperEnvironmentStatusTextBlock.Foreground = StatusDefaultBrush;
-            if (TranscriptionExecutionMode == VoxArchive.Domain.TranscriptionExecutionMode.CpuOnly)
-            {
-                WhisperEnvironmentStatusTextBlock.Text = "CPU を利用できます。";
-                return;
-            }
-
-            if (status.CudaAvailable)
-            {
-                WhisperEnvironmentStatusTextBlock.Text = "CUDA を利用できます。自動モードでは利用可能な処理方式を優先順位に従って選択します。";
-                return;
-            }
-
-            // CUDAが利用できない場合もVulkan/CPUへフォールバックできるため、成功状態のまま理由を補足する。
-            var runtime = WhisperRuntimeProbe.Check();
-            var availableFallback = runtime.Details.FirstOrDefault(detail =>
-                (detail.StartsWith("Vulkan", StringComparison.Ordinal) || detail.StartsWith("CPU", StringComparison.Ordinal))
-                && detail.EndsWith("利用可能", StringComparison.Ordinal));
-            WhisperEnvironmentStatusTextBlock.Text = availableFallback is null
-                ? "Whisperランタイムを利用できます。CUDAは利用できません。"
-                : $"{availableFallback.Replace(": 利用可能", string.Empty, StringComparison.Ordinal)} を利用できます。CUDAは利用できません。";
+            WhisperEnvironmentStatusTextBlock.Foreground = errors.Length > 0
+                ? StatusErrorBrush
+                : StatusDefaultBrush;
+            var messages = errors.Length > 0
+                ? errors
+                : warnings.Length > 0
+                    ? warnings.Concat(information).ToArray()
+                    : information;
+            WhisperEnvironmentStatusTextBlock.Text = messages.Length == 0
+                ? "Whisperの診断項目はありません。"
+                : string.Join(Environment.NewLine, messages);
         }
         catch (Exception ex)
         {
@@ -500,6 +494,45 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void PopulateExecutionModes(IReadOnlyList<TranscriptionExecutionModeInfo> modes)
+    {
+        ArgumentNullException.ThrowIfNull(modes);
+
+        ExecutionModeComboBox.Items.Clear();
+        foreach (var mode in modes)
+        {
+            ExecutionModeComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = mode.DisplayName,
+                Tag = mode.Id
+            });
+        }
+
+        ExecutionModeComboBox.IsEnabled = ExecutionModeComboBox.Items.Count > 0;
+        if (ExecutionModeComboBox.Items.Count > 0)
+        {
+            ExecutionModeComboBox.SelectedIndex = 0;
+        }
+    }
+
+    private void SelectExecutionMode(string? value)
+    {
+        var target = value?.Trim() ?? string.Empty;
+        foreach (var item in ExecutionModeComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString()?.Trim(), target, StringComparison.OrdinalIgnoreCase))
+            {
+                ExecutionModeComboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        if (ExecutionModeComboBox.Items.Count > 0)
+        {
+            ExecutionModeComboBox.SelectedIndex = 0;
+        }
+    }
+
     private void SelectLanguage(string? value)
     {
         var target = value?.Trim() ?? string.Empty;
@@ -513,14 +546,13 @@ public partial class SettingsWindow : Window
             }
         }
 
-        // 未知の言語コードはUIで誤表示せず「指定なし」へ戻す。設定保存時も空文字となりWhisper側の自動判定になる。
         LanguageComboBox.SelectedIndex = 0;
     }
 
     private TranscriptionOutputFormats BuildOutputFormats()
     {
-        // canonical JSONは文字起こし結果の内部データなので、UIの選択状態にかかわらず必ず保存する。
-        var formats = TranscriptionOutputFormats.Json;
+        // canonical JSONはCommonが常に保存するため、UIでは派生形式だけを選択する。
+        var formats = TranscriptionOutputFormats.None;
         if (OutputTxtCheckBox.IsChecked == true)
         {
             formats |= TranscriptionOutputFormats.Txt;
@@ -544,39 +576,5 @@ public partial class SettingsWindow : Window
         OutputTxtCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Txt);
         OutputSrtCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Srt);
         OutputVttCheckBox.IsChecked = formats.HasFlag(TranscriptionOutputFormats.Vtt);
-    }
-
-    private RecordingOptions BuildTemporaryOptions()
-    {
-        return new RecordingOptions
-        {
-            TranscriptionModel = TranscriptionModel,
-            TranscriptionExecutionMode = TranscriptionExecutionMode
-        };
-    }
-
-    private static string ToWhisperModelId(TranscriptionModel model)
-    {
-        return model switch
-        {
-            VoxArchive.Domain.TranscriptionModel.Tiny => "tiny",
-            VoxArchive.Domain.TranscriptionModel.Base => "base",
-            VoxArchive.Domain.TranscriptionModel.Small => "small",
-            VoxArchive.Domain.TranscriptionModel.Medium => "medium",
-            VoxArchive.Domain.TranscriptionModel.LargeV3 => "large-v3",
-            _ => "small"
-        };
-    }
-
-    private static TranscriptionModel ParseWhisperModelId(string? modelId)
-    {
-        return modelId switch
-        {
-            "tiny" => VoxArchive.Domain.TranscriptionModel.Tiny,
-            "base" => VoxArchive.Domain.TranscriptionModel.Base,
-            "medium" => VoxArchive.Domain.TranscriptionModel.Medium,
-            "large-v3" => VoxArchive.Domain.TranscriptionModel.LargeV3,
-            _ => VoxArchive.Domain.TranscriptionModel.Small
-        };
     }
 }

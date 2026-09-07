@@ -1,5 +1,5 @@
-using VoxArchive.Domain;
-using VoxArchive.Infrastructure;
+using VoxArchive.Transcription.Abstractions;
+using VoxArchive.Transcription.ReazonSpeech;
 
 namespace VoxArchive.IntegrationTests;
 
@@ -11,12 +11,12 @@ public sealed class ReazonSpeechModelCatalogTests
     [Test]
     public void Japanese_UsesPinnedHybridK2V2Artifacts()
     {
-        var definition = ReazonSpeechModelCatalog.Japanese;
+        var definition = ReazonSpeechModelCatalog.All.Single();
 
         Assert.Multiple(() =>
         {
-            Assert.That(definition.EngineId, Is.EqualTo(TranscriptionEngineId.ReazonSpeech));
-            Assert.That(definition.ModelId, Is.EqualTo(new TranscriptionModelId("ja")));
+            Assert.That(definition.EngineId, Is.EqualTo(ReazonSpeechEngineIdentity.EngineId));
+            Assert.That(definition.ModelId, Is.EqualTo(ReazonSpeechModelCatalog.JapaneseModelId));
             Assert.That(definition.ArtifactVersion, Is.EqualTo("k2-v2"));
             Assert.That(definition.Revision, Is.EqualTo("291488c8151be24d7da4bf7af26e533fad96e407"));
             Assert.That(definition.License, Is.EqualTo("Apache-2.0"));

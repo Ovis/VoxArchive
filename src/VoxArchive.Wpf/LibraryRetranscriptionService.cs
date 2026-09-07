@@ -4,59 +4,58 @@ using VoxArchive.Application.Abstractions;
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// Libraryで選択した文字起こし結果を、保存済み条件を基準に再度Queueへ投入する
+/// Libraryで選択した文字起こし結果をApplication Use Caseへ再投入する
 /// </summary>
 public sealed class LibraryRetranscriptionService(
-    TranscriptionJobQueue transcriptionQueue,
-    ISettingsService settingsService)
+    ITranscriptionApplicationService transcriptionApplicationService,
+    ISettingsService settingsService,
+    ManualTranscriptionEnqueueCoordinator manualTranscriptionCoordinator)
 {
     /// <summary>
-    /// 再文字起こし用Requestを準備する
+    /// 保存済みcanonical resultと現在設定から再文字起こし用snapshotを準備する
     /// </summary>
-    /// <remarks>
-    /// canonical documentに保存されているEngine/Model/requested optionsを優先し、
-    /// 保存されていない設定だけを現在の永続設定から補完する。
-    /// </remarks>
-    public async Task<RetranscriptionRequestBuildResult> PrepareAsync(
-        string audioFilePath,
-        VoxArchive.Domain.TranscriptionDocument document,
-        bool isLegacy,
+    public async Task<TranscriptionRetranscriptionPreparation> PrepareAsync(
+        string documentPath,
         CancellationToken cancellationToken = default)
     {
         var currentOptions = await settingsService.LoadRecordingOptionsAsync(cancellationToken);
-        if (!currentOptions.TranscriptionEnabled)
+        if (!currentOptions.Transcription.Enabled)
         {
             throw new InvalidOperationException("文字起こし機能が無効です。設定画面で有効化してください。");
         }
 
-        return TranscriptionRetranscriptionRequestFactory.Create(
-            audioFilePath,
-            document,
+        return await transcriptionApplicationService.PrepareRetranscriptionAsync(
+            documentPath,
             currentOptions,
-            isLegacy);
+            cancellationToken);
     }
 
     /// <summary>
-    /// 準備済みの再文字起こしRequestを既存Queueへ投入する
+    /// 準備済みの設定snapshotを通常の手動文字起こしとしてApplicationへ投入する
     /// </summary>
-    public bool TryEnqueue(TranscriptionJobRequest request)
+    public async Task<TranscriptionEnqueueResult> EnqueueAsync(
+        string audioFilePath,
+        TranscriptionRetranscriptionPreparation prepared,
+        CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (!transcriptionQueue.TryEnqueue(request))
-        {
-            return false;
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);
+        ArgumentNullException.ThrowIfNull(prepared);
 
-        // 通常の手動文字起こしではLibraryViewModelがQueue投入成功後に開始通知を出している。
-        // 再文字起こしはその経路を通らないため、同じ設定フラグに従ってここで通知し、開始時のUXを揃える。
-        if (request.Options.TranscriptionToastNotificationEnabled)
+        // 通常の手動実行と同じPresentation flowを使い、missing-model確認だけが
+        // 再文字起こし経路から抜け落ちることを防ぐ。download/retry policyはApplicationが所有する。
+        var result = await manualTranscriptionCoordinator.TryEnqueueAsync(
+            audioFilePath,
+            prepared.Options,
+            cancellationToken);
+
+        if (result.Enqueued && prepared.Options.Transcription.ToastNotificationEnabled)
         {
             AppNotificationHub.Notify(
                 "VoxArchive",
-                $"文字起こし開始: {Path.GetFileName(request.AudioFilePath)}",
+                $"文字起こし開始: {Path.GetFileName(audioFilePath)}",
                 System.Windows.Forms.ToolTipIcon.Info);
         }
 
-        return true;
+        return result;
     }
 }

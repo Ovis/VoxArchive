@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Runtime;
+using ApplicationTranscriptionJobCompletedEventArgs = VoxArchive.Application.Abstractions.TranscriptionJobCompletedEventArgs;
+using ApplicationTranscriptionTrigger = VoxArchive.Application.Abstractions.TranscriptionTrigger;
 
 namespace VoxArchive.Wpf;
 
@@ -36,9 +38,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _isMiniMode;
     private bool _isRefreshingDeviceList;
     private readonly RecordingCatalogService _libraryCatalogService;
-    private readonly WhisperModelStore _whisperModelStore;
-    private readonly WhisperTranscriptionService _whisperTranscriptionService;
-    private readonly TranscriptionJobQueue _transcriptionQueue;
+    private readonly ITranscriptionApplicationService _transcriptionService;
+    private readonly ITranscriptionEngineSettingsService _transcriptionEngineSettingsService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IServiceProvider _serviceProvider;
     private string? _lastRecordedFilePath;
@@ -53,13 +54,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private const string SystemDefaultDeviceId = "__system_default__";
     private const int LibraryRegisterMaxRetry = 10;
     private const int LibraryRegisterRetryDelayMilliseconds = 100;
+    private const string WhisperEngineId = "whisper";
+    private const string ReazonSpeechEngineId = "reazonspeech";
 
     public MainViewModel(
         RecordingRuntimeContext context,
         RecordingCatalogService libraryCatalogService,
-        WhisperModelStore whisperModelStore,
-        WhisperTranscriptionService whisperTranscriptionService,
-        TranscriptionJobQueue transcriptionQueue,
+        ITranscriptionApplicationService transcriptionService,
+        ITranscriptionEngineSettingsService transcriptionEngineSettingsService,
         ILogger<MainViewModel> logger,
         IServiceProvider serviceProvider)
     {
@@ -69,12 +71,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _processCatalogService = context.ProcessCatalogService;
         _options = EnsureDefaults(context.DefaultOptions);
         _libraryCatalogService = libraryCatalogService;
-        _whisperModelStore = whisperModelStore;
-        _whisperTranscriptionService = whisperTranscriptionService;
-        _transcriptionQueue = transcriptionQueue;
+        _transcriptionService = transcriptionService;
+        _transcriptionEngineSettingsService = transcriptionEngineSettingsService;
         _logger = logger;
         _serviceProvider = serviceProvider;
-        _transcriptionQueue.JobCompleted += OnTranscriptionJobCompleted;
+        _transcriptionService.JobCompleted += OnTranscriptionJobCompleted;
 
         SpeakerDevices = new ObservableCollection<AudioDeviceInfo>();
         MicDevices = new ObservableCollection<AudioDeviceInfo>();
@@ -585,7 +586,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var vm = ActivatorUtilities.CreateInstance<LibraryViewModel>(
                 _serviceProvider,
                 _libraryCatalogService,
-                _transcriptionQueue,
+                _transcriptionService,
                 () => _options,
                 _options.DefaultSpeakerPlaybackGainDb,
                 _options.DefaultMicPlaybackGainDb);
@@ -634,7 +635,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
 
                 _lastRecordedFilePath = null;
-                TryEnqueueAutoTranscription(filePath);
+                _ = TryEnqueueAutoTranscriptionAsync(filePath);
                 return;
             }
             catch (FileNotFoundException) when (attempt < LibraryRegisterMaxRetry - 1)
@@ -655,54 +656,74 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _logger.LogWarning("ライブラリ登録失敗: 録音ファイルが見つかりません。");
     }
 
-    private void TryEnqueueAutoTranscription(string filePath)
+    private async Task TryEnqueueAutoTranscriptionAsync(string filePath)
     {
-        if (!_options.TranscriptionEnabled || !_options.AutoTranscriptionAfterRecord)
+        if (!_options.Transcription.Enabled || !_options.Transcription.AutoAfterRecord)
         {
             return;
         }
 
-        var enqueued = _transcriptionQueue.TryEnqueue(new TranscriptionJobRequest(
-            AudioFilePath: filePath,
-            Options: _options,
-            Trigger: TranscriptionTrigger.AutoAfterRecord));
-
-        if (!enqueued)
+        try
         {
-            _logger.LogWarning("文字起こしキューへの投入に失敗しました。");
-            return;
+            var result = await _transcriptionService.TryEnqueueAsync(
+                filePath,
+                _options,
+                ApplicationTranscriptionTrigger.AutoAfterRecord);
+            if (!result.Enqueued)
+            {
+                // 自動実行ではモデル未取得などをユーザー操作へエスカレーションせずskipとして記録する。
+                _logger.LogInformation(
+                    "自動文字起こしを開始しませんでした。File={File}, Reason={Reason}",
+                    filePath,
+                    result.Message);
+                return;
+            }
+
+            if (_options.Transcription.ToastNotificationEnabled)
+            {
+                AppNotificationHub.Notify(
+                    "VoxArchive",
+                    $"自動文字起こし開始: {Path.GetFileName(filePath)}",
+                    System.Windows.Forms.ToolTipIcon.Info);
+            }
         }
-
-        if (_options.TranscriptionToastNotificationEnabled)
+        catch (Exception ex)
         {
-            AppNotificationHub.Notify("VoxArchive", $"自動文字起こし開始: {Path.GetFileName(filePath)}", System.Windows.Forms.ToolTipIcon.Info);
+            _logger.LogWarning(ex, "自動文字起こしQueue投入に失敗しました。File={File}", filePath);
         }
     }
     private async Task OpenSettingsAsync()
     {
         try
         {
-            var dialog = new SettingsWindow(_whisperModelStore, _whisperTranscriptionService)
+            var currentTranscription = EnsureDefaults(_options).Transcription;
+            var whisperSettings = GetRequiredEngineSettings(currentTranscription, WhisperEngineId);
+            var reazonSpeechSettings = GetRequiredEngineSettings(currentTranscription, ReazonSpeechEngineId);
+            var whisperConfiguration = _transcriptionEngineSettingsService.GetConfiguration(WhisperEngineId, whisperSettings);
+            var reazonSpeechConfiguration = _transcriptionEngineSettingsService.GetConfiguration(ReazonSpeechEngineId, reazonSpeechSettings);
+
+            var dialog = new SettingsWindow(_transcriptionService)
             {
                 Owner = System.Windows.Application.Current?.MainWindow,
                 AlignmentMilliseconds = _options.ChannelAlignmentMilliseconds,
                 StartStopHotkeyText = _options.StartStopHotkey,
                 OutputDirectory = _options.OutputDirectory,
                 RecordingMetricsLogEnabled = _options.RecordingMetricsLogEnabled,
-                TranscriptionDiagnosticsLogEnabled = _options.TranscriptionDiagnosticsLogEnabled,
+                TranscriptionDiagnosticsLogEnabled = _options.Transcription.DiagnosticsLogEnabled,
                 DefaultSpeakerPlaybackGainDb = _options.DefaultSpeakerPlaybackGainDb,
                 DefaultMicPlaybackGainDb = _options.DefaultMicPlaybackGainDb,
-                TranscriptionEnabled = _options.TranscriptionEnabled,
-                AutoTranscriptionAfterRecord = _options.AutoTranscriptionAfterRecord,
+                TranscriptionEnabled = _options.Transcription.Enabled,
+                AutoTranscriptionAfterRecord = _options.Transcription.AutoAfterRecord,
                 DefaultTranscriptionEngine = _options.Transcription.DefaultEngine,
-                ReazonSpeechModelId = _options.Transcription.ReazonSpeech.Model,
-                TranscriptionExecutionMode = _options.TranscriptionExecutionMode,
-                TranscriptionModel = _options.TranscriptionModel,
-                TranscriptionLanguage = _options.TranscriptionLanguage,
-                TranscriptionOutputFormats = _options.TranscriptionOutputFormats,
-                AutoTranscriptionPriority = _options.AutoTranscriptionPriority,
-                ManualTranscriptionPriority = _options.ManualTranscriptionPriority,
-                TranscriptionToastNotificationEnabled = _options.TranscriptionToastNotificationEnabled,
+                ReazonSpeechModelId = reazonSpeechConfiguration.ModelId ?? "ja",
+                WhisperExecutionModes = whisperConfiguration.ExecutionModes,
+                WhisperExecutionMode = whisperConfiguration.ExecutionModeId ?? string.Empty,
+                WhisperModelId = whisperConfiguration.ModelId ?? "small",
+                TranscriptionLanguage = _options.Transcription.PreferredLanguage,
+                TranscriptionOutputFormats = _options.Transcription.OutputFormats,
+                AutoTranscriptionPriority = _options.Transcription.AutoPriority,
+                ManualTranscriptionPriority = _options.Transcription.ManualPriority,
+                TranscriptionToastNotificationEnabled = _options.Transcription.ToastNotificationEnabled,
                 FfmpegExecutablePath = _options.FfmpegExecutablePath
             };
 
@@ -732,22 +753,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 ? TranscriptionOutputFormats.Txt
                 : dialog.TranscriptionOutputFormats;
 
-            var currentTranscription = EnsureDefaults(_options).Transcription;
+            var engines = new Dictionary<string, TranscriptionEngineSettings>(currentTranscription.Engines, StringComparer.OrdinalIgnoreCase)
+            {
+                [WhisperEngineId] = _transcriptionEngineSettingsService.UpdateConfiguration(
+                    WhisperEngineId,
+                    whisperSettings,
+                    dialog.WhisperModelId,
+                    dialog.WhisperExecutionMode),
+                [ReazonSpeechEngineId] = _transcriptionEngineSettingsService.UpdateConfiguration(
+                    ReazonSpeechEngineId,
+                    reazonSpeechSettings,
+                    dialog.ReazonSpeechModelId,
+                    executionModeId: null)
+            };
             var updatedTranscription = currentTranscription with
             {
                 Enabled = dialog.TranscriptionEnabled,
                 AutoAfterRecord = dialog.AutoTranscriptionAfterRecord,
                 DefaultEngine = dialog.DefaultTranscriptionEngine,
-                Whisper = currentTranscription.Whisper with
-                {
-                    ExecutionMode = dialog.TranscriptionExecutionMode,
-                    Model = dialog.TranscriptionModel,
-                    Language = normalizedLanguage
-                },
-                ReazonSpeech = currentTranscription.ReazonSpeech with
-                {
-                    Model = dialog.ReazonSpeechModelId
-                },
+                PreferredLanguage = normalizedLanguage,
+                Engines = engines,
                 OutputFormats = normalizedFormats,
                 AutoPriority = dialog.AutoTranscriptionPriority,
                 ManualPriority = dialog.ManualTranscriptionPriority,
@@ -878,29 +903,29 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             MicLevelPercent = IsMicCaptureEnabled ? ConvertLevelToPercent(st.MicLevel) : 0;
         });
     }
-    private void OnTranscriptionJobCompleted(object? sender, TranscriptionJobCompletedEventArgs e)
+    private void OnTranscriptionJobCompleted(object? sender, ApplicationTranscriptionJobCompletedEventArgs e)
     {
         RunOnUi(() =>
         {
             if (e.Result.Succeeded)
             {
-                if (!e.Request.Options.TranscriptionToastNotificationEnabled)
+                if (!_options.Transcription.ToastNotificationEnabled)
                 {
                     return;
                 }
 
-                var title = e.Request.Trigger == TranscriptionTrigger.AutoAfterRecord ? "自動文字起こし完了" : "文字起こし完了";
-                AppNotificationHub.Notify("VoxArchive", $"{title}: {Path.GetFileName(e.Request.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
+                var title = e.Job.Trigger == ApplicationTranscriptionTrigger.AutoAfterRecord ? "自動文字起こし完了" : "文字起こし完了";
+                AppNotificationHub.Notify("VoxArchive", $"{title}: {Path.GetFileName(e.Job.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
                 return;
             }
 
             _logger.LogWarning("文字起こし失敗: {Message}", e.Result.Message);
-            if (!e.Request.Options.TranscriptionToastNotificationEnabled)
+            if (!_options.Transcription.ToastNotificationEnabled)
             {
                 return;
             }
 
-            var failTitle = e.Request.Trigger == TranscriptionTrigger.AutoAfterRecord ? "自動文字起こし失敗" : "文字起こし失敗";
+            var failTitle = e.Job.Trigger == ApplicationTranscriptionTrigger.AutoAfterRecord ? "自動文字起こし失敗" : "文字起こし失敗";
             AppNotificationHub.Notify("VoxArchive", $"{failTitle}: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
         });
     }
@@ -930,19 +955,37 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
         }
 
+        var transcription = options.Transcription with
+        {
+            PreferredLanguage = string.IsNullOrWhiteSpace(options.Transcription.PreferredLanguage)
+                ? string.Empty
+                : options.Transcription.PreferredLanguage.Trim(),
+            OutputFormats = options.Transcription.OutputFormats == TranscriptionOutputFormats.None
+                ? TranscriptionOutputFormats.Txt
+                : options.Transcription.OutputFormats
+        };
+
         return options with
         {
             OutputDirectory = output,
             StartStopHotkey = normalizedHotkey,
             DefaultSpeakerPlaybackGainDb = Math.Clamp(options.DefaultSpeakerPlaybackGainDb, -60d, 48d),
             DefaultMicPlaybackGainDb = Math.Clamp(options.DefaultMicPlaybackGainDb, -60d, 48d),
-            // 空文字は「指定なし」という有効な値なので、既定補完でjaへ書き換えない。
-            TranscriptionLanguage = string.IsNullOrWhiteSpace(options.TranscriptionLanguage) ? string.Empty : options.TranscriptionLanguage.Trim(),
-            FfmpegExecutablePath = string.IsNullOrWhiteSpace(options.FfmpegExecutablePath) ? string.Empty : options.FfmpegExecutablePath.Trim(),
-            TranscriptionOutputFormats = options.TranscriptionOutputFormats == TranscriptionOutputFormats.None
-                ? TranscriptionOutputFormats.Txt
-                : options.TranscriptionOutputFormats
+            Transcription = transcription,
+            FfmpegExecutablePath = string.IsNullOrWhiteSpace(options.FfmpegExecutablePath) ? string.Empty : options.FfmpegExecutablePath.Trim()
         };
+    }
+
+    private static TranscriptionEngineSettings GetRequiredEngineSettings(TranscriptionSettings settings, string engineId)
+    {
+        if (settings.Engines.TryGetValue(engineId, out var engineSettings))
+        {
+            return engineSettings;
+        }
+
+        // JsonSettingsServiceは読み込み時に標準Engine設定を補完するため、ここへ到達する場合は
+        // 設定snapshotがその契約を満たしていない。WPF側でEngine固有の既定JSONを再構築せず明示的に失敗させる。
+        throw new InvalidOperationException($"文字起こしEngine '{engineId}' の設定がありません。");
     }
 
     private static string BuildFfmpegMissingMessage(string detail)
@@ -1054,7 +1097,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _recordingService.ErrorOccurred -= OnRecordingErrorOccurred;
         _recordingService.OutputSourceChanged -= OnOutputSourceChanged;
         _recordingService.StatisticsUpdated -= OnStatisticsUpdated;
-        _transcriptionQueue.JobCompleted -= OnTranscriptionJobCompleted;
+        _transcriptionService.JobCompleted -= OnTranscriptionJobCompleted;
     }
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {

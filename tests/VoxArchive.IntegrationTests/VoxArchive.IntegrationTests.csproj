@@ -32,6 +32,10 @@
     <ProjectReference Include="..\..\src\VoxArchive.Encoding.Abstractions\VoxArchive.Encoding.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\VoxArchive.Infrastructure\VoxArchive.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\VoxArchive.Runtime\VoxArchive.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Transcription\VoxArchive.Transcription.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Transcription.Abstractions\VoxArchive.Transcription.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Transcription.ReazonSpeech\VoxArchive.Transcription.ReazonSpeech.csproj" />
+    <ProjectReference Include="..\..\src\VoxArchive.Transcription.Whisper\VoxArchive.Transcription.Whisper.csproj" />
   </ItemGroup>
 
 </Project>

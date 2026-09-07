@@ -9,6 +9,10 @@
     <ProjectReference Include="..\VoxArchive.Encoding.Abstractions\VoxArchive.Encoding.Abstractions.csproj" />
     <ProjectReference Include="..\VoxArchive.Domain\VoxArchive.Domain.csproj" />
     <ProjectReference Include="..\VoxArchive.Infrastructure\VoxArchive.Infrastructure.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription\VoxArchive.Transcription.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription.Abstractions\VoxArchive.Transcription.Abstractions.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription.Whisper\VoxArchive.Transcription.Whisper.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription.ReazonSpeech\VoxArchive.Transcription.ReazonSpeech.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VoxArchive.Domain\VoxArchive.Domain.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription.Abstractions\VoxArchive.Transcription.Abstractions.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using VoxArchive.Application.Abstractions;
 using Forms = System.Windows.Forms;
 using Drawing = System.Drawing;
 
@@ -21,7 +22,7 @@ public partial class MainWindow : Window
     private const uint ModWin = 0x0008;
     private const uint ModNoRepeat = 0x4000;
 
-    private readonly TranscriptionModelManager _modelManager;
+    private readonly ITranscriptionApplicationService _transcriptionApplicationService;
     private MainViewModel? _viewModel;
     private HwndSource? _hwndSource;
     private bool _isStartStopHotkeyRegistered;
@@ -30,9 +31,9 @@ public partial class MainWindow : Window
     private Drawing.Icon? _trayAppIcon;
 
     /// <summary>メインWindowを初期化する</summary>
-    public MainWindow(TranscriptionModelManager modelManager)
+    public MainWindow(ITranscriptionApplicationService transcriptionApplicationService)
     {
-        _modelManager = modelManager;
+        _transcriptionApplicationService = transcriptionApplicationService;
         InitializeComponent();
         InitializeTrayIcon();
         AppNotificationHub.BalloonRequested += OnBalloonRequested;
@@ -216,13 +217,13 @@ public partial class MainWindow : Window
 
     private async Task ExitFromTrayAsync()
     {
-        var activeDownload = _modelManager.GetActiveDownload();
+        var activeDownload = _transcriptionApplicationService.GetActiveModelDownload();
         if (activeDownload is not null)
         {
             ShowFromTray();
             var result = ModernDialog.Show(
                 this,
-                $"{activeDownload.EngineId.Value} / {activeDownload.ModelDisplayName} のモデルを取得中です。\n取得を中止してVoxArchiveを終了しますか？",
+                $"{activeDownload.EngineId} / {activeDownload.ModelDisplayName} のモデルを取得中です。\n取得を中止してVoxArchiveを終了しますか？",
                 "モデル取得中",
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning,
@@ -233,8 +234,8 @@ public partial class MainWindow : Window
             }
 
             // Close後のOnExitまで待つとUI上の確認と実際のキャンセルに時間差が生じるため、
-            // 明示終了ではここで取得停止とstagingのbest effortクリーンアップ完了まで待つ。
-            await _modelManager.CancelActiveDownloadAndWaitAsync();
+            // 明示終了ではApplicationが所有する取得処理を停止し、stagingのbest effortクリーンアップ完了まで待つ。
+            await _transcriptionApplicationService.CancelActiveModelDownloadAndWaitAsync();
         }
 
         _isExitRequested = true;

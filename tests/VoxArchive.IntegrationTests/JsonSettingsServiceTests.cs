@@ -36,7 +36,7 @@ public sealed class JsonSettingsServiceTests
     {
         var options = new RecordingOptions();
 
-        Assert.That(options.Transcription.Whisper.Language, Is.Empty);
+        Assert.That(options.Transcription.PreferredLanguage, Is.Empty);
     }
 
     /// <summary>
@@ -64,6 +64,7 @@ public sealed class JsonSettingsServiceTests
 
         var service = new JsonSettingsService(settingsPath);
         var options = await service.LoadRecordingOptionsAsync();
+        var whisper = options.Transcription.Engines["whisper"].Settings;
 
         Assert.Multiple(() =>
         {
@@ -72,9 +73,9 @@ public sealed class JsonSettingsServiceTests
             Assert.That(options.Transcription.AutoAfterRecord, Is.True);
             Assert.That(options.Transcription.DiagnosticsLogEnabled, Is.True);
             Assert.That(options.Transcription.ToastNotificationEnabled, Is.False);
-            Assert.That(options.Transcription.Whisper.ExecutionMode, Is.EqualTo(TranscriptionExecutionMode.CpuOnly));
-            Assert.That(options.Transcription.Whisper.Model, Is.EqualTo(TranscriptionModel.Medium));
-            Assert.That(options.Transcription.Whisper.Language, Is.EqualTo("en"));
+            Assert.That(whisper.GetProperty("executionMode").GetString(), Is.EqualTo("cpu"));
+            Assert.That(whisper.GetProperty("modelId").GetString(), Is.EqualTo("medium"));
+            Assert.That(options.Transcription.PreferredLanguage, Is.EqualTo("en"));
             Assert.That(options.Transcription.OutputFormats, Is.EqualTo(TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Srt));
             Assert.That(options.Transcription.AutoPriority, Is.EqualTo(TranscriptionPriority.Low));
             Assert.That(options.Transcription.ManualPriority, Is.EqualTo(TranscriptionPriority.Normal));
@@ -83,7 +84,7 @@ public sealed class JsonSettingsServiceTests
     }
 
     /// <summary>
-    /// 新形式を保存した際に旧フラット項目が再出力されず、Engine別設定だけが正本になることを確認する
+    /// 新形式を保存した際に旧typed項目が再出力されず、Engine別settings blobだけが正本になることを確認する
     /// </summary>
     [Test]
     public async Task SaveRecordingOptionsAsync_WritesNestedTranscriptionSettingsOnly()
@@ -96,13 +97,25 @@ public sealed class JsonSettingsServiceTests
             {
                 Enabled = true,
                 DefaultEngine = "whisper",
-                Whisper = new WhisperTranscriptionSettings
+                PreferredLanguage = "ja",
+                Engines = new Dictionary<string, TranscriptionEngineSettings>(StringComparer.OrdinalIgnoreCase)
                 {
-                    Model = TranscriptionModel.LargeV3,
-                    ExecutionMode = TranscriptionExecutionMode.Auto,
-                    Language = "ja"
+                    ["whisper"] = new()
+                    {
+                        SchemaVersion = 1,
+                        Settings = JsonSerializer.SerializeToElement(new { modelId = "large-v3", executionMode = "auto" })
+                    },
+                    ["reazonspeech"] = new()
+                    {
+                        SchemaVersion = 1,
+                        Settings = JsonSerializer.SerializeToElement(new { modelId = "ja-en" })
+                    },
+                    ["future-engine"] = new()
+                    {
+                        SchemaVersion = 7,
+                        Settings = JsonSerializer.SerializeToElement(new { custom = "preserved" })
+                    }
                 },
-                ReazonSpeech = new ReazonSpeechTranscriptionSettings { Model = "ja-en" },
                 OutputFormats = TranscriptionOutputFormats.Txt | TranscriptionOutputFormats.Vtt
             }
         };
@@ -111,12 +124,18 @@ public sealed class JsonSettingsServiceTests
 
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(settingsPath));
         var root = document.RootElement;
+        var transcription = root.GetProperty("Transcription");
+        var engines = transcription.GetProperty("Engines");
         Assert.Multiple(() =>
         {
-            Assert.That(root.TryGetProperty("Transcription", out var transcription), Is.True);
             Assert.That(transcription.GetProperty("DefaultEngine").GetString(), Is.EqualTo("whisper"));
-            Assert.That(transcription.GetProperty("Whisper").GetProperty("Model").GetInt32(), Is.EqualTo((int)TranscriptionModel.LargeV3));
-            Assert.That(transcription.GetProperty("ReazonSpeech").GetProperty("Model").GetString(), Is.EqualTo("ja-en"));
+            Assert.That(transcription.GetProperty("PreferredLanguage").GetString(), Is.EqualTo("ja"));
+            Assert.That(engines.GetProperty("whisper").GetProperty("Settings").GetProperty("modelId").GetString(), Is.EqualTo("large-v3"));
+            Assert.That(engines.GetProperty("reazonspeech").GetProperty("Settings").GetProperty("modelId").GetString(), Is.EqualTo("ja-en"));
+            Assert.That(engines.GetProperty("future-engine").GetProperty("SchemaVersion").GetInt32(), Is.EqualTo(7));
+            Assert.That(engines.GetProperty("future-engine").GetProperty("Settings").GetProperty("custom").GetString(), Is.EqualTo("preserved"));
+            Assert.That(transcription.TryGetProperty("Whisper", out _), Is.False);
+            Assert.That(transcription.TryGetProperty("ReazonSpeech", out _), Is.False);
             Assert.That(root.TryGetProperty("TranscriptionModel", out _), Is.False);
             Assert.That(root.TryGetProperty("TranscriptionExecutionMode", out _), Is.False);
             Assert.That(root.TryGetProperty("TranscriptionEnabled", out _), Is.False);
