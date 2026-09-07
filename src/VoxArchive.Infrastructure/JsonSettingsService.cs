@@ -40,7 +40,7 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
         var tempPath = settingsPath + ".tmp";
         await using (var stream = File.Create(tempPath))
         {
-            // 旧Whisper/ReazonSpeech DTOはJsonIgnoreなので、migration後は新形式だけを書き出す。
+            // 旧Whisper/ReazonSpeech DTOはJsonIgnoreなので、migration後はEngine blob形式だけを書き出す。
             await JsonSerializer.SerializeAsync(stream, normalized, SerializerOptions, cancellationToken);
             await stream.FlushAsync(cancellationToken);
         }
@@ -60,24 +60,18 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
 
     private static RecordingOptions NormalizeForSave(RecordingOptions options)
     {
-        var settings = options.Transcription;
-#pragma warning disable CS0618
-        // WPFの旧call-siteが残る移行期間中は、画面で編集された互換DTOを新Engine blobへ反映してから保存する。
-        // call-site移行完了後はこの分岐と互換DTO自体を削除し、Enginesをそのまま保存する。
-        var engines = CreateEngineSettings(settings.Whisper.Model, settings.Whisper.ExecutionMode, settings.ReazonSpeech.Model);
-        var preferred = string.IsNullOrWhiteSpace(settings.Whisper.Language)
-            ? settings.PreferredLanguage
-            : settings.Whisper.Language;
-#pragma warning restore CS0618
-        var normalized = NormalizeCommon(settings with { Engines = engines, PreferredLanguage = preferred });
-        return options with { Transcription = AttachCompatibilityViews(normalized) };
+        // WPF/Applicationの通常call-siteはすでにEnginesを正本として更新する。
+        // ここで旧typed互換DTOから再構築すると、未知Engine設定や画面で更新したblobを失うため行わない。
+        var normalized = NormalizeCommon(EnsureEngineSettings(options.Transcription));
+        return options with { Transcription = normalized };
     }
 
     private static TranscriptionSettings NormalizeCommon(TranscriptionSettings settings)
         => settings with
         {
             DefaultEngine = string.IsNullOrWhiteSpace(settings.DefaultEngine) ? "whisper" : settings.DefaultEngine.Trim().ToLowerInvariant(),
-            PreferredLanguage = string.IsNullOrWhiteSpace(settings.PreferredLanguage) ? "ja" : settings.PreferredLanguage.Trim()
+            // 空文字は「指定なし」という有効な共通intentなのでjaへ補完しない。
+            PreferredLanguage = settings.PreferredLanguage?.Trim() ?? string.Empty
         };
 
     private static TranscriptionSettings ResolveTranscriptionFromRaw(JsonElement root, TranscriptionSettings deserialized)
