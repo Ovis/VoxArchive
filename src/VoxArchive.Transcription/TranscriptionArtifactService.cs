@@ -31,6 +31,7 @@ public sealed class TranscriptionArtifactService(
             SourceFileName = Path.GetFileName(sourceRecordingPath),
             EngineId = engineId.Value,
             ModelId = options.ModelId?.Value,
+            ExecutionSnapshot = options.ExecutionSnapshot,
             CreatedAt = createdAt,
             EngineMetadata = engineResult.Metadata,
             Segments = labeledSegments.Select(x => new TranscriptionDocumentSegment(
