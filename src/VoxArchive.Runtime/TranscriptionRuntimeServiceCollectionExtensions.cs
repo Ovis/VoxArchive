@@ -56,6 +56,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<WhisperLanguageCapability>();
         services.AddSingleton<WhisperExecutionValidator>();
         services.AddSingleton<WhisperArtifactNamingCapability>();
+        services.AddSingleton<WhisperExecutionModeCapability>();
 
         // ReazonSpeech固有の実装・capabilityはReazonSpeech project内に閉じ込める。
         services.AddSingleton<ReazonSpeechRecognizer>();
@@ -76,7 +77,8 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
                 sp.GetRequiredService<WhisperEngineDiagnostics>(),
                 sp.GetRequiredService<WhisperLanguageCapability>(),
                 sp.GetRequiredService<WhisperExecutionValidator>(),
-                sp.GetRequiredService<WhisperArtifactNamingCapability>()),
+                sp.GetRequiredService<WhisperArtifactNamingCapability>(),
+                sp.GetRequiredService<WhisperExecutionModeCapability>()),
             new TranscriptionEngineRegistration(
                 sp.GetRequiredService<ReazonSpeechTranscriptionEngine>(),
                 sp.GetRequiredService<ReazonSpeechEngineSettingsProvider>(),
