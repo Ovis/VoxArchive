@@ -19,6 +19,7 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
     private readonly TranscriptionDocumentStore _documentStore;
     private readonly TranscriptionExportService _exportService;
     private readonly ITranscriptionModelDownloadConfirmation? _modelDownloadConfirmation;
+    private readonly ITranscriptionModelDownloadProgressPresentation? _modelDownloadProgressPresentation;
 
     public TranscriptionApplicationService(
         TranscriptionJobQueue jobQueue,
@@ -26,7 +27,8 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         TranscriptionEngineRegistry engineRegistry,
         TranscriptionDocumentStore documentStore,
         TranscriptionExportService exportService,
-        IEnumerable<ITranscriptionModelDownloadConfirmation> modelDownloadConfirmations)
+        IEnumerable<ITranscriptionModelDownloadConfirmation> modelDownloadConfirmations,
+        IEnumerable<ITranscriptionModelDownloadProgressPresentation>? modelDownloadProgressPresentations = null)
     {
         _jobQueue = jobQueue;
         _modelManager = modelManager;
@@ -34,6 +36,7 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         _documentStore = documentStore;
         _exportService = exportService;
         _modelDownloadConfirmation = modelDownloadConfirmations.SingleOrDefault();
+        _modelDownloadProgressPresentation = modelDownloadProgressPresentations?.SingleOrDefault();
         _jobQueue.JobCompleted += OnJobCompleted;
         _jobQueue.JobStateChanged += OnJobStateChanged;
         _modelManager.StateChanged += OnModelStateChanged;
@@ -62,11 +65,48 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
             return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(false, "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");
         }
 
-        await _modelManager.InstallAsync(
-            ToModelKey(result.MissingModel.EngineId, result.MissingModel.ModelId),
+        var modelKey = ToModelKey(result.MissingModel.EngineId, result.MissingModel.ModelId);
+        ITranscriptionModelDownloadProgressSession? progressSession = null;
+        var progress = new Progress<TranscriptionModelTransferProgress>(value =>
+            progressSession?.Report(new TranscriptionModelTransferInfo(value.BytesReceived, value.TotalBytes)));
+
+        // InstallAsyncは呼び出し時点で共有download ownerを確立する。
+        // 先にApplication側で取得を開始してからWindowを開くことで、表示直後のキャンセルも確実にownerへ届くようにする。
+        var installTask = _modelManager.InstallAsync(
+            modelKey,
             force: false,
-            progress: null,
+            progress,
             cancellationToken);
+
+        try
+        {
+            progressSession = _modelDownloadProgressPresentation?.Show(
+                result.MissingModel,
+                () => _modelManager.CancelActiveDownload(modelKey));
+
+            // Window生成より先に最初のprogress通知が到着する場合があるため、
+            // 現在snapshotを一度反映して表示開始時点の値を欠落させない。
+            var activeDownload = _modelManager.GetActiveDownload();
+            if (progressSession is not null && activeDownload?.Key == modelKey)
+            {
+                progressSession.Report(new TranscriptionModelTransferInfo(
+                    activeDownload.BytesReceived,
+                    activeDownload.TotalBytes));
+            }
+
+            await installTask;
+        }
+        catch (OperationCanceledException)
+        {
+            return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(
+                false,
+                "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");
+        }
+        finally
+        {
+            progressSession?.CloseAfterCompletion();
+            progressSession?.Dispose();
+        }
 
         var retried = await _jobQueue.TryEnqueueAsync(audioFilePath, recordingOptions, trigger, cancellationToken);
         return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(retried.Enqueued, retried.Message);
