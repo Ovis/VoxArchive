@@ -21,6 +21,16 @@ public enum TranscriptionJobState
 }
 
 /// <summary>
+/// Queueへ投入された文字起こしジョブのterminal outcomeを表す
+/// </summary>
+public enum TranscriptionJobOutcome
+{
+    Completed = 0,
+    Cancelled = 1,
+    Failed = 2,
+}
+
+/// <summary>
 /// 1回の文字起こしジョブの完了結果を表す
 /// </summary>
 public sealed record TranscriptionJobResult(
@@ -28,7 +38,14 @@ public sealed record TranscriptionJobResult(
     string Message,
     IReadOnlyList<string> GeneratedFiles,
     DateTimeOffset StartedAt,
-    DateTimeOffset FinishedAt);
+    DateTimeOffset FinishedAt)
+{
+    /// <summary>
+    /// Queue境界で確定したterminal outcomeを取得する
+    /// </summary>
+    public TranscriptionJobOutcome Outcome { get; init; }
+        = Succeeded ? TranscriptionJobOutcome.Completed : TranscriptionJobOutcome.Failed;
+}
 
 /// <summary>
 /// Queue投入後に固定される文字起こしジョブの識別情報を表す
