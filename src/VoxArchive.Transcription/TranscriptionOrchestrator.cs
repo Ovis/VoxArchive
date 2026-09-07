@@ -10,6 +10,7 @@ namespace VoxArchive.Transcription;
 public sealed class TranscriptionOrchestrator(
     TranscriptionEngineRegistry engineRegistry,
     TranscriptionAudioPreparationService audioPreparationService,
+    ISpeechRegionDetector speechRegionDetector,
     TranscriptionEngineResultValidator resultValidator,
     TranscriptionSpeakerLabelService speakerLabelService,
     TranscriptionArtifactService artifactService,
@@ -36,12 +37,19 @@ public sealed class TranscriptionOrchestrator(
             cancellationToken);
         LogStage(request, "audio-preparation", "completed", pipelineStopwatch.ElapsedMilliseconds);
 
+        // VADはWhisper/ReazonSpeechで共通の前処理であり、Engine内部で個別実行すると
+        // detector選択やfallback結果がEngineごとに分岐するためCommon pipelineで一度だけ確定する。
+        LogStage(request, "vad", "started", pipelineStopwatch.ElapsedMilliseconds);
+        var speechRegions = await speechRegionDetector.DetectAsync(preparedAudio, cancellationToken);
+        LogStage(request, "vad", "completed", pipelineStopwatch.ElapsedMilliseconds);
+
         // Prepared Audioの所有権はCommon pipelineにある。EngineはborrowするだけでDisposeしないため、
         // recognition後のvalidator/post-processが終わるまで同じ音声を安全に再利用できる。
         LogStage(request, "recognition", "started", pipelineStopwatch.ElapsedMilliseconds);
         var engineResult = await engine.TranscribeAsync(
             new TranscriptionEngineRequest(
                 preparedAudio,
+                speechRegions,
                 request.EngineOptions,
                 new TranscriptionEngineExecutionContext(request.DiagnosticsEnabled)),
             cancellationToken);
@@ -73,10 +81,11 @@ public sealed class TranscriptionOrchestrator(
         if (request.DiagnosticsEnabled)
         {
             logger.LogInformation(
-                "Transcription pipeline completed. File={File}, Engine={Engine}, ElapsedMs={ElapsedMs}, SegmentCount={SegmentCount}, GeneratedFileCount={GeneratedFileCount}",
+                "Transcription pipeline completed. File={File}, Engine={Engine}, ElapsedMs={ElapsedMs}, SpeechRegionCount={SpeechRegionCount}, SegmentCount={SegmentCount}, GeneratedFileCount={GeneratedFileCount}",
                 request.SourceRecordingPath,
                 request.EngineId,
                 pipelineStopwatch.ElapsedMilliseconds,
+                speechRegions.Count,
                 engineResult.Segments.Count,
                 artifact.GeneratedFiles.Count);
         }
