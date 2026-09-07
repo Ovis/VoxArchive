@@ -18,7 +18,11 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
     /// <inheritdoc />
     public async Task<RecordingOptions> LoadRecordingOptionsAsync(CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(settingsPath)) return NormalizeForLoad(new RecordingOptions(), null);
+        if (!File.Exists(settingsPath))
+        {
+            return NormalizeForLoad(new RecordingOptions(), null);
+        }
+
         try
         {
             var json = await File.ReadAllTextAsync(settingsPath, cancellationToken);
@@ -26,26 +30,45 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
             var options = JsonSerializer.Deserialize<RecordingOptions>(json, SerializerOptions) ?? new RecordingOptions();
             return NormalizeForLoad(options, document.RootElement);
         }
-        catch (JsonException) { return NormalizeForLoad(new RecordingOptions(), null); }
-        catch (IOException) { return NormalizeForLoad(new RecordingOptions(), null); }
+        catch (JsonException)
+        {
+            return NormalizeForLoad(new RecordingOptions(), null);
+        }
+        catch (IOException)
+        {
+            return NormalizeForLoad(new RecordingOptions(), null);
+        }
     }
 
     /// <inheritdoc />
     public async Task SaveRecordingOptionsAsync(RecordingOptions options, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
+
         var normalized = NormalizeForSave(options);
         var directory = Path.GetDirectoryName(settingsPath);
-        if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
         var tempPath = settingsPath + ".tmp";
         await using (var stream = File.Create(tempPath))
         {
-            // 旧Whisper/ReazonSpeech DTOはJsonIgnoreなので、migration後はEngine blob形式だけを書き出す。
+            // migration後はEngine blob形式だけを書き出す。旧形式を再生成しないことで、
+            // DomainへEngine固有settingsを持ち込まず、未知Engineのblobもそのまま保持する。
             await JsonSerializer.SerializeAsync(stream, normalized, SerializerOptions, cancellationToken);
             await stream.FlushAsync(cancellationToken);
         }
-        if (File.Exists(settingsPath)) File.Replace(tempPath, settingsPath, null);
-        else File.Move(tempPath, settingsPath);
+
+        if (File.Exists(settingsPath))
+        {
+            File.Replace(tempPath, settingsPath, null);
+        }
+        else
+        {
+            File.Move(tempPath, settingsPath);
+        }
     }
 
     private static RecordingOptions NormalizeForLoad(RecordingOptions options, JsonElement? rawRoot)
@@ -53,15 +76,14 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
         var migrated = rawRoot is { } root
             ? ResolveTranscriptionFromRaw(root, options.Transcription)
             : EnsureEngineSettings(options.Transcription);
-        migrated = NormalizeCommon(migrated);
-        migrated = AttachCompatibilityViews(migrated);
-        return options with { Transcription = migrated };
+
+        return options with { Transcription = NormalizeCommon(migrated) };
     }
 
     private static RecordingOptions NormalizeForSave(RecordingOptions options)
     {
-        // WPF/Applicationの通常call-siteはすでにEnginesを正本として更新する。
-        // ここで旧typed互換DTOから再構築すると、未知Engine設定や画面で更新したblobを失うため行わない。
+        // Enginesは通常call-siteの正本である。保存時に既知Engineだけで再構築すると、
+        // 将来追加されたEngineや外部Engineのsettingsを失うため既存dictionaryを保持する。
         var normalized = NormalizeCommon(EnsureEngineSettings(options.Transcription));
         return options with { Transcription = normalized };
     }
@@ -69,7 +91,9 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
     private static TranscriptionSettings NormalizeCommon(TranscriptionSettings settings)
         => settings with
         {
-            DefaultEngine = string.IsNullOrWhiteSpace(settings.DefaultEngine) ? "whisper" : settings.DefaultEngine.Trim().ToLowerInvariant(),
+            DefaultEngine = string.IsNullOrWhiteSpace(settings.DefaultEngine)
+                ? "whisper"
+                : settings.DefaultEngine.Trim().ToLowerInvariant(),
             // 空文字は「指定なし」という有効な共通intentなのでjaへ補完しない。
             PreferredLanguage = settings.PreferredLanguage?.Trim() ?? string.Empty
         };
@@ -91,23 +115,27 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
         }
 
         // PR #25までの中間形式はtranscription.whisper/reazonSpeechとしてtyped settingsを保存していた。
-        // この知識を通常runtime pathへ残さず、ここで新Engine blobへ一度だけ変換する。
-        var whisper = TryGetProperty(transcriptionElement, "whisper", out var w)
-            ? JsonSerializer.Deserialize<LegacyWhisperSettings>(w.GetRawText(), SerializerOptions) ?? new LegacyWhisperSettings()
+        // 旧enumはmigration専用private型で受け、現在のDomain契約へ再導入しない。
+        var whisper = TryGetProperty(transcriptionElement, "whisper", out var whisperElement)
+            ? JsonSerializer.Deserialize<LegacyWhisperSettings>(whisperElement.GetRawText(), SerializerOptions)
+              ?? new LegacyWhisperSettings()
             : new LegacyWhisperSettings();
-        var reazon = TryGetProperty(transcriptionElement, "reazonSpeech", out var r)
-            ? JsonSerializer.Deserialize<LegacyReazonSettings>(r.GetRawText(), SerializerOptions) ?? new LegacyReazonSettings()
+        var reazon = TryGetProperty(transcriptionElement, "reazonSpeech", out var reazonElement)
+            ? JsonSerializer.Deserialize<LegacyReazonSettings>(reazonElement.GetRawText(), SerializerOptions)
+              ?? new LegacyReazonSettings()
             : new LegacyReazonSettings();
+
         var preferredLanguage = TryGetProperty(transcriptionElement, "preferredLanguage", out var preferred)
                                 && preferred.ValueKind == JsonValueKind.String
             ? preferred.GetString() ?? string.Empty
             : whisper.Language ?? string.Empty;
+
         return deserialized with
         {
             PreferredLanguage = preferredLanguage,
             Engines = CreateEngineSettings(
-                whisper.Model ?? TranscriptionModel.Small,
-                whisper.ExecutionMode ?? TranscriptionExecutionMode.Auto,
+                whisper.Model ?? LegacyTranscriptionModel.Small,
+                whisper.ExecutionMode ?? LegacyTranscriptionExecutionMode.Auto,
                 reazon.Model ?? "ja")
         };
     }
@@ -115,8 +143,6 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
     private static TranscriptionSettings BuildFromFlatLegacy(LegacyFlatTranscriptionOptions legacy)
     {
         var defaults = new TranscriptionSettings();
-        var whisperModel = legacy.TranscriptionModel ?? TranscriptionModel.Small;
-        var execution = legacy.TranscriptionExecutionMode ?? TranscriptionExecutionMode.Auto;
         return defaults with
         {
             Enabled = legacy.TranscriptionEnabled ?? defaults.Enabled,
@@ -127,87 +153,64 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
             ManualPriority = legacy.ManualTranscriptionPriority ?? defaults.ManualPriority,
             ToastNotificationEnabled = legacy.TranscriptionToastNotificationEnabled ?? defaults.ToastNotificationEnabled,
             DiagnosticsLogEnabled = legacy.TranscriptionDiagnosticsLogEnabled ?? defaults.DiagnosticsLogEnabled,
-            Engines = CreateEngineSettings(whisperModel, execution, "ja")
+            Engines = CreateEngineSettings(
+                legacy.TranscriptionModel ?? LegacyTranscriptionModel.Small,
+                legacy.TranscriptionExecutionMode ?? LegacyTranscriptionExecutionMode.Auto,
+                "ja")
         };
     }
 
     private static TranscriptionSettings EnsureEngineSettings(TranscriptionSettings settings)
     {
-        if (settings.Engines.Count > 0) return settings;
-#pragma warning disable CS0618
+        if (settings.Engines.Count > 0)
+        {
+            return settings;
+        }
+
+        // 新規settingsでは既定Engine設定だけを生成する。ここで用いる値は永続化schemaの既定値であり、
+        // Domain型としてWhisper固有enumを公開する必要はない。
         return settings with
         {
-            Engines = CreateEngineSettings(settings.Whisper.Model, settings.Whisper.ExecutionMode, settings.ReazonSpeech.Model),
-            PreferredLanguage = string.IsNullOrWhiteSpace(settings.PreferredLanguage) ? settings.Whisper.Language : settings.PreferredLanguage
+            Engines = CreateEngineSettings(
+                LegacyTranscriptionModel.Small,
+                LegacyTranscriptionExecutionMode.Auto,
+                "ja")
         };
-#pragma warning restore CS0618
     }
 
     private static IReadOnlyDictionary<string, TranscriptionEngineSettings> CreateEngineSettings(
-        TranscriptionModel model,
-        TranscriptionExecutionMode executionMode,
+        LegacyTranscriptionModel model,
+        LegacyTranscriptionExecutionMode executionMode,
         string reazonModel)
     {
-#pragma warning disable CS0618
-        var mode = executionMode switch
-        {
-            TranscriptionExecutionMode.CpuOnly => "cpu",
-            TranscriptionExecutionMode.CudaPreferred => "auto",
-            _ => "auto"
-        };
-#pragma warning restore CS0618
+        var mode = executionMode == LegacyTranscriptionExecutionMode.CpuOnly ? "cpu" : "auto";
         var whisperModel = model switch
         {
-            TranscriptionModel.Tiny => "tiny",
-            TranscriptionModel.Base => "base",
-            TranscriptionModel.Small => "small",
-            TranscriptionModel.Medium => "medium",
-            TranscriptionModel.LargeV3 => "large-v3",
+            LegacyTranscriptionModel.Tiny => "tiny",
+            LegacyTranscriptionModel.Base => "base",
+            LegacyTranscriptionModel.Small => "small",
+            LegacyTranscriptionModel.Medium => "medium",
+            LegacyTranscriptionModel.LargeV3 => "large-v3",
             _ => "small"
         };
+
         return new Dictionary<string, TranscriptionEngineSettings>(StringComparer.OrdinalIgnoreCase)
         {
-            ["whisper"] = new() { SchemaVersion = 1, Settings = JsonSerializer.SerializeToElement(new { modelId = whisperModel, executionMode = mode }) },
-            ["reazonspeech"] = new() { SchemaVersion = 1, Settings = JsonSerializer.SerializeToElement(new { modelId = string.IsNullOrWhiteSpace(reazonModel) ? "ja" : reazonModel.Trim() }) }
+            ["whisper"] = new()
+            {
+                SchemaVersion = 1,
+                Settings = JsonSerializer.SerializeToElement(new { modelId = whisperModel, executionMode = mode })
+            },
+            ["reazonspeech"] = new()
+            {
+                SchemaVersion = 1,
+                Settings = JsonSerializer.SerializeToElement(new
+                {
+                    modelId = string.IsNullOrWhiteSpace(reazonModel) ? "ja" : reazonModel.Trim()
+                })
+            }
         };
     }
-
-    private static TranscriptionSettings AttachCompatibilityViews(TranscriptionSettings settings)
-    {
-#pragma warning disable CS0618
-        return settings with { Whisper = BuildLegacyWhisperView(settings), ReazonSpeech = BuildLegacyReazonView(settings) };
-#pragma warning restore CS0618
-    }
-
-#pragma warning disable CS0618
-    private static WhisperTranscriptionSettings BuildLegacyWhisperView(TranscriptionSettings settings)
-    {
-        if (!settings.Engines.TryGetValue("whisper", out var engine)) return new WhisperTranscriptionSettings { Language = settings.PreferredLanguage };
-        var model = ReadString(engine.Settings, "modelId") switch
-        {
-            "tiny" => TranscriptionModel.Tiny,
-            "base" => TranscriptionModel.Base,
-            "medium" => TranscriptionModel.Medium,
-            "large-v3" => TranscriptionModel.LargeV3,
-            _ => TranscriptionModel.Small
-        };
-        var execution = string.Equals(ReadString(engine.Settings, "executionMode"), "cpu", StringComparison.OrdinalIgnoreCase)
-            ? TranscriptionExecutionMode.CpuOnly
-            : TranscriptionExecutionMode.Auto;
-        return new WhisperTranscriptionSettings { Model = model, ExecutionMode = execution, Language = settings.PreferredLanguage };
-    }
-
-    private static ReazonSpeechTranscriptionSettings BuildLegacyReazonView(TranscriptionSettings settings)
-        => new()
-        {
-            Model = settings.Engines.TryGetValue("reazonspeech", out var engine)
-                ? ReadString(engine.Settings, "modelId") ?? "ja"
-                : "ja"
-        };
-#pragma warning restore CS0618
-
-    private static string? ReadString(JsonElement element, string name)
-        => TryGetProperty(element, name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
     {
@@ -222,24 +225,52 @@ public sealed class JsonSettingsService(string settingsPath) : ISettingsService
                 }
             }
         }
+
         value = default;
         return false;
     }
 
+    /// <summary>
+    /// 旧settings.jsonのWhisper model値を読み取るためだけのmigration enum
+    /// </summary>
+    private enum LegacyTranscriptionModel
+    {
+        Tiny = 0,
+        Base = 1,
+        Small = 2,
+        Medium = 3,
+        LargeV3 = 4
+    }
+
+    /// <summary>
+    /// 旧settings.jsonのruntime要求値を読み取るためだけのmigration enum
+    /// </summary>
+    private enum LegacyTranscriptionExecutionMode
+    {
+        Auto = 0,
+        CpuOnly = 1,
+        CudaPreferred = 2
+    }
+
     private sealed record LegacyWhisperSettings
     {
-        public TranscriptionModel? Model { get; init; }
-        public TranscriptionExecutionMode? ExecutionMode { get; init; }
+        public LegacyTranscriptionModel? Model { get; init; }
+        public LegacyTranscriptionExecutionMode? ExecutionMode { get; init; }
         public string? Language { get; init; }
     }
-    private sealed record LegacyReazonSettings { public string? Model { get; init; } }
+
+    private sealed record LegacyReazonSettings
+    {
+        public string? Model { get; init; }
+    }
+
     private sealed record LegacyFlatTranscriptionOptions
     {
         public bool? TranscriptionDiagnosticsLogEnabled { get; init; }
         public bool? TranscriptionEnabled { get; init; }
         public bool? AutoTranscriptionAfterRecord { get; init; }
-        public TranscriptionExecutionMode? TranscriptionExecutionMode { get; init; }
-        public TranscriptionModel? TranscriptionModel { get; init; }
+        public LegacyTranscriptionExecutionMode? TranscriptionExecutionMode { get; init; }
+        public LegacyTranscriptionModel? TranscriptionModel { get; init; }
         public string? TranscriptionLanguage { get; init; }
         public TranscriptionOutputFormats? TranscriptionOutputFormats { get; init; }
         public TranscriptionPriority? AutoTranscriptionPriority { get; init; }
