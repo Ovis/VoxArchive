@@ -33,7 +33,10 @@ public sealed class TranscriptionOrchestrator(
         // Prepared Audioの所有権はCommon pipelineにある。EngineはborrowするだけでDisposeしないため、
         // recognition後のvalidator/post-processが終わるまで同じ音声を安全に再利用できる。
         var engineResult = await engine.TranscribeAsync(
-            new TranscriptionEngineRequest(preparedAudio, request.EngineOptions),
+            new TranscriptionEngineRequest(
+                preparedAudio,
+                request.EngineOptions,
+                new TranscriptionEngineExecutionContext(request.DiagnosticsEnabled)),
             cancellationToken);
 
         resultValidator.Validate(engineResult, preparedAudio.Duration);
@@ -68,7 +71,8 @@ public sealed record TranscriptionOrchestrationRequest(
     ITranscriptionEngineOptions EngineOptions,
     double SpeakerGainDb,
     double MicrophoneGainDb,
-    TranscriptionArtifactOptions ArtifactOptions);
+    TranscriptionArtifactOptions ArtifactOptions,
+    bool DiagnosticsEnabled);
 
 /// <summary>
 /// Common pipelineの完了結果を表す
