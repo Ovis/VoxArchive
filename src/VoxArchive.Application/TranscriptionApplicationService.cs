@@ -8,24 +8,30 @@ using ModelId = VoxArchive.Transcription.Abstractions.TranscriptionModelId;
 namespace VoxArchive.Application;
 
 /// <summary>
-/// WPF向けFacadeとして文字起こしQueue、モデル管理、Engine診断をEngine非依存DTOへ投影する
+/// WPF向けFacadeとして文字起こしQueue、結果管理、モデル管理、Engine診断をEngine非依存DTOへ投影する
 /// </summary>
 public sealed class TranscriptionApplicationService : ITranscriptionApplicationService, IDisposable
 {
     private readonly TranscriptionJobQueue _jobQueue;
     private readonly TranscriptionModelManager _modelManager;
     private readonly TranscriptionEngineRegistry _engineRegistry;
+    private readonly TranscriptionDocumentStore _documentStore;
+    private readonly TranscriptionExportService _exportService;
     private readonly ITranscriptionModelDownloadConfirmation? _modelDownloadConfirmation;
 
     public TranscriptionApplicationService(
         TranscriptionJobQueue jobQueue,
         TranscriptionModelManager modelManager,
         TranscriptionEngineRegistry engineRegistry,
+        TranscriptionDocumentStore documentStore,
+        TranscriptionExportService exportService,
         IEnumerable<ITranscriptionModelDownloadConfirmation> modelDownloadConfirmations)
     {
         _jobQueue = jobQueue;
         _modelManager = modelManager;
         _engineRegistry = engineRegistry;
+        _documentStore = documentStore;
+        _exportService = exportService;
         _modelDownloadConfirmation = modelDownloadConfirmations.SingleOrDefault();
         _jobQueue.JobCompleted += OnJobCompleted;
         _jobQueue.JobStateChanged += OnJobStateChanged;
@@ -85,6 +91,75 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         var modelId = registration.ModelRequirementResolver?.ResolveRequiredModel(options);
         var path = TranscriptionArtifactService.BuildDocumentPath(audioFilePath, engineId, modelId);
         return File.Exists(path) ? path : null;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TranscriptionResultInfo>> DiscoverResultsAsync(
+        string audioFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);
+        var directory = Path.GetDirectoryName(audioFilePath) ?? string.Empty;
+        if (!Directory.Exists(directory)) return Array.Empty<TranscriptionResultInfo>();
+
+        var prefix = Path.GetFileNameWithoutExtension(audioFilePath) + "-";
+        var sourceFileName = Path.GetFileName(audioFilePath);
+        var results = new List<TranscriptionResultInfo>();
+
+        foreach (var path in Directory.EnumerateFiles(directory, prefix + "*.json", SearchOption.TopDirectoryOnly))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var document = await _documentStore.LoadAsync(path, cancellationToken);
+                if (!string.Equals(document.SourceFileName, sourceFileName, StringComparison.OrdinalIgnoreCase)) continue;
+                results.Add(new TranscriptionResultInfo(path, document.EngineId, document.ModelId, document.CreatedAt));
+            }
+            catch (InvalidDataException)
+            {
+                // 未公開の旧canonical schemaはmigration対象外なのでLibrary一覧にも混在させない。
+            }
+            catch (JsonException)
+            {
+                // 同じprefixを持つ別用途JSONや破損ファイルでLibrary全体の一覧取得を失敗させない。
+            }
+        }
+
+        return results.OrderByDescending(x => x.CreatedAt).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<TranscriptionResultDocumentInfo> LoadResultAsync(
+        string documentPath,
+        CancellationToken cancellationToken = default)
+    {
+        var document = await _documentStore.LoadAsync(documentPath, cancellationToken);
+        return new TranscriptionResultDocumentInfo(
+            documentPath,
+            document.SourceFileName,
+            document.EngineId,
+            document.ModelId,
+            document.CreatedAt,
+            document.Segments.Select(x => new TranscriptionResultSegmentInfo(x.Start, x.End, x.Text, x.Speaker)).ToArray());
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ExportResultAsync(
+        string documentPath,
+        TranscriptionOutputFormats formats,
+        CancellationToken cancellationToken = default)
+    {
+        var document = await _documentStore.LoadAsync(documentPath, cancellationToken);
+        return await _exportService.WriteDerivedAsync(documentPath, document, ToArtifactFormats(formats), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task DeleteResultAsync(string documentPath, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentPath);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (File.Exists(documentPath)) File.Delete(documentPath);
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -150,6 +225,15 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
             TranscriptionDiagnosticSeverity.Error => TranscriptionDiagnosticLevel.Error,
             _ => TranscriptionDiagnosticLevel.Information,
         })).ToArray();
+    }
+
+    private static TranscriptionArtifactFormats ToArtifactFormats(TranscriptionOutputFormats formats)
+    {
+        var result = TranscriptionArtifactFormats.None;
+        if (formats.HasFlag(TranscriptionOutputFormats.Txt)) result |= TranscriptionArtifactFormats.Txt;
+        if (formats.HasFlag(TranscriptionOutputFormats.Srt)) result |= TranscriptionArtifactFormats.Srt;
+        if (formats.HasFlag(TranscriptionOutputFormats.Vtt)) result |= TranscriptionArtifactFormats.Vtt;
+        return result;
     }
 
     private static TranscriptionModelStatusInfo ToStatus(TranscriptionModelPackageState state, bool isReady) => new(state.ToString(), isReady);
