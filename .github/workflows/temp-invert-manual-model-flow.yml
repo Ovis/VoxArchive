@@ -1,0 +1,108 @@
+name: Temporary Invert Manual Model Flow
+
+on:
+  push:
+    branches:
+      - feature/transcription-foundation-refactoring
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.event.head_commit.message != 'Invert manual missing-model UI flow'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/transcription-foundation-refactoring
+
+      - name: Refactor manual missing-model flow
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'anchor not found: {path}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8', newline='')
+
+          # Application AbstractionsはAdmission結果を構造化して返すだけにし、UI callback portを持たない。
+          replace_once(
+              'src/VoxArchive.Application.Abstractions/ITranscriptionApplicationService.cs',
+              '''/// <summary>\n/// 手動文字起こしで必要なモデルが未配置だった場合に、利用者へ取得確認を求めるUI portを定義する\n/// </summary>\npublic interface ITranscriptionModelDownloadConfirmation\n{\n    Task<bool> ConfirmAsync(TranscriptionMissingModelInfo model, CancellationToken cancellationToken = default);\n}\n\npublic sealed record TranscriptionEnqueueResult(bool Enqueued, string Message);''',
+              '''/// <summary>\n/// Queue投入結果と、利用者操作が必要な場合の不足モデル情報を表す\n/// </summary>\npublic sealed record TranscriptionEnqueueResult(\n    bool Enqueued,\n    string Message,\n    TranscriptionMissingModelInfo? MissingModel = null);''')
+
+          app = Path('src/VoxArchive.Application/TranscriptionApplicationService.cs')
+          text = app.read_text(encoding='utf-8')
+          start = text.index('    private readonly ITranscriptionModelDownloadConfirmation? _modelDownloadConfirmation;')
+          end = text.index('    public event EventHandler<TranscriptionJobCompletedEventArgs>? JobCompleted;')
+          old = text[start:end]
+          new = '''    public TranscriptionApplicationService(\n        TranscriptionJobQueue jobQueue,\n        TranscriptionModelManager modelManager,\n        TranscriptionEngineRegistry engineRegistry,\n        TranscriptionDocumentStore documentStore,\n        TranscriptionExportService exportService)\n    {\n        _jobQueue = jobQueue;\n        _modelManager = modelManager;\n        _engineRegistry = engineRegistry;\n        _documentStore = documentStore;\n        _exportService = exportService;\n        _jobQueue.JobCompleted += OnJobCompleted;\n        _jobQueue.JobStateChanged += OnJobStateChanged;\n        _modelManager.StateChanged += OnModelStateChanged;\n    }\n\n'''
+          text = text[:start] + new + text[end:]
+
+          method_start = text.index('    public async Task<VoxArchive.Application.Abstractions.TranscriptionEnqueueResult> TryEnqueueAsync(')
+          method_end = text.index('    /// <inheritdoc />\n    public bool CancelJob', method_start)
+          method = '''    public async Task<VoxArchive.Application.Abstractions.TranscriptionEnqueueResult> TryEnqueueAsync(\n        string audioFilePath,\n        RecordingOptions recordingOptions,\n        TranscriptionTrigger trigger,\n        CancellationToken cancellationToken = default)\n    {\n        var result = await _jobQueue.TryEnqueueAsync(audioFilePath, recordingOptions, trigger, cancellationToken);\n\n        // 利用者への確認やWindow表示はPresentation責務なので、ApplicationからUIを逆呼び出ししない。\n        // Admissionが不足モデルを返した場合は構造化したままWPFへ返し、取得Use Caseは明示的なInstallModelAsyncで実行する。\n        return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(\n            result.Enqueued,\n            result.Message,\n            result.MissingModel);\n    }\n\n'''
+          text = text[:method_start] + method + text[method_end:]
+          app.write_text(text, encoding='utf-8', newline='')
+
+          replace_once(
+              'src/VoxArchive.Wpf/App.xaml.cs',
+              '''                    // 利用者への確認と進捗表示だけはPresentation責務なのでWPF adapterを登録する。\n                    // download所有権、モデル検証、再AdmissionはApplicationへ残し、UI技術へ実行ロジックを戻さない。\n                    services.AddSingleton<ITranscriptionModelDownloadConfirmation, WpfTranscriptionModelDownloadConfirmation>();\n                    services.AddSingleton<ITranscriptionModelDownloadProgressPresentation, WpfTranscriptionModelDownloadProgressPresentation>();\n\n''',
+              '')
+
+          # WindowはWPF内部の表示部品へ戻し、Application.Abstractionsのpresentation sessionを実装しない。
+          win = Path('src/VoxArchive.Wpf/TranscriptionModelDownloadProgressWindow.xaml.cs')
+          text = win.read_text(encoding='utf-8')
+          text = text.replace('public partial class TranscriptionModelDownloadProgressWindow : Window, ITranscriptionModelDownloadProgressSession', 'public partial class TranscriptionModelDownloadProgressWindow : Window', 1)
+          text = text.replace('    private bool _isDisposed;\n', '', 1)
+          text = text.replace('        if (_isDisposed || !IsLoaded)\n', '        if (!IsLoaded)\n', 1)
+          text = text.replace('        if (_isDisposed || !IsVisible)\n', '        if (!IsVisible)\n', 1)
+          dispose_block = '''    /// <inheritdoc />\n    public void Dispose()\n    {\n        _isDisposed = true;\n        GC.SuppressFinalize(this);\n    }\n\n'''
+          text = text.replace(dispose_block, '', 1)
+          text = text.replace('    /// <inheritdoc />\n    public void Report', '    /// <summary>取得進捗を表示へ反映する</summary>\n    public void Report', 1)
+          text = text.replace('    /// <inheritdoc />\n    public void CloseAfterCompletion', '    /// <summary>モデル取得完了後にWindowを閉じる</summary>\n    public void CloseAfterCompletion', 1)
+          text = text.replace('''/// Window自身はモデル取得を所有しない。\n/// Applicationから渡された進捗DTOを表示し、明示的なキャンセル操作だけをApplicationへ返す。\n/// Windowを閉じても取得は継続する。''', '''/// Window自身はモデル取得を所有せず、WPFが呼び出すApplication Use Caseの進捗だけを表示する。\n/// Windowを閉じても取得は継続し、明示的なキャンセル操作だけをApplication Facadeへ委譲する。''', 1)
+          win.write_text(text, encoding='utf-8', newline='')
+
+          # 手動実行のPresentation flowをLibraryへ置く。
+          lib = Path('src/VoxArchive.Wpf/LibraryViewModel.cs')
+          text = lib.read_text(encoding='utf-8')
+          old = '''            var result = await _transcriptionService.TryEnqueueAsync(\n                SelectedItem.FilePath,\n                options,\n                ApplicationTranscriptionTrigger.Manual);\n            if (!result.Enqueued)\n            {\n                StatusText = IsTranscribingForPath(SelectedItem.FilePath)\n                    ? "このファイルは既に文字起こしキューに投入済みです。"\n                    : result.Message;\n                return;\n            }'''
+          new = '''            var result = await TryEnqueueManualTranscriptionAsync(SelectedItem.FilePath, options);\n            if (!result.Enqueued)\n            {\n                StatusText = IsTranscribingForPath(SelectedItem.FilePath)\n                    ? "このファイルは既に文字起こしキューに投入済みです。"\n                    : result.Message;\n                return;\n            }'''
+          if old not in text:
+              raise SystemExit('Library enqueue anchor not found')
+          text = text.replace(old, new, 1)
+
+          insert_anchor = '    private void OnTranscriptionJobCompleted(object? sender, ApplicationTranscriptionJobCompletedEventArgs e)\n'
+          helper = '''    /// <summary>\n    /// 手動文字起こしをAdmissionし、不足モデルがある場合だけ利用者確認と取得UIを挟んで再Admissionする\n    /// </summary>\n    private async Task<TranscriptionEnqueueResult> TryEnqueueManualTranscriptionAsync(\n        string audioFilePath,\n        RecordingOptions options)\n    {\n        var result = await _transcriptionService.TryEnqueueAsync(\n            audioFilePath,\n            options,\n            ApplicationTranscriptionTrigger.Manual);\n        if (result.Enqueued || result.MissingModel is null)\n        {\n            return result;\n        }\n\n        var missingModel = result.MissingModel;\n        var confirmation = ModernDialog.Show(\n            $"文字起こしに必要なモデル「{missingModel.DisplayName}」が取得されていません。\\nモデルを取得して文字起こしを続行しますか？",\n            "文字起こしモデル未取得",\n            MessageBoxButton.OKCancel,\n            MessageBoxImage.Question,\n            MessageBoxResult.Cancel);\n        if (confirmation != MessageBoxResult.OK)\n        {\n            return new TranscriptionEnqueueResult(\n                false,\n                "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");\n        }\n\n        var progressWindow = new TranscriptionModelDownloadProgressWindow(\n            missingModel,\n            () => _transcriptionService.CancelModelDownload(missingModel.EngineId, missingModel.ModelId))\n        {\n            Owner = System.Windows.Application.Current?.MainWindow\n        };\n        var progress = new Progress<TranscriptionModelTransferInfo>(progressWindow.Report);\n\n        try\n        {\n            // InstallModelAsyncを先に呼んで共有download ownerを確立してからWindowを表示する。\n            // これにより表示直後のキャンセルも確実にApplication側のownerへ届く。\n            var installTask = _transcriptionService.InstallModelAsync(\n                missingModel.EngineId,\n                missingModel.ModelId,\n                force: false,\n                progress);\n            progressWindow.Show();\n\n            var activeDownload = _transcriptionService.GetActiveModelDownload();\n            if (activeDownload is not null\n                && string.Equals(activeDownload.EngineId, missingModel.EngineId, StringComparison.OrdinalIgnoreCase)\n                && string.Equals(activeDownload.ModelId, missingModel.ModelId, StringComparison.OrdinalIgnoreCase))\n            {\n                progressWindow.Report(new TranscriptionModelTransferInfo(\n                    activeDownload.BytesReceived,\n                    activeDownload.TotalBytes));\n            }\n\n            await installTask;\n        }\n        catch (OperationCanceledException)\n        {\n            return new TranscriptionEnqueueResult(\n                false,\n                "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");\n        }\n        finally\n        {\n            progressWindow.CloseAfterCompletion();\n        }\n\n        // モデル取得後は設定を作り直さず、同じRecordingOptionsを再Admissionする。\n        // Admission側でreadiness・reservation・immutable snapshotを改めて確定する。\n        return await _transcriptionService.TryEnqueueAsync(\n            audioFilePath,\n            options,\n            ApplicationTranscriptionTrigger.Manual);\n    }\n\n'''
+          if insert_anchor not in text:
+              raise SystemExit('Library helper anchor not found')
+          text = text.replace(insert_anchor, helper + insert_anchor, 1)
+          # 元ファイルの改行コードを維持して不要な全行差分を防ぐ。
+          lib.write_bytes(text.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\r\n').encode('utf-8'))
+
+          # 逆方向UI callback用adapter/portは不要になったため削除する。
+          for path in [
+              'src/VoxArchive.Wpf/WpfTranscriptionModelDownloadConfirmation.cs',
+              'src/VoxArchive.Wpf/WpfTranscriptionModelDownloadProgressPresentation.cs',
+              'src/VoxArchive.Application.Abstractions/ITranscriptionModelDownloadProgressPresentation.cs'
+          ]:
+              p = Path(path)
+              if p.exists():
+                  p.unlink()
+
+      - name: Commit refactor
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'Invert manual missing-model UI flow'
+          git push
