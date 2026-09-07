@@ -41,7 +41,7 @@ internal static class ReazonSpeechSilenceBoundarySelector
             return null;
         }
 
-        var lowVolumeIntervals = BuildContinuousLowVolumeIntervals(
+        var lowVolumeIntervals = ReazonSpeechLowVolumeIntervalBuilder.Build(
             analysis.Frames,
             analysis.P20Rms,
             searchStart,
@@ -81,8 +81,17 @@ internal static class ReazonSpeechSilenceBoundarySelector
 
         return best;
     }
+}
 
-    private static IReadOnlyList<ReazonSpeechLowVolumeInterval> BuildContinuousLowVolumeIntervals(
+/// <summary>
+/// 低音量RMS frameが覆うsample区間を和集合化し、連続低音量区間へ変換する
+/// </summary>
+internal static class ReazonSpeechLowVolumeIntervalBuilder
+{
+    /// <summary>
+    /// 指定探索範囲内でRMSが閾値以下のframeを連続sample区間へ統合する
+    /// </summary>
+    internal static IReadOnlyList<ReazonSpeechLowVolumeInterval> Build(
         IReadOnlyList<ReazonSpeechRmsFrame> frames,
         double threshold,
         long searchStart,
