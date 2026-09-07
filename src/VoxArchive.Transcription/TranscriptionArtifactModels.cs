@@ -1,3 +1,4 @@
+using System.Text.Json;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription;
@@ -24,6 +25,15 @@ public sealed record TranscriptionDocument
     /// <summary>モデルを利用するEngineの場合のModel ID</summary>
     public string? ModelId { get; init; }
 
+    /// <summary>
+    /// 再文字起こしで当時の要求条件を復元するためのEngine非依存snapshot
+    /// </summary>
+    /// <remarks>
+    /// Engine固有settingsはopaque JSONとして保持し、Commonは内容を解釈しない。
+    /// PreferredLanguageはEngine parameterではなく利用者の共通intentなのでsettings blobとは分離して保存する。
+    /// </remarks>
+    public TranscriptionExecutionSnapshot? ExecutionSnapshot { get; init; }
+
     /// <summary>ドキュメントを確定した時刻</summary>
     public DateTimeOffset CreatedAt { get; init; }
 
@@ -35,6 +45,17 @@ public sealed record TranscriptionDocument
     /// <summary>認識segment一覧</summary>
     public IReadOnlyList<TranscriptionDocumentSegment> Segments { get; init; } = [];
 }
+
+/// <summary>
+/// 再文字起こし時に当時の要求条件を再構築するためのopaque snapshotを表す
+/// </summary>
+/// <param name="EngineSettingsSchemaVersion">Engine settingsのschema version</param>
+/// <param name="EngineSettings">Engine固有設定。Commonでは内容を解釈しない</param>
+/// <param name="PreferredLanguage">Admission時に利用者が指定していた共通言語intent</param>
+public sealed record TranscriptionExecutionSnapshot(
+    int EngineSettingsSchemaVersion,
+    JsonElement EngineSettings,
+    string PreferredLanguage);
 
 /// <summary>
 /// canonical documentへ保存する1つの認識segmentを表す
@@ -63,4 +84,5 @@ public enum TranscriptionArtifactFormats
 public sealed record TranscriptionArtifactOptions(
     TranscriptionModelId? ModelId,
     TranscriptionArtifactFormats Formats,
-    string? FileNameSuffix = null);
+    string? FileNameSuffix = null,
+    TranscriptionExecutionSnapshot? ExecutionSnapshot = null);
