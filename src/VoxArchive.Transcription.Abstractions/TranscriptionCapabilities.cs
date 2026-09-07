@@ -33,7 +33,7 @@ public interface ITranscriptionModelProvider
 }
 
 /// <summary>
-/// typed Engine optionsから必要モデルを解決し、取得済み物理配置を実行optionsへ束縛するoptional capability
+/// typed Engine optionsから必要モデルを解決し、論理モデル選択と物理配置をoptionsへ反映するoptional capability
 /// </summary>
 /// <remarks>
 /// Common/ApplicationがWhisperやReazonSpeechのoptions型へdowncastしないための境界である。
@@ -43,6 +43,13 @@ public interface ITranscriptionModelRequirementResolver
 {
     /// <summary>指定optionsが必要とする論理モデルIDを取得する</summary>
     TranscriptionModelId ResolveRequiredModel(ITranscriptionEngineOptions options);
+
+    /// <summary>
+    /// 保存済み結果などで指定された論理モデルIDをoptions snapshotへ反映した新しいoptionsを返す
+    /// </summary>
+    ITranscriptionEngineOptions SelectModel(
+        ITranscriptionEngineOptions options,
+        TranscriptionModelId modelId);
 
     /// <summary>取得済みモデルの物理配置をoptions snapshotへ反映した新しいoptionsを返す</summary>
     ITranscriptionEngineOptions BindInstallation(
@@ -58,17 +65,13 @@ public interface ITranscriptionLanguageCapability
     /// <summary>指定言語をEngineが扱えるか判定する</summary>
     bool Supports(string? preferredLanguage);
 
-    /// <summary>
-    /// PreferredLanguageをEngine固有の実行optionsへ反映する
-    /// </summary>
+    /// <summary>PreferredLanguageをEngine固有の実行optionsへ反映する</summary>
     ITranscriptionEngineOptions Resolve(
         ITranscriptionEngineOptions options,
         string? preferredLanguage);
 }
 
-/// <summary>
-/// Job Admission時の実行環境検証を担当するoptional capability
-/// </summary>
+/// <summary>Job Admission時の実行環境検証を担当するoptional capability</summary>
 public interface ITranscriptionEngineExecutionValidator
 {
     Task<IReadOnlyList<TranscriptionValidationError>> ValidateAsync(
@@ -76,18 +79,14 @@ public interface ITranscriptionEngineExecutionValidator
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// Engine固有診断情報を取得するoptional capability
-/// </summary>
+/// <summary>Engine固有診断情報を取得するoptional capability</summary>
 public interface ITranscriptionEngineDiagnostics
 {
     Task<IReadOnlyList<TranscriptionDiagnosticItem>> DiagnoseAsync(
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// Engine registrationの構成要素をまとめる
-/// </summary>
+/// <summary>Engine registrationの構成要素をまとめる</summary>
 public sealed record TranscriptionEngineRegistration(
     ITranscriptionEngine Engine,
     ITranscriptionEngineSettingsProvider SettingsProvider,
@@ -97,16 +96,8 @@ public sealed record TranscriptionEngineRegistration(
     ITranscriptionLanguageCapability? LanguageCapability = null,
     ITranscriptionEngineExecutionValidator? ExecutionValidator = null);
 
-/// <summary>Engine非依存のvalidation errorを表す</summary>
 public sealed record TranscriptionValidationError(string Code, string Message);
-
-/// <summary>Engine非依存の診断項目を表す</summary>
-public sealed record TranscriptionDiagnosticItem(
-    string Code,
-    string Message,
-    TranscriptionDiagnosticSeverity Severity);
-
-/// <summary>診断項目の重大度を定義する</summary>
+public sealed record TranscriptionDiagnosticItem(string Code, string Message, TranscriptionDiagnosticSeverity Severity);
 public enum TranscriptionDiagnosticSeverity
 {
     Information = 0,
