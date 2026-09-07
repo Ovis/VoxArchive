@@ -15,12 +15,18 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
     private readonly TranscriptionJobQueue _jobQueue;
     private readonly TranscriptionModelManager _modelManager;
     private readonly TranscriptionEngineRegistry _engineRegistry;
+    private readonly ITranscriptionModelDownloadConfirmation? _modelDownloadConfirmation;
 
-    public TranscriptionApplicationService(TranscriptionJobQueue jobQueue, TranscriptionModelManager modelManager, TranscriptionEngineRegistry engineRegistry)
+    public TranscriptionApplicationService(
+        TranscriptionJobQueue jobQueue,
+        TranscriptionModelManager modelManager,
+        TranscriptionEngineRegistry engineRegistry,
+        IEnumerable<ITranscriptionModelDownloadConfirmation> modelDownloadConfirmations)
     {
         _jobQueue = jobQueue;
         _modelManager = modelManager;
         _engineRegistry = engineRegistry;
+        _modelDownloadConfirmation = modelDownloadConfirmations.SingleOrDefault();
         _jobQueue.JobCompleted += OnJobCompleted;
         _jobQueue.JobStateChanged += OnJobStateChanged;
         _modelManager.StateChanged += OnModelStateChanged;
@@ -31,10 +37,34 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
     public event EventHandler? ModelStateChanged;
 
     /// <inheritdoc />
-    public async Task<VoxArchive.Application.Abstractions.TranscriptionEnqueueResult> TryEnqueueAsync(string audioFilePath, RecordingOptions recordingOptions, TranscriptionTrigger trigger, CancellationToken cancellationToken = default)
+    public async Task<VoxArchive.Application.Abstractions.TranscriptionEnqueueResult> TryEnqueueAsync(
+        string audioFilePath,
+        RecordingOptions recordingOptions,
+        TranscriptionTrigger trigger,
+        CancellationToken cancellationToken = default)
     {
         var result = await _jobQueue.TryEnqueueAsync(audioFilePath, recordingOptions, trigger, cancellationToken);
-        return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(result.Enqueued, result.Message);
+        if (result.Enqueued || trigger != TranscriptionTrigger.Manual || result.MissingModel is null)
+        {
+            return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(result.Enqueued, result.Message);
+        }
+
+        if (_modelDownloadConfirmation is null
+            || !await _modelDownloadConfirmation.ConfirmAsync(result.MissingModel, cancellationToken))
+        {
+            return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(false, "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");
+        }
+
+        // Admissionでは未配置モデルをusage reservationしないため、ここで取得を開始できる。
+        // 完了後は同じRecordingOptions snapshotを再Admissionし、そこで初めてreservationを取得してQueueへ投入する。
+        await _modelManager.InstallAsync(
+            ToModelKey(result.MissingModel.EngineId, result.MissingModel.ModelId),
+            force: false,
+            progress: null,
+            cancellationToken);
+
+        var retried = await _jobQueue.TryEnqueueAsync(audioFilePath, recordingOptions, trigger, cancellationToken);
+        return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(retried.Enqueued, retried.Message);
     }
 
     /// <inheritdoc />
