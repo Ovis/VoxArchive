@@ -22,47 +22,42 @@ jobs:
         run: |
           $path = 'src/VoxArchive.Wpf/SettingsWindow.xaml'
           $content = Get-Content -Raw -Encoding UTF8 $path
-          $old = @'
-        <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="{StaticResource Accent}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
-            <Setter Property="FontWeight" Value="Bold" />
-        </Style>
-'@
-          $new = @'
-        <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="{StaticResource Accent}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="ButtonRoot"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5">
-                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonRoot" Property="Background" Value="#C7473D" />
-                                <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="#C7473D" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonRoot" Property="Background" Value="#A93A32" />
-                                <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="#A93A32" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonRoot" Property="Opacity" Value="0.55" /></Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-'@
-          if (-not $content.Contains($old)) { throw 'AccentButtonStyle block not found.' }
-          $content = $content.Replace($old, $new)
-          Set-Content -Path $path -Value $content -Encoding UTF8 -NoNewline
+          $pattern = '(?s)        <Style x:Key="AccentButtonStyle".*?        </Style>'
+          $lines = @(
+            '        <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">',
+            '            <Setter Property="Background" Value="{StaticResource Accent}" />',
+            '            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />',
+            '            <Setter Property="FontWeight" Value="Bold" />',
+            '            <Setter Property="Template">',
+            '                <Setter.Value>',
+            '                    <ControlTemplate TargetType="Button">',
+            '                        <Border x:Name="ButtonRoot"',
+            '                                Background="{TemplateBinding Background}"',
+            '                                BorderBrush="{TemplateBinding BorderBrush}"',
+            '                                BorderThickness="{TemplateBinding BorderThickness}"',
+            '                                CornerRadius="5">',
+            '                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />',
+            '                        </Border>',
+            '                        <ControlTemplate.Triggers>',
+            '                            <Trigger Property="IsMouseOver" Value="True">',
+            '                                <Setter TargetName="ButtonRoot" Property="Background" Value="#C7473D" />',
+            '                                <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="#C7473D" />',
+            '                            </Trigger>',
+            '                            <Trigger Property="IsPressed" Value="True">',
+            '                                <Setter TargetName="ButtonRoot" Property="Background" Value="#A93A32" />',
+            '                                <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="#A93A32" />',
+            '                            </Trigger>',
+            '                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonRoot" Property="Opacity" Value="0.55" /></Trigger>',
+            '                        </ControlTemplate.Triggers>',
+            '                    </ControlTemplate>',
+            '                </Setter.Value>',
+            '            </Setter>',
+            '        </Style>'
+          )
+          $replacement = $lines -join "`n"
+          $updated = [regex]::Replace($content, $pattern, $replacement, 1)
+          if ($updated -eq $content) { throw 'AccentButtonStyle block not found.' }
+          Set-Content -Path $path -Value $updated -Encoding UTF8 -NoNewline
       - name: Commit patch
         shell: bash
         run: |
