@@ -45,6 +45,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
 
         // Whisper固有の実装・capabilityはWhisper project内に閉じ込める。
         services.AddSingleton<WhisperSpeechRegionStrategy>();
+        services.AddSingleton<WhisperRecognitionChunker>();
         services.AddSingleton<WhisperProcessorFactory>();
         services.AddSingleton<WhisperRecognizer>();
         services.AddSingleton<WhisperTranscriptionEngine>();
@@ -59,6 +60,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<WhisperExecutionModeCapability>();
 
         // ReazonSpeech固有の実装・capabilityはReazonSpeech project内に閉じ込める。
+        services.AddSingleton<ReazonSpeechRecognitionChunker>();
         services.AddSingleton<ReazonSpeechRecognizer>();
         services.AddSingleton<ReazonSpeechTranscriptionEngine>();
         services.AddSingleton<ReazonSpeechEngineSettingsProvider>();
