@@ -311,5 +311,5 @@ replace_once(
 """,
 )
 
-# 一時scriptはソース変更と同じcommitで削除し、最終差分に残さない。
 Path(__file__).unlink()
+
