@@ -15,9 +15,7 @@ public readonly record struct AudioSampleRange(long StartSample, long EndSample)
     public long Length => EndSample - StartSample;
 }
 
-/// <summary>
-/// VADが発話と判断した原音上の範囲を表す
-/// </summary>
+/// <summary>VADが発話と判断した原音上の範囲を表す</summary>
 public sealed record SpeechRegion(
     int SpeechRegionId,
     long StartSample,
@@ -29,9 +27,7 @@ public sealed record SpeechRegion(
     public long Length => EndSample - StartSample;
 }
 
-/// <summary>
-/// ASRエンジンを1回呼び出すための原音上の範囲を表す
-/// </summary>
+/// <summary>ASRエンジンを1回呼び出すための原音上の範囲を表す</summary>
 public sealed record RecognitionChunk(
     int RecognitionChunkId,
     int SpeechRegionId,
@@ -51,9 +47,7 @@ public sealed record RecognitionChunk(
 /// </remarks>
 public sealed record SpeechRegionDetectorSettingsSnapshot(int SchemaVersion, JsonElement Settings);
 
-/// <summary>
-/// VADが生成したSpeechRegionをASRエンジン固有の呼び出し単位へ分割する
-/// </summary>
+/// <summary>VADが生成したSpeechRegionをASRエンジン固有の呼び出し単位へ分割する</summary>
 public interface IRecognitionChunker
 {
     /// <summary>指定した発話区間から認識chunkを生成する</summary>
@@ -62,19 +56,27 @@ public interface IRecognitionChunker
         IReadOnlyList<SpeechRegion> speechRegions);
 }
 
-/// <summary>
-/// 前処理済み音声から認識対象となる発話区間を検出する
-/// </summary>
+/// <summary>前処理済み音声から認識対象となる発話区間を検出する</summary>
 public interface ISpeechRegionDetector
 {
     /// <summary>
+    /// 設定snapshotを解釈しない既存detector向けの互換呼び出しを提供する
+    /// </summary>
+    Task<IReadOnlyList<SpeechRegion>> DetectAsync(
+        IPreparedTranscriptionAudio audio,
+        CancellationToken cancellationToken = default)
+        => DetectAsync(audio, new SpeechRegionDetectorSettingsSnapshot(1, default), cancellationToken);
+
+    /// <summary>
     /// ジョブ開始時に固定された設定を使用して発話区間を検出する
     /// </summary>
-    /// <param name="audio">Common側が所有する前処理済み音声</param>
-    /// <param name="settings">Queue投入時点で固定されたVAD設定</param>
-    /// <param name="cancellationToken">処理のキャンセルを通知するトークン</param>
+    /// <remarks>
+    /// 段階移行中の音量ベースVADやテストfakeは旧overloadだけを実装しても動作する。
+    /// Silero導入後の選択detectorはこのoverloadを実装してsnapshotを解釈する。
+    /// </remarks>
     Task<IReadOnlyList<SpeechRegion>> DetectAsync(
         IPreparedTranscriptionAudio audio,
         SpeechRegionDetectorSettingsSnapshot settings,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default)
+        => DetectAsync(audio, cancellationToken);
 }
