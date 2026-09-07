@@ -4,7 +4,7 @@ using VoxArchive.Transcription.Abstractions;
 namespace VoxArchive.Transcription.ReazonSpeech;
 
 /// <summary>
-/// ReazonSpeech固有settings JSONをtyped optionsへ変換する
+/// ReazonSpeech固有settings JSONとtyped optionsの相互変換を担当する
 /// </summary>
 public sealed class ReazonSpeechEngineSettingsProvider : ITranscriptionEngineSettingsProvider
 {
@@ -26,6 +26,14 @@ public sealed class ReazonSpeechEngineSettingsProvider : ITranscriptionEngineSet
         {
             ModelId = new TranscriptionModelId(string.IsNullOrWhiteSpace(modelId) ? "ja" : modelId)
         };
+    }
+
+    /// <inheritdoc />
+    public JsonElement Serialize(ITranscriptionEngineOptions options)
+    {
+        var reazon = options as ReazonSpeechEngineOptions
+            ?? throw new ArgumentException("ReazonSpeech以外のEngine optionsが渡されました。", nameof(options));
+        return JsonSerializer.SerializeToElement(new { modelId = reazon.ModelId.Value });
     }
 
     /// <inheritdoc />
