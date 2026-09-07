@@ -40,14 +40,15 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
     {
         var audioFilePath = _libraryViewModel.SelectedItem?.FilePath ?? throw new InvalidOperationException("録音ファイルが選択されていません。");
         var result = State.SelectedResult ?? throw new InvalidOperationException("文字起こし結果が選択されていません。");
-        var document = State.SelectedDocument ?? throw new InvalidOperationException("文字起こし結果を読み込めませんでした。");
+        if (State.SelectedDocument is null) throw new InvalidOperationException("文字起こし結果を読み込めませんでした。");
+
         var replaceConfirm = ModernDialog.Show($"{result.DisplayName} を再文字起こしします。\n成功した場合は現在の文字起こし結果を新しい結果で置き換えます。\n失敗またはキャンセルした場合は現在の結果を残します。", "再文字起こし", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.Cancel);
         if (replaceConfirm != System.Windows.MessageBoxResult.OK) return;
 
-        var prepared = await _retranscriptionService.PrepareAsync(audioFilePath, document);
+        var prepared = await _retranscriptionService.PrepareAsync(result.DocumentPath);
         if (prepared.UsedCurrentSettingsFallback)
         {
-            var fallbackConfirm = ModernDialog.Show("この文字起こし結果には再実行に必要なEngine固有設定の全ては保存されていません。\nモデル以外は現在の設定で補完して再文字起こしします。", "再文字起こし", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.Cancel);
+            var fallbackConfirm = ModernDialog.Show("この文字起こし結果には再実行に必要なEngine固有設定の全ては保存されていません。\n保存済みEngine/Modelを優先し、それ以外は現在の設定で補完して再文字起こしします。", "再文字起こし", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.Cancel);
             if (fallbackConfirm != System.Windows.MessageBoxResult.OK) return;
         }
 
