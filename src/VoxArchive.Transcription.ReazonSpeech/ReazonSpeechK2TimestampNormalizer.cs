@@ -6,13 +6,14 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// K2がpadding込み入力に対して返した時刻をRecognitionChunk基準へ補正する
 /// </summary>
 /// <remarks>
-/// K2入力の先頭へ0.9秒の人工無音を追加するため、raw timestampから0.9秒を引いた後に
-/// RecognitionChunkの実音声範囲へclampする。補正後に長さを失った結果はcanonical結果へ採用しない。
+/// K2入力の先頭へ0.9秒の人工無音を追加するため、raw timestampをsampleへ変換してから
+/// 0.9秒分のsample数を引き、RecognitionChunkの実音声範囲へclampする。
+/// 秒同士を先に減算すると浮動小数点誤差で境界sampleが1つずれる場合があるため、
+/// canonical timelineであるsample座標へ早い段階で寄せる。
+/// 補正後に長さを失った結果はcanonical結果へ採用しない。
 /// </remarks>
 internal static class ReazonSpeechK2TimestampNormalizer
 {
-    private const double PaddingSeconds = ReazonSpeechK2InputPadding.PaddingMilliseconds / 1000d;
-
     /// <summary>
     /// K2 raw timestampをchunk-relative sample座標へ変換する
     /// </summary>
@@ -34,11 +35,10 @@ internal static class ReazonSpeechK2TimestampNormalizer
             throw new ArgumentOutOfRangeException(nameof(chunkLengthSamples));
         }
 
-        var correctedStart = rawStartSeconds - PaddingSeconds;
-        var correctedEnd = rawEndSeconds - PaddingSeconds;
-
-        var startSample = SecondsToStartSample(correctedStart);
-        var endSample = SecondsToEndSample(correctedEnd);
+        // floor/ceilはK2 raw時刻に対して先に適用し、その後で整数sampleのpaddingを引く。
+        // これにより1.4 - 0.9のようなdouble減算誤差で7999sampleへ落ちる問題を避ける。
+        var startSample = SecondsToStartSample(rawStartSeconds) - ReazonSpeechK2InputPadding.PaddingSamples;
+        var endSample = SecondsToEndSample(rawEndSeconds) - ReazonSpeechK2InputPadding.PaddingSamples;
         startSample = Math.Clamp(startSample, 0L, chunkLengthSamples);
         endSample = Math.Clamp(endSample, 0L, chunkLengthSamples);
 
