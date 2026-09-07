@@ -89,29 +89,33 @@ public sealed class TranscriptionModelPackageInstaller(HttpClient httpClient)
                 var parent = Path.GetDirectoryName(stagingPath);
                 if (!string.IsNullOrWhiteSpace(parent)) Directory.CreateDirectory(parent);
 
-                using var response = await httpClient.GetAsync(
-                    file.SourceUrl,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken);
-                response.EnsureSuccessStatusCode();
-                await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-                await using var destination = new FileStream(
-                    stagingPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    CopyBufferSize,
-                    useAsync: true);
-                var buffer = new byte[CopyBufferSize];
-                while (true)
+                using (var response = await httpClient.GetAsync(
+                           file.SourceUrl,
+                           HttpCompletionOption.ResponseHeadersRead,
+                           cancellationToken))
                 {
-                    var read = await source.ReadAsync(buffer.AsMemory(), cancellationToken);
-                    if (read == 0) break;
-                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                    transferred += read;
-                    progress?.Report(new TranscriptionModelTransferProgress(transferred, totalBytes));
+                    response.EnsureSuccessStatusCode();
+                    await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+                    await using var destination = new FileStream(
+                        stagingPath,
+                        FileMode.CreateNew,
+                        FileAccess.Write,
+                        FileShare.None,
+                        CopyBufferSize,
+                        useAsync: true);
+                    var buffer = new byte[CopyBufferSize];
+                    while (true)
+                    {
+                        var read = await source.ReadAsync(buffer.AsMemory(), cancellationToken);
+                        if (read == 0) break;
+                        await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                        transferred += read;
+                        progress?.Report(new TranscriptionModelTransferProgress(transferred, totalBytes));
+                    }
                 }
 
+                // FileStreamを閉じる前にSHAを読むと、OS/managed bufferへ残った未flushデータを検証する可能性がある。
+                // 取得ストリームを完全に破棄してからサイズ/SHAを確認し、検証済みのstagingだけを公開対象にする。
                 if (!ValidateInstalledFile(file, stagingPath))
                 {
                     throw new InvalidDataException($"モデルファイルの検証に失敗しました: {file.DestinationName}");
