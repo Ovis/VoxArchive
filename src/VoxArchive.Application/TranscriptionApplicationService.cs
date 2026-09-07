@@ -358,7 +358,7 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         return result;
     }
 
-    private static VoxArchive.Application.Abstractions.TranscriptionEnqueueResult ToEnqueueResult(TranscriptionEnqueueResult result)
+    private static VoxArchive.Application.Abstractions.TranscriptionEnqueueResult ToEnqueueResult(TranscriptionQueueEnqueueResult result)
         => new(result.Enqueued, result.Message, result.MissingModel);
 
     private static bool IsSameModel(TranscriptionMissingModelInfo left, TranscriptionMissingModelInfo right)
