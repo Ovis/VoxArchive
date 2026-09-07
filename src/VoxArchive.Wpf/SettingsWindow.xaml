@@ -152,6 +152,30 @@
             <Setter Property="Background" Value="{StaticResource Accent}" />
             <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
             <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonRoot"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonRoot" Property="Background" Value="#C7473D" />
+                                <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="#C7473D" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonRoot" Property="Background" Value="#A93A32" />
+                                <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="#A93A32" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonRoot" Property="Opacity" Value="0.55" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="TitleBarGlyphButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
