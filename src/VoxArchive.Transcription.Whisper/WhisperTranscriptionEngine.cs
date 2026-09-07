@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.Whisper;
@@ -8,7 +9,8 @@ namespace VoxArchive.Transcription.Whisper;
 public sealed class WhisperTranscriptionEngine(
     WhisperSpeechRegionStrategy speechRegionStrategy,
     WhisperProcessorFactory processorFactory,
-    WhisperRecognizer recognizer) : ITranscriptionEngine
+    WhisperRecognizer recognizer,
+    ILogger<WhisperTranscriptionEngine> logger) : ITranscriptionEngine
 {
     private static readonly TranscriptionAudioRequirements Requirements =
         new(16_000, 1, TranscriptionSampleFormat.Pcm16);
@@ -37,13 +39,40 @@ public sealed class WhisperTranscriptionEngine(
         }
 
         using var session = processorFactory.Create(options);
-        var segments = await recognizer.RecognizeAsync(session, request.Audio, regions, cancellationToken);
-        return new TranscriptionEngineResult(
-            segments,
-            new Dictionary<string, object?>
-            {
-                ["requestedBackend"] = options.ExecutionMode.ToString().ToLowerInvariant(),
-                ["actualBackend"] = session.ActualRuntime
-            });
+        var requestedBackend = options.ExecutionMode.ToString().ToLowerInvariant();
+        var actualBackend = session.ActualRuntime;
+
+        // Whisper.netはAuto指定時に複数runtime候補から実際に利用するbackendを選ぶため、
+        // 設定値だけではなくロード済みruntimeも必ず記録して実機診断で確認できるようにする。
+        logger.LogInformation(
+            "Whisper backend selected. RequestedBackend={RequestedBackend}, ActualBackend={ActualBackend}",
+            requestedBackend,
+            actualBackend);
+
+        try
+        {
+            var segments = await recognizer.RecognizeAsync(session, request.Audio, regions, cancellationToken);
+            return new TranscriptionEngineResult(
+                segments,
+                new Dictionary<string, object?>
+                {
+                    ["requestedBackend"] = requestedBackend,
+                    ["actualBackend"] = actualBackend
+                });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // native runtime固有の障害を後から切り分けられるよう、認識失敗時にも同じbackend情報を残す。
+            logger.LogError(
+                ex,
+                "Whisper transcription failed. RequestedBackend={RequestedBackend}, ActualBackend={ActualBackend}",
+                requestedBackend,
+                actualBackend);
+            throw;
+        }
     }
 }
