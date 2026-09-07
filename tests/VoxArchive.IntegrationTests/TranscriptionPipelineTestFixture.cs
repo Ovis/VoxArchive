@@ -42,7 +42,8 @@ internal static class TranscriptionPipelineTestFixture
             new TranscriptionAudioPreparationService(),
             new TranscriptionEngineResultValidator(),
             new TranscriptionSpeakerLabelService(),
-            new TranscriptionArtifactService(new TranscriptionDocumentStore(), new TranscriptionExportService()));
+            new TranscriptionArtifactService(new TranscriptionDocumentStore(), new TranscriptionExportService()),
+            NullLogger<TranscriptionOrchestrator>.Instance);
         var admission = new TranscriptionJobAdmissionService(registry, modelManager, usageTracker);
         var queue = new TranscriptionJobQueue(admission, orchestrator, NullLogger<TranscriptionJobQueue>.Instance);
 
@@ -52,7 +53,9 @@ internal static class TranscriptionPipelineTestFixture
     /// <summary>
     /// Admissionが読み込めるEngine非依存設定を生成する
     /// </summary>
-    internal static RecordingOptions CreateOptions()
+    internal static RecordingOptions CreateOptions(
+        TranscriptionPriority manualPriority = TranscriptionPriority.Normal,
+        TranscriptionPriority autoPriority = TranscriptionPriority.Low)
         => new()
         {
             Transcription = new TranscriptionSettings
@@ -61,6 +64,8 @@ internal static class TranscriptionPipelineTestFixture
                 DefaultEngine = EngineId.Value,
                 PreferredLanguage = "ja",
                 OutputFormats = TranscriptionOutputFormats.None,
+                ManualPriority = manualPriority,
+                AutoPriority = autoPriority,
                 Engines = new Dictionary<string, TranscriptionEngineSettings>(StringComparer.OrdinalIgnoreCase)
                 {
                     [EngineId.Value] = new()
