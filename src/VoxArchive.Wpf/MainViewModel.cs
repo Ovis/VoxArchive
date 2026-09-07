@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,6 +38,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _isRefreshingDeviceList;
     private readonly RecordingCatalogService _libraryCatalogService;
     private readonly ITranscriptionApplicationService _transcriptionService;
+    private readonly ITranscriptionEngineSettingsService _transcriptionEngineSettingsService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IServiceProvider _serviceProvider;
     private string? _lastRecordedFilePath;
@@ -60,6 +60,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         RecordingRuntimeContext context,
         RecordingCatalogService libraryCatalogService,
         ITranscriptionApplicationService transcriptionService,
+        ITranscriptionEngineSettingsService transcriptionEngineSettingsService,
         ILogger<MainViewModel> logger,
         IServiceProvider serviceProvider)
     {
@@ -70,6 +71,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _options = EnsureDefaults(context.DefaultOptions);
         _libraryCatalogService = libraryCatalogService;
         _transcriptionService = transcriptionService;
+        _transcriptionEngineSettingsService = transcriptionEngineSettingsService;
         _logger = logger;
         _serviceProvider = serviceProvider;
         _transcriptionService.JobCompleted += OnTranscriptionJobCompleted;
@@ -506,6 +508,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
+            var currentTranscription = EnsureDefaults(_options).Transcription;
+            var whisperSettings = GetRequiredEngineSettings(currentTranscription, WhisperEngineId);
+            var reazonSpeechSettings = GetRequiredEngineSettings(currentTranscription, ReazonSpeechEngineId);
+            var whisperConfiguration = _transcriptionEngineSettingsService.GetConfiguration(WhisperEngineId, whisperSettings);
+            var reazonSpeechConfiguration = _transcriptionEngineSettingsService.GetConfiguration(ReazonSpeechEngineId, reazonSpeechSettings);
+
             var dialog = new SettingsWindow(_transcriptionService)
             {
                 Owner = System.Windows.Application.Current?.MainWindow,
@@ -519,9 +527,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 TranscriptionEnabled = _options.Transcription.Enabled,
                 AutoTranscriptionAfterRecord = _options.Transcription.AutoAfterRecord,
                 DefaultTranscriptionEngine = _options.Transcription.DefaultEngine,
-                ReazonSpeechModelId = ReadEngineString(_options.Transcription, ReazonSpeechEngineId, "modelId", "ja"),
-                WhisperExecutionMode = ReadEngineString(_options.Transcription, WhisperEngineId, "executionMode", "auto"),
-                WhisperModelId = ReadEngineString(_options.Transcription, WhisperEngineId, "modelId", "small"),
+                ReazonSpeechModelId = reazonSpeechConfiguration.ModelId ?? "ja",
+                WhisperExecutionMode = whisperConfiguration.ExecutionModeId ?? "auto",
+                WhisperModelId = whisperConfiguration.ModelId ?? "small",
                 TranscriptionLanguage = _options.Transcription.PreferredLanguage,
                 TranscriptionOutputFormats = _options.Transcription.OutputFormats,
                 AutoTranscriptionPriority = _options.Transcription.AutoPriority,
@@ -540,24 +548,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var normalizedLanguage = string.IsNullOrWhiteSpace(dialog.TranscriptionLanguage) ? string.Empty : dialog.TranscriptionLanguage.Trim();
             var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None ? TranscriptionOutputFormats.Txt : dialog.TranscriptionOutputFormats;
 
-            var currentTranscription = EnsureDefaults(_options).Transcription;
             var engines = new Dictionary<string, TranscriptionEngineSettings>(currentTranscription.Engines, StringComparer.OrdinalIgnoreCase)
             {
-                [WhisperEngineId] = new TranscriptionEngineSettings
-                {
-                    SchemaVersion = 1,
-                    Settings = JsonSerializer.SerializeToElement(new
-                    {
-                        modelId = string.IsNullOrWhiteSpace(dialog.WhisperModelId) ? "small" : dialog.WhisperModelId.Trim(),
-                        executionMode = NormalizeWhisperExecutionMode(dialog.WhisperExecutionMode),
-                        diagnosticsEnabled = dialog.TranscriptionDiagnosticsLogEnabled
-                    })
-                },
-                [ReazonSpeechEngineId] = new TranscriptionEngineSettings
-                {
-                    SchemaVersion = 1,
-                    Settings = JsonSerializer.SerializeToElement(new { modelId = string.IsNullOrWhiteSpace(dialog.ReazonSpeechModelId) ? "ja" : dialog.ReazonSpeechModelId.Trim() })
-                }
+                [WhisperEngineId] = _transcriptionEngineSettingsService.UpdateConfiguration(
+                    WhisperEngineId,
+                    whisperSettings,
+                    dialog.WhisperModelId,
+                    dialog.WhisperExecutionMode),
+                [ReazonSpeechEngineId] = _transcriptionEngineSettingsService.UpdateConfiguration(
+                    ReazonSpeechEngineId,
+                    reazonSpeechSettings,
+                    dialog.ReazonSpeechModelId,
+                    executionModeId: null)
             };
             var updatedTranscription = currentTranscription with
             {
@@ -708,27 +710,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         };
     }
 
-    private static string ReadEngineString(TranscriptionSettings settings, string engineId, string propertyName, string fallback)
+    private static TranscriptionEngineSettings GetRequiredEngineSettings(TranscriptionSettings settings, string engineId)
     {
-        if (!settings.Engines.TryGetValue(engineId, out var engine) || engine.Settings.ValueKind != JsonValueKind.Object) return fallback;
-        foreach (var property in engine.Settings.EnumerateObject())
+        if (settings.Engines.TryGetValue(engineId, out var engineSettings))
         {
-            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind == JsonValueKind.String)
-            {
-                return property.Value.GetString() ?? fallback;
-            }
+            return engineSettings;
         }
-        return fallback;
-    }
 
-    private static string NormalizeWhisperExecutionMode(string value)
-        => value.Trim().ToLowerInvariant() switch
-        {
-            "cpu" => "cpu",
-            "cuda" => "cuda",
-            "vulkan" => "vulkan",
-            _ => "auto"
-        };
+        // JsonSettingsServiceは読み込み時に標準Engine設定を補完するため、ここへ到達する場合は
+        // 設定snapshotがその契約を満たしていない。WPF側でEngine固有の既定JSONを再構築せず明示的に失敗させる。
+        throw new InvalidOperationException($"文字起こしEngine '{engineId}' の設定がありません。");
+    }
 
     private static string BuildFfmpegMissingMessage(string detail)
     {
