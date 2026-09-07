@@ -27,28 +27,23 @@ public enum TranscriptionSampleFormat
 /// </summary>
 public interface IPreparedTranscriptionAudio : IAsyncDisposable
 {
-    /// <summary>
-    /// 音声形式を取得する
-    /// </summary>
     TranscriptionAudioRequirements Format { get; }
-
-    /// <summary>
-    /// 元録音基準の長さを取得する
-    /// </summary>
     TimeSpan Duration { get; }
-
-    /// <summary>
-    /// 認識処理用の読み取りストリームを開く
-    /// </summary>
     ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Engine固有settingsではない、1 Job共通の実行意図を保持する
+/// </summary>
+public sealed record TranscriptionEngineExecutionContext(bool DiagnosticsEnabled);
 
 /// <summary>
 /// エンジンへ渡す認識専用requestを表す
 /// </summary>
 public sealed record TranscriptionEngineRequest(
     IPreparedTranscriptionAudio Audio,
-    ITranscriptionEngineOptions Options);
+    ITranscriptionEngineOptions Options,
+    TranscriptionEngineExecutionContext Context);
 
 /// <summary>
 /// エンジンが返す認識segmentを表す
@@ -71,19 +66,8 @@ public sealed record TranscriptionEngineResult(
 /// </summary>
 public interface ITranscriptionEngine
 {
-    /// <summary>
-    /// Engine IDを取得する
-    /// </summary>
     TranscriptionEngineId Id { get; }
-
-    /// <summary>
-    /// 認識入力として必要な音声形式を取得する
-    /// </summary>
     TranscriptionAudioRequirements AudioRequirements { get; }
-
-    /// <summary>
-    /// 前処理済み音声を認識し、元録音開始を0としたabsolute timelineで結果を返す
-    /// </summary>
     Task<TranscriptionEngineResult> TranscribeAsync(
         TranscriptionEngineRequest request,
         CancellationToken cancellationToken = default);
