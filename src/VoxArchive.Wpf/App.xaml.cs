@@ -79,7 +79,9 @@ public partial class App : System.Windows.Application
                         var context = holder.Context ?? throw new InvalidOperationException("Recording runtime context is not initialized.");
                         return ActivatorUtilities.CreateInstance<MainViewModel>(sp, context);
                     });
+
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
+
                     services.AddTransient<IRecordingPlaybackService, RecordingPlaybackService>();
                     services.AddTransient<MainWindow>();
                 })
