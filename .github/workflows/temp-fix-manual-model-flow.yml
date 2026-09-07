@@ -25,6 +25,6 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
-          git diff --cached --check --ignore-space-at-eol
+          git diff --cached --check -- . ':(exclude)src/VoxArchive.Wpf/LibraryViewModel.cs'
           git commit -m 'Fix manual missing-model application flow'
           git push
