@@ -21,9 +21,6 @@ public sealed record ReazonSpeechEngineOptions : ITranscriptionEngineOptions
 
     /// <summary>Job Admissionで解決したtokensファイルパス</summary>
     public string? TokensPath { get; init; }
-
-    /// <summary>sherpa-onnx診断出力を有効にするかどうか</summary>
-    public bool DiagnosticsEnabled { get; init; }
 }
 
 /// <summary>
