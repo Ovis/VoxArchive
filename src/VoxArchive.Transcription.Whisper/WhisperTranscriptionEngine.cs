@@ -8,6 +8,7 @@ namespace VoxArchive.Transcription.Whisper;
 /// </summary>
 public sealed class WhisperTranscriptionEngine(
     WhisperSpeechRegionStrategy speechRegionStrategy,
+    WhisperRecognitionChunker recognitionChunker,
     WhisperProcessorFactory processorFactory,
     WhisperRecognizer recognizer,
     ILogger<WhisperTranscriptionEngine> logger) : ITranscriptionEngine
@@ -38,6 +39,12 @@ public sealed class WhisperTranscriptionEngine(
             return new TranscriptionEngineResult([]);
         }
 
+        var chunks = recognitionChunker.CreateChunks(request.Audio, regions);
+        if (chunks.Count == 0)
+        {
+            return new TranscriptionEngineResult([]);
+        }
+
         using var session = processorFactory.Create(options);
         var requestedBackend = options.ExecutionMode.ToString().ToLowerInvariant();
         var actualBackend = session.ActualRuntime;
@@ -51,7 +58,7 @@ public sealed class WhisperTranscriptionEngine(
 
         try
         {
-            var segments = await recognizer.RecognizeAsync(session, request.Audio, regions, cancellationToken);
+            var segments = await recognizer.RecognizeAsync(session, request.Audio, chunks, cancellationToken);
             return new TranscriptionEngineResult(
                 segments,
                 new Dictionary<string, object?>
