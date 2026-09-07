@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.ReazonSpeech;
@@ -9,6 +8,7 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// </summary>
 public sealed class ReazonSpeechTranscriptionEngine(
     ISpeechRegionDetector speechRegionDetector,
+    ReazonSpeechRecognitionChunker recognitionChunker,
     ReazonSpeechRecognizer recognizer,
     ILogger<ReazonSpeechTranscriptionEngine> logger) : ITranscriptionEngine
 {
@@ -38,23 +38,30 @@ public sealed class ReazonSpeechTranscriptionEngine(
             return new TranscriptionEngineResult([]);
         }
 
+        var chunks = recognitionChunker.CreateChunks(request.Audio, regions);
+        if (chunks.Count == 0)
+        {
+            return new TranscriptionEngineResult([]);
+        }
+
         const string provider = "cpu";
         const string decodingMethod = "greedy_search";
         if (request.Context.DiagnosticsEnabled)
         {
             logger.LogInformation(
-                "ReazonSpeech recognition started. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}, RegionCount={RegionCount}",
+                "ReazonSpeech recognition started. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}, RegionCount={RegionCount}, ChunkCount={ChunkCount}",
                 provider,
                 options.ModelId,
                 decodingMethod,
-                regions.Count);
+                regions.Count,
+                chunks.Count);
         }
 
         try
         {
             var segments = await recognizer.RecognizeAsync(
                 request.Audio,
-                regions,
+                chunks,
                 options,
                 request.Context.DiagnosticsEnabled,
                 cancellationToken);
@@ -87,7 +94,7 @@ public sealed class ReazonSpeechTranscriptionEngine(
             // 成功時metadataと同じ識別情報を構造化ログへ残す。
             logger.LogError(
                 ex,
-                "ReazonSpeech recognition failed. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}",
+                "ReazonSpeech transcription failed. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}",
                 provider,
                 options.ModelId,
                 decodingMethod);
