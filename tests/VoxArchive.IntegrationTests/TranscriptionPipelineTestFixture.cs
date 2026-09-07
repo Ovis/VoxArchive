@@ -40,6 +40,7 @@ internal static class TranscriptionPipelineTestFixture
         var orchestrator = new TranscriptionOrchestrator(
             registry,
             new TranscriptionAudioPreparationService(),
+            new FullAudioSpeechRegionDetector(),
             new TranscriptionEngineResultValidator(),
             new TranscriptionSpeakerLabelService(),
             new TranscriptionArtifactService(new TranscriptionDocumentStore(), new TranscriptionExportService()),
@@ -136,6 +137,24 @@ internal static class TranscriptionPipelineTestFixture
             TranscriptionEngineRequest request,
             CancellationToken cancellationToken = default)
             => transcribeAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Queue/Admissionのテスト目的ではVAD精度を検証しないため、Prepared Audio全体を1発話として返す
+    /// </summary>
+    private sealed class FullAudioSpeechRegionDetector : ISpeechRegionDetector
+    {
+        public Task<IReadOnlyList<SpeechRegion>> DetectAsync(
+            IPreparedTranscriptionAudio audio,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var endSample = Math.Max(0L, (long)Math.Floor(audio.Duration.TotalSeconds * audio.Format.SampleRate));
+            IReadOnlyList<SpeechRegion> result = endSample == 0
+                ? []
+                : [new SpeechRegion(0, 0, endSample, [new AudioSampleRange(0, endSample)], [0])];
+            return Task.FromResult(result);
+        }
     }
 
     private sealed class TestSettingsProvider : ITranscriptionEngineSettingsProvider
