@@ -94,6 +94,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<TranscriptionOrchestrator>();
         services.AddSingleton<TranscriptionJobAdmissionService>();
         services.AddSingleton<TranscriptionJobQueue>();
+        services.AddSingleton<ITranscriptionEngineSettingsService, TranscriptionEngineSettingsService>();
         services.AddSingleton<ITranscriptionApplicationService, TranscriptionApplicationService>();
         return services;
     }
