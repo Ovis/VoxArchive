@@ -157,13 +157,40 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         var engineId = ToEngineId(document.EngineId);
         var registration = _engineRegistry.Get(engineId);
 
-        if (!currentOptions.Transcription.Engines.TryGetValue(engineId.Value, out var persisted))
+        if (!currentOptions.Transcription.Engines.TryGetValue(engineId.Value, out var currentPersisted))
         {
             throw new InvalidOperationException($"再文字起こし対象Engine '{engineId}' の現在設定がありません。");
         }
 
-        var engineOptions = registration.SettingsProvider.Deserialize(persisted.Settings, persisted.SchemaVersion);
-        var usedFallback = registration.LanguageCapability is not null;
+        ITranscriptionEngineOptions engineOptions;
+        var preferredLanguage = currentOptions.Transcription.PreferredLanguage;
+        var usedFallback = false;
+
+        if (document.ExecutionSnapshot is { } snapshot)
+        {
+            // 新canonicalでは当時のEngine設定をopaque snapshotとして保持しているため、
+            // 現在設定へ依存せず当時の要求条件を復元する。
+            engineOptions = registration.SettingsProvider.Deserialize(
+                snapshot.EngineSettings,
+                snapshot.EngineSettingsSchemaVersion);
+            preferredLanguage = snapshot.PreferredLanguage;
+        }
+        else
+        {
+            // development中の旧canonicalには実行snapshotがないため現在設定で補完する。
+            // migration自体は行わず、再実行時だけfallbackしたことをUIへ明示する。
+            engineOptions = registration.SettingsProvider.Deserialize(currentPersisted.Settings, currentPersisted.SchemaVersion);
+            usedFallback = true;
+        }
+
+        if (registration.LanguageCapability is not null)
+        {
+            if (!registration.LanguageCapability.Supports(preferredLanguage))
+            {
+                throw new InvalidOperationException($"Engine '{engineId}' は保存済み希望言語 '{preferredLanguage}' をサポートしていません。");
+            }
+            engineOptions = registration.LanguageCapability.Resolve(engineOptions, preferredLanguage);
+        }
 
         if (!string.IsNullOrWhiteSpace(document.ModelId))
         {
@@ -175,7 +202,7 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         }
         else if (registration.ModelRequirementResolver is not null)
         {
-            // モデル利用Engineなのに旧結果へModel IDがない場合は現在選択モデルを使うため補完扱いとする。
+            // モデル利用Engineなのに結果へModel IDがない場合だけ、snapshot/current settings側のモデルを使う。
             usedFallback = true;
         }
 
@@ -189,7 +216,7 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         {
             [engineId.Value] = new TranscriptionEngineSettings
             {
-                SchemaVersion = persisted.SchemaVersion,
+                SchemaVersion = document.ExecutionSnapshot?.EngineSettingsSchemaVersion ?? currentPersisted.SchemaVersion,
                 Settings = registration.SettingsProvider.Serialize(engineOptions)
             }
         };
@@ -197,6 +224,7 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         var transcription = currentOptions.Transcription with
         {
             DefaultEngine = engineId.Value,
+            PreferredLanguage = preferredLanguage,
             Engines = engines
         };
 
