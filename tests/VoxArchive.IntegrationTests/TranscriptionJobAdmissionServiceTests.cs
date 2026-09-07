@@ -134,6 +134,7 @@ public sealed class TranscriptionJobAdmissionServiceTests
         using var job = result.Job!;
 
         var key = new TranscriptionModelKey(EngineId, ModelId);
+        var executionSnapshot = job.Request.ArtifactOptions.ExecutionSnapshot;
         Assert.Multiple(() =>
         {
             Assert.That(job.Descriptor.EngineId, Is.EqualTo(EngineId));
@@ -141,6 +142,10 @@ public sealed class TranscriptionJobAdmissionServiceTests
             Assert.That(job.Descriptor.DiagnosticsEnabled, Is.True);
             Assert.That(job.Request.DiagnosticsEnabled, Is.True);
             Assert.That(job.Request.ArtifactOptions.FileNameSuffix, Is.EqualTo("legacy-test-model"));
+            Assert.That(executionSnapshot, Is.Not.Null);
+            Assert.That(executionSnapshot!.EngineSettingsSchemaVersion, Is.EqualTo(1));
+            Assert.That(executionSnapshot.PreferredLanguage, Is.EqualTo("ja"));
+            Assert.That(executionSnapshot.EngineSettings.GetProperty("value").GetString(), Is.EqualTo("test"));
             Assert.That(usageTracker.IsInUse(key), Is.True);
         });
 
