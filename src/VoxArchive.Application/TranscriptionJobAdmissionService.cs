@@ -31,7 +31,7 @@ public sealed class TranscriptionJobAdmissionService(
         ArgumentNullException.ThrowIfNull(recordingOptions);
 
         var settings = recordingOptions.Transcription;
-        var engineId = new VoxArchive.Transcription.Abstractions.TranscriptionEngineId(settings.DefaultEngine);
+        var engineId = new TranscriptionEngineId(settings.DefaultEngine);
         TranscriptionEngineRegistration registration;
         try
         {
@@ -142,7 +142,8 @@ public sealed class TranscriptionJobAdmissionService(
                 new TranscriptionArtifactOptions(
                     resolvedModelId,
                     ToArtifactFormats(settings.OutputFormats),
-                    artifactSuffix));
+                    artifactSuffix),
+                settings.DiagnosticsLogEnabled);
 
             return TranscriptionAdmissionResult.Accepted(new AdmittedTranscriptionJob(descriptor, orchestrationRequest, priority, reservation));
         }
