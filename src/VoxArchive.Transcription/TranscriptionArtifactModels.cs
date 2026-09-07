@@ -62,4 +62,5 @@ public enum TranscriptionArtifactFormats
 /// </summary>
 public sealed record TranscriptionArtifactOptions(
     TranscriptionModelId? ModelId,
-    TranscriptionArtifactFormats Formats);
+    TranscriptionArtifactFormats Formats,
+    string? FileNameSuffix = null);
