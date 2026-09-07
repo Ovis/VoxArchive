@@ -51,10 +51,12 @@ public sealed class WhisperRecognizer
                         continue;
                     }
 
-                    collected.Add(new RecognizedTranscriptionSegment(
-                        result.Start + region.Start,
-                        result.End + region.Start,
-                        text));
+                    var (start, end) = NormalizeSegmentTimeline(
+                        result.Start,
+                        result.End,
+                        region,
+                        audio.Duration);
+                    collected.Add(new RecognizedTranscriptionSegment(start, end, text));
                 }
             }
             finally
@@ -64,6 +66,35 @@ public sealed class WhisperRecognizer
         }
 
         return MergeAdjacentSegments(collected);
+    }
+
+    /// <summary>
+    /// Whisper.netが返すVAD区間内の相対timestampをCommon契約のabsolute timelineへ正規化する
+    /// </summary>
+    /// <remarks>
+    /// Whisperは音声末尾で量子化誤差等により、実際に渡した区間より少し後ろのEndを返すことがある。
+    /// Common validatorを緩めると他Engineの契約違反まで隠すため、Whisper固有adapterで実際の入力区間へ収める。
+    /// </remarks>
+    internal static (TimeSpan Start, TimeSpan End) NormalizeSegmentTimeline(
+        TimeSpan relativeStart,
+        TimeSpan relativeEnd,
+        SpeechRegion region,
+        TimeSpan audioDuration)
+    {
+        ArgumentNullException.ThrowIfNull(region);
+
+        var regionStart = region.Start < TimeSpan.Zero ? TimeSpan.Zero : region.Start;
+        var regionEnd = region.End < audioDuration ? region.End : audioDuration;
+        if (regionEnd < regionStart)
+        {
+            regionEnd = regionStart;
+        }
+
+        var absoluteStart = region.Start + relativeStart;
+        var absoluteEnd = region.Start + relativeEnd;
+        var start = Clamp(absoluteStart, regionStart, regionEnd);
+        var end = Clamp(absoluteEnd, start, regionEnd);
+        return (start, end);
     }
 
     private static async Task WriteRegionAsync(
@@ -124,6 +155,15 @@ public sealed class WhisperRecognizer
             return left;
         }
         return $"{left} {right}";
+    }
+
+    private static TimeSpan Clamp(TimeSpan value, TimeSpan minimum, TimeSpan maximum)
+    {
+        if (value < minimum)
+        {
+            return minimum;
+        }
+        return value > maximum ? maximum : value;
     }
 
     private static void TryDelete(string path)
