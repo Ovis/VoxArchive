@@ -44,7 +44,6 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<TranscriptionModelUsageTracker>();
 
         // Whisper固有の実装・capabilityはWhisper project内に閉じ込める。
-        services.AddSingleton<WhisperSpeechRegionStrategy>();
         services.AddSingleton<WhisperRecognitionChunker>();
         services.AddSingleton<WhisperProcessorFactory>();
         services.AddSingleton<WhisperRecognizer>();
