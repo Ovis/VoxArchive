@@ -5,33 +5,33 @@ using VoxArchive.Transcription.Abstractions;
 namespace VoxArchive.Transcription.Whisper;
 
 /// <summary>
-/// WhisperProcessorへVAD区間を渡し、absolute timelineのEngine segmentへ変換する
+/// WhisperProcessorへRecognitionChunkを渡し、absolute timelineのEngine segmentへ変換する
 /// </summary>
 public sealed class WhisperRecognizer
 {
     private const double VadMergeGapMilliseconds = 300d;
 
     /// <summary>
-    /// 指定区間を順次認識する
+    /// 指定したRecognitionChunkを順次認識する
     /// </summary>
     public async Task<IReadOnlyList<RecognizedTranscriptionSegment>> RecognizeAsync(
         WhisperProcessorSession session,
         IPreparedTranscriptionAudio audio,
-        IReadOnlyList<SpeechRegion> regions,
+        IReadOnlyList<RecognitionChunk> chunks,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(audio);
-        ArgumentNullException.ThrowIfNull(regions);
+        ArgumentNullException.ThrowIfNull(chunks);
 
         var collected = new List<RecognizedTranscriptionSegment>();
-        foreach (var region in regions)
+        foreach (var chunk in chunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var segmentWavePath = Path.Combine(Path.GetTempPath(), $"voxarchive-whisper-seg-{Guid.NewGuid():N}.wav");
             try
             {
-                await WriteRegionAsync(audio, region, segmentWavePath, cancellationToken);
+                await WriteChunkAsync(audio, chunk, segmentWavePath, cancellationToken);
                 await using var segmentStream = new FileStream(
                     segmentWavePath,
                     FileMode.Open,
@@ -53,10 +53,14 @@ public sealed class WhisperRecognizer
                     var (start, end) = NormalizeSegmentTimeline(
                         result.Start,
                         result.End,
-                        region,
+                        chunk,
                         audio.Format.SampleRate,
                         audio.Duration);
-                    collected.Add(new RecognizedTranscriptionSegment(start, end, text));
+                    collected.Add(new RecognizedTranscriptionSegment(
+                        start,
+                        end,
+                        text,
+                        chunk.RecognitionChunkId));
                 }
             }
             finally
@@ -69,47 +73,47 @@ public sealed class WhisperRecognizer
     }
 
     /// <summary>
-    /// Whisper.netが返すVAD区間内の相対timestampをCommon契約のabsolute timelineへ正規化する
+    /// Whisper.netが返すRecognitionChunk内の相対timestampをCommon契約のabsolute timelineへ正規化する
     /// </summary>
     /// <remarks>
     /// Whisperは音声末尾で量子化誤差等により、実際に渡した区間より少し後ろのEndを返すことがある。
     /// Common validatorを緩めると他Engineの契約違反まで隠すため、Whisper固有adapterで実際の入力区間へ収める。
-    /// SpeechRegion自体はsample座標を正本とし、Engine境界でのみTimeSpanへ変換する。
+    /// RecognitionChunk自体はsample座標を正本とし、Engine境界でのみTimeSpanへ変換する。
     /// </remarks>
     internal static (TimeSpan Start, TimeSpan End) NormalizeSegmentTimeline(
         TimeSpan relativeStart,
         TimeSpan relativeEnd,
-        SpeechRegion region,
+        RecognitionChunk chunk,
         int sampleRate,
         TimeSpan audioDuration)
     {
-        ArgumentNullException.ThrowIfNull(region);
+        ArgumentNullException.ThrowIfNull(chunk);
         if (sampleRate <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(sampleRate));
         }
 
-        var regionStart = SamplesToTimeSpan(region.StartSample, sampleRate);
-        var regionEnd = SamplesToTimeSpan(region.EndSample, sampleRate);
-        if (regionEnd > audioDuration)
+        var chunkStart = SamplesToTimeSpan(chunk.StartSample, sampleRate);
+        var chunkEnd = SamplesToTimeSpan(chunk.EndSample, sampleRate);
+        if (chunkEnd > audioDuration)
         {
-            regionEnd = audioDuration;
+            chunkEnd = audioDuration;
         }
-        if (regionEnd < regionStart)
+        if (chunkEnd < chunkStart)
         {
-            regionEnd = regionStart;
+            chunkEnd = chunkStart;
         }
 
-        var absoluteStart = regionStart + relativeStart;
-        var absoluteEnd = regionStart + relativeEnd;
-        var start = Clamp(absoluteStart, regionStart, regionEnd);
-        var end = Clamp(absoluteEnd, start, regionEnd);
+        var absoluteStart = chunkStart + relativeStart;
+        var absoluteEnd = chunkStart + relativeEnd;
+        var start = Clamp(absoluteStart, chunkStart, chunkEnd);
+        var end = Clamp(absoluteEnd, start, chunkEnd);
         return (start, end);
     }
 
-    private static async Task WriteRegionAsync(
+    private static async Task WriteChunkAsync(
         IPreparedTranscriptionAudio audio,
-        SpeechRegion region,
+        RecognitionChunk chunk,
         string destinationPath,
         CancellationToken cancellationToken)
     {
@@ -118,8 +122,8 @@ public sealed class WhisperRecognizer
         var sampleRate = reader.WaveFormat.SampleRate;
         var provider = new OffsetSampleProvider(reader.ToSampleProvider())
         {
-            SkipOver = SamplesToTimeSpan(region.StartSample, sampleRate),
-            Take = SamplesToTimeSpan(region.Length, sampleRate)
+            SkipOver = SamplesToTimeSpan(chunk.StartSample, sampleRate),
+            Take = SamplesToTimeSpan(chunk.Length, sampleRate)
         };
 
         await Task.Run(() => WaveFileWriter.CreateWaveFile16(destinationPath, provider), cancellationToken);
@@ -133,13 +137,22 @@ public sealed class WhisperRecognizer
             return segments;
         }
 
-        var ordered = segments.OrderBy(x => x.Start).ToList();
+        var ordered = segments
+            .Select((segment, index) => (segment, index))
+            .OrderBy(x => x.segment.Start)
+            .ThenBy(x => x.index)
+            .Select(x => x.segment)
+            .ToList();
         var merged = new List<RecognizedTranscriptionSegment>(ordered.Count) { ordered[0] };
         for (var i = 1; i < ordered.Count; i++)
         {
             var current = ordered[i];
             var last = merged[^1];
-            if ((current.Start - last.End).TotalMilliseconds <= VadMergeGapMilliseconds)
+
+            // RecognitionChunkをまたいでsegmentを結合するとASR結果から生成元chunkを追跡できなくなるため、
+            // 従来の近接segment結合は同一chunk内に限定する。
+            if (current.RecognitionChunkId == last.RecognitionChunkId
+                && (current.Start - last.End).TotalMilliseconds <= VadMergeGapMilliseconds)
             {
                 merged[^1] = last with
                 {
