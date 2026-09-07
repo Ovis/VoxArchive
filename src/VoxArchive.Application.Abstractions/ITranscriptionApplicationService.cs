@@ -32,7 +32,23 @@ public interface ITranscriptionApplicationService
     Task<IReadOnlyList<TranscriptionDiagnosticInfo>> DiagnoseEngineAsync(string engineId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// 手動文字起こしで必要なモデルが未配置だった場合に、利用者へ取得確認を求めるUI portを定義する
+/// </summary>
+public interface ITranscriptionModelDownloadConfirmation
+{
+    /// <summary>
+    /// 指定モデルを取得してから文字起こしを続行してよいか確認する
+    /// </summary>
+    Task<bool> ConfirmAsync(TranscriptionMissingModelInfo model, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Queue投入結果をUIへ公開する</summary>
 public sealed record TranscriptionEnqueueResult(bool Enqueued, string Message);
+
+/// <summary>Admissionで未配置と判定されたモデルをUIへ公開する</summary>
+public sealed record TranscriptionMissingModelInfo(string EngineId, string ModelId, string DisplayName);
+
 public sealed record TranscriptionJobStateInfo(string AudioFilePath, TranscriptionJobState State);
 public sealed record TranscriptionModelInfo(string Id, string DisplayName);
 public sealed record TranscriptionModelStatusInfo(string State, bool IsReady);
