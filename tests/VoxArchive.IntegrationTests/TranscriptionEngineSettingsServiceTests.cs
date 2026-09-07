@@ -56,7 +56,7 @@ public sealed class TranscriptionEngineSettingsServiceTests
         var registration = new TranscriptionEngineRegistration(
             new FakeEngine(),
             new FakeSettingsProvider(),
-            null,
+            new FakeModelProvider(),
             new FakeModelResolver(),
             null,
             null,
@@ -105,6 +105,21 @@ public sealed class TranscriptionEngineSettingsServiceTests
         }
 
         public IReadOnlyList<TranscriptionValidationError> Validate(ITranscriptionEngineOptions options) => [];
+    }
+
+    private sealed class FakeModelProvider : ITranscriptionModelProvider
+    {
+        public TranscriptionEngineId EngineId => TranscriptionEngineSettingsServiceTests.EngineId;
+        public IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels() => [];
+        public bool IsReady(TranscriptionModelId modelId) => true;
+        public TranscriptionModelInspection Inspect(TranscriptionModelId modelId, TranscriptionModelInspectionLevel level)
+            => throw new NotSupportedException();
+        public Task<TranscriptionModelInstallation> InstallAsync(TranscriptionModelId modelId, bool force, IProgress<TranscriptionModelTransferProgress>? progress, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+        public Task DeleteAsync(TranscriptionModelId modelId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+        public TranscriptionModelInstallation GetInstallation(TranscriptionModelId modelId)
+            => throw new NotSupportedException();
     }
 
     private sealed class FakeModelResolver : ITranscriptionModelRequirementResolver
