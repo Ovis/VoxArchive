@@ -36,7 +36,12 @@ public sealed class ReazonSpeechTranscriptionEngine(
             return new TranscriptionEngineResult([]);
         }
 
-        var segments = await recognizer.RecognizeAsync(request.Audio, regions, options, cancellationToken);
+        var segments = await recognizer.RecognizeAsync(
+            request.Audio,
+            regions,
+            options,
+            request.Context.DiagnosticsEnabled,
+            cancellationToken);
         return new TranscriptionEngineResult(
             segments,
             new Dictionary<string, object?>
