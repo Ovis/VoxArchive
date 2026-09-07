@@ -1,3 +1,4 @@
+using System.Text.Json;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Transcription;
@@ -61,8 +62,6 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
             return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(false, "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");
         }
 
-        // Admissionでは未配置モデルをusage reservationしないため、ここで取得を開始できる。
-        // 完了後は同じRecordingOptions snapshotを再Admissionし、そこで初めてreservationを取得してQueueへ投入する。
         await _modelManager.InstallAsync(
             ToModelKey(result.MissingModel.EngineId, result.MissingModel.ModelId),
             force: false,
@@ -141,6 +140,65 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
             document.ModelId,
             document.CreatedAt,
             document.Segments.Select(x => new TranscriptionResultSegmentInfo(x.Start, x.End, x.Text, x.Speaker)).ToArray());
+    }
+
+    /// <inheritdoc />
+    public async Task<TranscriptionRetranscriptionPreparation> PrepareRetranscriptionAsync(
+        string documentPath,
+        RecordingOptions currentOptions,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentOptions);
+        var document = await _documentStore.LoadAsync(documentPath, cancellationToken);
+        var engineId = ToEngineId(document.EngineId);
+        var registration = _engineRegistry.Get(engineId);
+
+        if (!currentOptions.Transcription.Engines.TryGetValue(engineId.Value, out var persisted))
+        {
+            throw new InvalidOperationException($"再文字起こし対象Engine '{engineId}' の現在設定がありません。");
+        }
+
+        var engineOptions = registration.SettingsProvider.Deserialize(persisted.Settings, persisted.SchemaVersion);
+        var usedFallback = registration.LanguageCapability is not null;
+
+        if (!string.IsNullOrWhiteSpace(document.ModelId))
+        {
+            if (registration.ModelRequirementResolver is null)
+            {
+                throw new InvalidOperationException($"Engine '{engineId}' は保存済みModel IDを再適用できません。");
+            }
+            engineOptions = registration.ModelRequirementResolver.SelectModel(engineOptions, new ModelId(document.ModelId));
+        }
+        else if (registration.ModelRequirementResolver is not null)
+        {
+            // モデル利用Engineなのに旧結果へModel IDがない場合は現在選択モデルを使うため補完扱いとする。
+            usedFallback = true;
+        }
+
+        var validationErrors = registration.SettingsProvider.Validate(engineOptions);
+        if (validationErrors.Count > 0)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, validationErrors.Select(x => x.Message)));
+        }
+
+        var engines = new Dictionary<string, TranscriptionEngineSettings>(currentOptions.Transcription.Engines, StringComparer.OrdinalIgnoreCase)
+        {
+            [engineId.Value] = new TranscriptionEngineSettings
+            {
+                SchemaVersion = persisted.SchemaVersion,
+                Settings = registration.SettingsProvider.Serialize(engineOptions)
+            }
+        };
+
+        var transcription = currentOptions.Transcription with
+        {
+            DefaultEngine = engineId.Value,
+            Engines = engines
+        };
+
+        return new TranscriptionRetranscriptionPreparation(
+            currentOptions with { Transcription = transcription },
+            usedFallback);
     }
 
     /// <inheritdoc />
