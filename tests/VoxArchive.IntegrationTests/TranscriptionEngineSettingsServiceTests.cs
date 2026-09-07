@@ -30,6 +30,23 @@ public sealed class TranscriptionEngineSettingsServiceTests
     }
 
     [Test]
+    public void GetConfiguration_WhenSelectionCapabilityExists_DoesNotExposePhysicalPackageId()
+    {
+        var registration = new TranscriptionEngineRegistration(
+            new FakeEngine(),
+            new FakeSettingsProvider(),
+            new FakeModelProvider(),
+            new PhysicalPackageResolver(),
+            ModelSelectionCapability: new FakeModelSelectionCapability());
+        var service = new TranscriptionEngineSettingsService(new TranscriptionEngineRegistry([registration]));
+        var settings = CreateSettings("model-a", "auto");
+
+        var actual = service.GetConfiguration(EngineId.Value, settings);
+
+        Assert.That(actual.ModelId, Is.EqualTo("model-a"));
+    }
+
+    [Test]
     public void UpdateConfiguration_UsesCapabilitiesAndSerializesUpdatedOptions()
     {
         var service = CreateService();
@@ -132,6 +149,24 @@ public sealed class TranscriptionEngineSettingsServiceTests
 
         public ITranscriptionEngineOptions BindInstallation(ITranscriptionEngineOptions options, TranscriptionModelInstallation installation)
             => options;
+    }
+
+    private sealed class PhysicalPackageResolver : ITranscriptionModelRequirementResolver
+    {
+        public TranscriptionModelId ResolveRequiredModel(ITranscriptionEngineOptions options)
+            => new($"{GetOptions(options).ModelId}-physical-package");
+
+        public ITranscriptionEngineOptions SelectModel(ITranscriptionEngineOptions options, TranscriptionModelId modelId)
+            => GetOptions(options) with { ModelId = modelId.Value };
+
+        public ITranscriptionEngineOptions BindInstallation(ITranscriptionEngineOptions options, TranscriptionModelInstallation installation)
+            => options;
+    }
+
+    private sealed class FakeModelSelectionCapability : ITranscriptionModelSelectionCapability
+    {
+        public TranscriptionModelId GetSelectedModel(ITranscriptionEngineOptions options)
+            => new(GetOptions(options).ModelId);
     }
 
     private sealed class FakeExecutionModeCapability : ITranscriptionExecutionModeCapability
