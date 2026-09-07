@@ -24,10 +24,11 @@ public sealed class ReazonSpeechK2PaddingTests
     }
 
     [Test]
-    public void NormalizePoint_SubtractsPrePaddingAndConvertsToChunkRelativeSample()
+    public void NormalizePoint_SubtractsPrePaddingAndConvertsFloatTimestampToChunkRelativeSample()
     {
+        // sherpa-onnxの実APIと同じfloat値を経由させ、公称1.4秒が量子化されても1sample前倒しされないことを確認する。
         var normalized = ReazonSpeechK2TimestampNormalizer.NormalizePoint(
-            rawSeconds: 1.40d,
+            rawSeconds: 1.40f,
             chunkLengthSamples: 160_000);
 
         Assert.That(normalized, Is.EqualTo(8_000));
@@ -54,13 +55,13 @@ public sealed class ReazonSpeechK2PaddingTests
     }
 
     [Test]
-    public void NormalizePoint_UsesFloorWhenConvertingPointTimestamp()
+    public void NormalizePoint_RoundsPointTimestampToNearestSample()
     {
         var normalized = ReazonSpeechK2TimestampNormalizer.NormalizePoint(
-            rawSeconds: 0.90001d,
+            rawSeconds: 0.90004d,
             chunkLengthSamples: 160_000);
 
-        Assert.That(normalized, Is.Zero);
+        Assert.That(normalized, Is.EqualTo(1));
     }
 
     [Test]
