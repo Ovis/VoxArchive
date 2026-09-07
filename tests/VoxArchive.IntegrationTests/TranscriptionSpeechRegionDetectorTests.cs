@@ -7,17 +7,16 @@ namespace VoxArchive.IntegrationTests;
 public sealed class TranscriptionSpeechRegionDetectorTests
 {
     private const int SampleRate = 16_000;
+    private static readonly SpeechRegionDetectorSettingsSnapshot Settings = new(1, default);
 
     [Test]
     public async Task DetectAsync_ClampsRegionEndToPreparedAudioDuration()
     {
         var waveBytes = BuildWaveWithSpeechAtEnd();
-        await using var audio = new TestPreparedAudio(
-            waveBytes,
-            TimeSpan.FromMilliseconds(950));
+        await using var audio = new TestPreparedAudio(waveBytes, TimeSpan.FromMilliseconds(950));
         var sut = new TranscriptionSpeechRegionDetector();
 
-        var regions = await sut.DetectAsync(audio);
+        var regions = await sut.DetectAsync(audio, Settings);
 
         var maximumSample = (long)Math.Floor(audio.Duration.TotalSeconds * SampleRate);
         Assert.That(regions, Is.Not.Empty);
@@ -32,7 +31,7 @@ public sealed class TranscriptionSpeechRegionDetectorTests
         await using var audio = new TestPreparedAudio(waveBytes, TimeSpan.FromSeconds(1));
         var sut = new TranscriptionSpeechRegionDetector();
 
-        var regions = await sut.DetectAsync(audio);
+        var regions = await sut.DetectAsync(audio, Settings);
 
         Assert.That(regions, Has.Count.EqualTo(1));
         Assert.Multiple(() =>
@@ -66,17 +65,13 @@ public sealed class TranscriptionSpeechRegionDetectorTests
 
     private sealed class TestPreparedAudio(byte[] waveBytes, TimeSpan duration) : IPreparedTranscriptionAudio
     {
-        public TranscriptionAudioRequirements Format { get; }
-            = new(SampleRate, 1, TranscriptionSampleFormat.Pcm16);
-
+        public TranscriptionAudioRequirements Format { get; } = new(SampleRate, 1, TranscriptionSampleFormat.Pcm16);
         public TimeSpan Duration { get; } = duration;
-
         public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult<Stream>(new MemoryStream(waveBytes, writable: false));
         }
-
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
