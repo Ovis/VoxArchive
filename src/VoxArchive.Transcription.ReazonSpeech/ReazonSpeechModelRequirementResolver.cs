@@ -12,6 +12,19 @@ public sealed class ReazonSpeechModelRequirementResolver : ITranscriptionModelRe
         => GetOptions(options).ModelId;
 
     /// <inheritdoc />
+    public ITranscriptionEngineOptions SelectModel(
+        ITranscriptionEngineOptions options,
+        TranscriptionModelId modelId)
+        => GetOptions(options) with
+        {
+            ModelId = modelId,
+            EncoderPath = null,
+            DecoderPath = null,
+            JoinerPath = null,
+            TokensPath = null
+        };
+
+    /// <inheritdoc />
     public ITranscriptionEngineOptions BindInstallation(
         ITranscriptionEngineOptions options,
         TranscriptionModelInstallation installation)
