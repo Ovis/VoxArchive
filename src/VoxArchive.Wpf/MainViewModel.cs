@@ -17,6 +17,7 @@ namespace VoxArchive.Wpf;
 public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly IRecordingService _recordingService;
+
     private readonly ISettingsService _settingsService;
     private readonly IDeviceService _deviceService;
     private readonly IProcessCatalogService _processCatalogService;
@@ -156,7 +157,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (SetField(ref _selectedSpeakerDeviceId, value))
             {
                 OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
-                if (!_isRefreshingDeviceList) IsSpeakerDevicePopupOpenNormal = false;
+                if (!_isRefreshingDeviceList)
+                {
+                    IsSpeakerDevicePopupOpenNormal = false;
+                }
             }
         }
     }
@@ -169,11 +173,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (SetField(ref _selectedMicDeviceId, value))
             {
                 OnPropertyChanged(nameof(SelectedMicDeviceName));
-                if (!_isRefreshingDeviceList) IsMicDevicePopupOpenNormal = false;
+                if (!_isRefreshingDeviceList)
+                {
+                    IsMicDevicePopupOpenNormal = false;
+                }
             }
         }
     }
-
     public string StartStopHotkeyText { get => _startStopHotkeyText; private set => SetField(ref _startStopHotkeyText, value); }
     public bool SuppressCloseToTrayNotice => _options.SuppressCloseToTrayNotice;
 
@@ -185,7 +191,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (SetField(ref _isSpeakerCaptureEnabled, value))
             {
                 _recordingService.SetSpeakerCaptureEnabled(value);
-                if (!value) SpeakerLevelPercent = 0;
+                if (!value)
+                {
+                    SpeakerLevelPercent = 0;
+                }
+
                 OnPropertyChanged(nameof(SpeakerMuteSlashVisibility));
                 OnPropertyChanged(nameof(SpeakerIconBrush));
                 OnPropertyChanged(nameof(SpeakerRingBrush));
@@ -201,7 +211,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (SetField(ref _isMicCaptureEnabled, value))
             {
                 _recordingService.SetMicCaptureEnabled(value);
-                if (!value) MicLevelPercent = 0;
+                if (!value)
+                {
+                    MicLevelPercent = 0;
+                }
+
                 OnPropertyChanged(nameof(MicMuteSlashVisibility));
                 OnPropertyChanged(nameof(MicIconBrush));
                 OnPropertyChanged(nameof(MicRingBrush));
@@ -227,7 +241,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _isSpeakerDevicePopupOpenNormal;
         set
         {
-            if (SetField(ref _isSpeakerDevicePopupOpenNormal, value) && value) _ = LoadDevicesAsync();
+            if (SetField(ref _isSpeakerDevicePopupOpenNormal, value) && value)
+            {
+                _ = LoadDevicesAsync();
+            }
         }
     }
 
@@ -236,7 +253,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _isMicDevicePopupOpenNormal;
         set
         {
-            if (SetField(ref _isMicDevicePopupOpenNormal, value) && value) _ = LoadDevicesAsync();
+            if (SetField(ref _isMicDevicePopupOpenNormal, value) && value)
+            {
+                _ = LoadDevicesAsync();
+            }
         }
     }
 
@@ -245,7 +265,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _isProcessPopupOpenNormal;
         set
         {
-            if (SetField(ref _isProcessPopupOpenNormal, value) && value && IsProcessSelectionEnabled) _ = LoadProcessesAsync();
+            if (SetField(ref _isProcessPopupOpenNormal, value) && value && IsProcessSelectionEnabled)
+            {
+                _ = LoadProcessesAsync();
+            }
         }
     }
 
@@ -254,13 +277,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _isMiniMode;
         private set
         {
-            if (!SetField(ref _isMiniMode, value)) return;
+            if (!SetField(ref _isMiniMode, value))
+            {
+                return;
+            }
+
             if (value)
             {
                 IsSpeakerDevicePopupOpenNormal = false;
                 IsMicDevicePopupOpenNormal = false;
                 IsProcessPopupOpenNormal = false;
             }
+
             OnPropertyChanged(nameof(WindowWidth));
             OnPropertyChanged(nameof(WindowHeight));
             OnPropertyChanged(nameof(NormalMainControlsVisibility));
@@ -269,7 +297,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(WindowModeToolTip));
         }
     }
-
     public OutputCaptureMode SelectedOutputMode
     {
         get => _selectedOutputMode;
@@ -282,7 +309,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(SelectedOutputModeName));
                 OnPropertyChanged(nameof(IsProgramMode));
                 OnPropertyChanged(nameof(IsSpeakerMode));
-                if (value != OutputCaptureMode.ProcessLoopback) IsProcessPopupOpenNormal = false;
+                if (value != OutputCaptureMode.ProcessLoopback)
+                {
+                    IsProcessPopupOpenNormal = false;
+                }
                 EnsureSpeakerDevicePopupState();
                 RefreshCommands();
             }
@@ -294,7 +324,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _selectedProcessItem;
         set
         {
-            if (SetField(ref _selectedProcessItem, value)) OnPropertyChanged(nameof(SelectedProcessDisplayName));
+            if (SetField(ref _selectedProcessItem, value))
+            {
+                OnPropertyChanged(nameof(SelectedProcessDisplayName));
+            }
         }
     }
 
@@ -306,12 +339,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public string WindowModeToolTip => IsMiniMode ? "通常モード" : "ミニモード";
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
-    public bool IsSpeakerDeviceSelectionEnabled => !(SelectedOutputMode == OutputCaptureMode.ProcessLoopback && _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused);
+    public bool IsSpeakerDeviceSelectionEnabled =>
+        !(SelectedOutputMode == OutputCaptureMode.ProcessLoopback &&
+          _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused);
     public bool IsProcessSelectionEnabled => IsDeviceSelectionEnabled && SelectedOutputMode == OutputCaptureMode.ProcessLoopback;
     public Visibility RecordButtonVisibility => IsStoppedOrError ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility RecordingControlsVisibility => _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility PauseGlyphVisibility => _recordingService.CurrentState == RecordingState.Recording ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility ResumeGlyphVisibility => _recordingService.CurrentState == RecordingState.Paused ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RecordingControlsVisibility => _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+    public Visibility PauseGlyphVisibility => _recordingService.CurrentState == RecordingState.Recording
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+    public Visibility ResumeGlyphVisibility => _recordingService.CurrentState == RecordingState.Paused
+        ? Visibility.Visible
+        : Visibility.Collapsed;
 
     private async Task LoadDevicesAsync()
     {
@@ -321,24 +362,47 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var mics = await _deviceService.GetMicrophoneDevicesAsync();
             var speakerOptions = BuildDeviceOptions(speakers, DeviceKind.Speaker);
             var micOptions = BuildDeviceOptions(mics, DeviceKind.Microphone);
+
             RunOnUi(() =>
             {
                 _isRefreshingDeviceList = true;
                 try
                 {
                     SpeakerDevices.Clear();
-                    foreach (var d in speakerOptions) SpeakerDevices.Add(d);
+                    foreach (var d in speakerOptions)
+                    {
+                        SpeakerDevices.Add(d);
+                    }
+
                     MicDevices.Clear();
-                    foreach (var d in micOptions) MicDevices.Add(d);
-                    if (string.IsNullOrWhiteSpace(SelectedSpeakerDeviceId) || !SpeakerDevices.Any(x => x.DeviceId == SelectedSpeakerDeviceId)) SelectedSpeakerDeviceId = SystemDefaultDeviceId;
-                    if (string.IsNullOrWhiteSpace(SelectedMicDeviceId) || !MicDevices.Any(x => x.DeviceId == SelectedMicDeviceId)) SelectedMicDeviceId = SystemDefaultDeviceId;
+                    foreach (var d in micOptions)
+                    {
+                        MicDevices.Add(d);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(SelectedSpeakerDeviceId) || !SpeakerDevices.Any(x => x.DeviceId == SelectedSpeakerDeviceId))
+                    {
+                        SelectedSpeakerDeviceId = SystemDefaultDeviceId;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(SelectedMicDeviceId) || !MicDevices.Any(x => x.DeviceId == SelectedMicDeviceId))
+                    {
+                        SelectedMicDeviceId = SystemDefaultDeviceId;
+                    }
+
                     OnPropertyChanged(nameof(SelectedSpeakerDeviceName));
                     OnPropertyChanged(nameof(SelectedMicDeviceName));
                 }
-                finally { _isRefreshingDeviceList = false; }
+                finally
+                {
+                    _isRefreshingDeviceList = false;
+                }
             });
         }
-        catch (Exception ex) { RunOnUi(() => _logger.LogWarning(ex, "デバイス列挙失敗")); }
+        catch (Exception ex)
+        {
+            RunOnUi(() => _logger.LogWarning(ex, "デバイス列挙失敗"));
+        }
     }
 
     private async Task LoadProcessesAsync()
@@ -349,12 +413,22 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             RunOnUi(() =>
             {
                 ProcessItems.Clear();
-                foreach (var p in items) ProcessItems.Add(new ProcessListItem(p));
-                if (_options.TargetProcessId is int pid) SelectedProcessItem = ProcessItems.FirstOrDefault(x => x.ProcessId == pid);
+                foreach (var p in items)
+                {
+                    ProcessItems.Add(new ProcessListItem(p));
+                }
+
+                if (_options.TargetProcessId is int pid)
+                {
+                    SelectedProcessItem = ProcessItems.FirstOrDefault(x => x.ProcessId == pid);
+                }
                 OnPropertyChanged(nameof(SelectedProcessDisplayName));
             });
         }
-        catch (Exception ex) { RunOnUi(() => _logger.LogWarning(ex, "プロセス列挙失敗")); }
+        catch (Exception ex)
+        {
+            RunOnUi(() => _logger.LogWarning(ex, "プロセス列挙失敗"));
+        }
     }
 
     private async Task StartOrStopAsync()
@@ -363,24 +437,40 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             if (!FfmpegRuntimeChecker.IsAvailable(_options.FfmpegExecutablePath, out var ffmpegDetail, out var resolvedFfmpegPath))
             {
+                var message = BuildFfmpegMissingMessage(ffmpegDetail);
                 _logger.LogWarning("録音開始前に ffmpeg 未検出: {Detail}", ffmpegDetail);
-                ModernDialog.Show(BuildFfmpegMissingMessage(ffmpegDetail), "ffmpeg 未検出", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ModernDialog.Show(
+                    message,
+                    "ffmpeg 未検出",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
             var mode = SelectedOutputMode;
             var targetPid = SelectedProcessItem?.ProcessId;
-            if (mode == OutputCaptureMode.ProcessLoopback && (targetPid is null || !await _processCatalogService.ExistsAsync(targetPid.Value)))
+
+            if (mode == OutputCaptureMode.ProcessLoopback)
             {
-                var result = ModernDialog.Show("選択したアプリは現在起動していません。\nスピーカー録音に切り替えて開始しますか？", "録音開始確認", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.OK);
-                if (result != MessageBoxResult.OK)
+                if (targetPid is null || !await _processCatalogService.ExistsAsync(targetPid.Value))
                 {
-                    _logger.LogWarning("録音開始をキャンセルしました。");
-                    return;
+                    var result = ModernDialog.Show(
+                        "選択したアプリは現在起動していません。\nスピーカー録音に切り替えて開始しますか？",
+                        "録音開始確認",
+                        MessageBoxButton.OKCancel,
+                        MessageBoxImage.Question,
+                        MessageBoxResult.OK);
+
+                    if (result != MessageBoxResult.OK)
+                    {
+                        _logger.LogWarning("録音開始をキャンセルしました。");
+                        return;
+                    }
+
+                    mode = OutputCaptureMode.SpeakerLoopback;
+                    targetPid = null;
+                    SelectedOutputMode = OutputCaptureMode.SpeakerLoopback;
                 }
-                mode = OutputCaptureMode.SpeakerLoopback;
-                targetPid = null;
-                SelectedOutputMode = OutputCaptureMode.SpeakerLoopback;
             }
 
             var alignmentMs = Math.Clamp(_options.ChannelAlignmentMilliseconds, -1000, 1000);
@@ -402,7 +492,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 return;
             }
 
-            var startOptions = _options with { SpeakerDeviceId = resolvedSpeakerDeviceId, MicDeviceId = resolvedMicDeviceId, FfmpegExecutablePath = _options.FfmpegExecutablePath };
+            var startOptions = _options with
+            {
+                SpeakerDeviceId = resolvedSpeakerDeviceId,
+                MicDeviceId = resolvedMicDeviceId,
+                FfmpegExecutablePath = _options.FfmpegExecutablePath
+            };
+
             await _settingsService.SaveRecordingOptionsAsync(_options);
             var path = await _recordingService.StartAsync(startOptions);
             _lastRecordedFilePath = path;
@@ -417,28 +513,76 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async Task PauseOrResumeAsync()
     {
-        if (_recordingService.CurrentState == RecordingState.Paused) { await _recordingService.ResumeAsync(); return; }
-        if (_recordingService.CurrentState == RecordingState.Recording) await _recordingService.PauseAsync();
+        if (_recordingService.CurrentState == RecordingState.Paused)
+        {
+            await _recordingService.ResumeAsync();
+            return;
+        }
+
+        if (_recordingService.CurrentState == RecordingState.Recording)
+        {
+            await _recordingService.PauseAsync();
+        }
     }
 
-    private Task ToggleSpeakerCaptureAsync() { IsSpeakerCaptureEnabled = !IsSpeakerCaptureEnabled; return Task.CompletedTask; }
-    private Task ToggleMicCaptureAsync() { IsMicCaptureEnabled = !IsMicCaptureEnabled; return Task.CompletedTask; }
-    private Task ToggleOutputModeAsync() { SelectedOutputMode = SelectedOutputMode == OutputCaptureMode.ProcessLoopback ? OutputCaptureMode.SpeakerLoopback : OutputCaptureMode.ProcessLoopback; return Task.CompletedTask; }
-    private Task ToggleWindowModeAsync() { IsMiniMode = !IsMiniMode; return Task.CompletedTask; }
+    private Task ToggleSpeakerCaptureAsync()
+    {
+        IsSpeakerCaptureEnabled = !IsSpeakerCaptureEnabled;
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleMicCaptureAsync()
+    {
+        IsMicCaptureEnabled = !IsMicCaptureEnabled;
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleOutputModeAsync()
+    {
+        SelectedOutputMode = SelectedOutputMode == OutputCaptureMode.ProcessLoopback
+            ? OutputCaptureMode.SpeakerLoopback
+            : OutputCaptureMode.ProcessLoopback;
+
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleWindowModeAsync()
+    {
+        IsMiniMode = !IsMiniMode;
+        return Task.CompletedTask;
+    }
 
     public async Task SetSuppressCloseToTrayNoticeAsync(bool suppress)
     {
-        if (_options.SuppressCloseToTrayNotice == suppress) return;
-        _options = EnsureDefaults(_options) with { SuppressCloseToTrayNotice = suppress };
-        try { await _settingsService.SaveRecordingOptionsAsync(_options); }
-        catch (Exception ex) { _logger.LogWarning(ex, "終了時ガイド設定の保存に失敗"); }
-    }
+        if (_options.SuppressCloseToTrayNotice == suppress)
+        {
+            return;
+        }
 
+        _options = EnsureDefaults(_options) with
+        {
+            SuppressCloseToTrayNotice = suppress
+        };
+
+        try
+        {
+            await _settingsService.SaveRecordingOptionsAsync(_options);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "終了時ガイド設定の保存に失敗");
+        }
+    }
     private async Task OpenLibraryAsync()
     {
         try
         {
-            if (_libraryWindow is not null) { _libraryWindow.Activate(); return; }
+            if (_libraryWindow is not null)
+            {
+                _libraryWindow.Activate();
+                return;
+            }
+
             var vm = ActivatorUtilities.CreateInstance<LibraryViewModel>(
                 _serviceProvider,
                 _libraryCatalogService,
@@ -448,54 +592,99 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 _options.DefaultMicPlaybackGainDb);
             _libraryViewModel = vm;
             _libraryWindow = new LibraryWindow(vm);
-            _libraryWindow.Closed += (_, _) => { _libraryWindow = null; _libraryViewModel = null; };
+            _libraryWindow.Closed += (_, _) =>
+            {
+                _libraryWindow = null;
+                _libraryViewModel = null;
+            };
             _libraryWindow.Show();
             await vm.InitializeAsync();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ライブラリ起動失敗");
-            ModernDialog.Show($"ライブラリウィンドウの表示に失敗しました。\n{ex.Message}", "ライブラリ起動失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+            ModernDialog.Show(
+                $"ライブラリウィンドウの表示に失敗しました。\n{ex.Message}",
+                "ライブラリ起動失敗",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
+
         await Task.CompletedTask;
     }
 
     private async Task RegisterLatestRecordingAsync()
     {
-        if (string.IsNullOrWhiteSpace(_lastRecordedFilePath)) return;
+        if (string.IsNullOrWhiteSpace(_lastRecordedFilePath))
+        {
+            return;
+        }
+
         var filePath = _lastRecordedFilePath;
         for (var attempt = 0; attempt < LibraryRegisterMaxRetry; attempt++)
         {
             try
             {
-                if (_libraryViewModel is not null) await _libraryViewModel.ReloadAsync(filePath);
-                else await _libraryCatalogService.AddOrUpdateFileAsync(filePath);
+                if (_libraryViewModel is not null)
+                {
+                    await _libraryViewModel.ReloadAsync(filePath);
+                }
+                else
+                {
+                    await _libraryCatalogService.AddOrUpdateFileAsync(filePath);
+                }
+
                 _lastRecordedFilePath = null;
                 _ = TryEnqueueAutoTranscriptionAsync(filePath);
                 return;
             }
-            catch (FileNotFoundException) when (attempt < LibraryRegisterMaxRetry - 1) { await Task.Delay(LibraryRegisterRetryDelayMilliseconds); }
-            catch (IOException) when (attempt < LibraryRegisterMaxRetry - 1) { await Task.Delay(LibraryRegisterRetryDelayMilliseconds); }
-            catch (Exception ex) { _logger.LogWarning(ex, "ライブラリ登録失敗"); return; }
+            catch (FileNotFoundException) when (attempt < LibraryRegisterMaxRetry - 1)
+            {
+                await Task.Delay(LibraryRegisterRetryDelayMilliseconds);
+            }
+            catch (IOException) when (attempt < LibraryRegisterMaxRetry - 1)
+            {
+                await Task.Delay(LibraryRegisterRetryDelayMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ライブラリ登録失敗");
+                return;
+            }
         }
+
         _logger.LogWarning("ライブラリ登録失敗: 録音ファイルが見つかりません。");
     }
 
     private async Task TryEnqueueAutoTranscriptionAsync(string filePath)
     {
-        if (!_options.Transcription.Enabled || !_options.Transcription.AutoAfterRecord) return;
+        if (!_options.Transcription.Enabled || !_options.Transcription.AutoAfterRecord)
+        {
+            return;
+        }
+
         try
         {
-            var result = await _transcriptionService.TryEnqueueAsync(filePath, _options, ApplicationTranscriptionTrigger.AutoAfterRecord);
+            var result = await _transcriptionService.TryEnqueueAsync(
+                filePath,
+                _options,
+                ApplicationTranscriptionTrigger.AutoAfterRecord);
             if (!result.Enqueued)
             {
                 // 自動実行ではモデル未取得などをユーザー操作へエスカレーションせずskipとして記録する。
-                _logger.LogInformation("自動文字起こしを開始しませんでした。File={File}, Reason={Reason}", filePath, result.Message);
+                _logger.LogInformation(
+                    "自動文字起こしを開始しませんでした。File={File}, Reason={Reason}",
+                    filePath,
+                    result.Message);
                 return;
             }
+
             if (_options.Transcription.ToastNotificationEnabled)
             {
-                AppNotificationHub.Notify("VoxArchive", $"自動文字起こし開始: {Path.GetFileName(filePath)}", System.Windows.Forms.ToolTipIcon.Info);
+                AppNotificationHub.Notify(
+                    "VoxArchive",
+                    $"自動文字起こし開始: {Path.GetFileName(filePath)}",
+                    System.Windows.Forms.ToolTipIcon.Info);
             }
         }
         catch (Exception ex)
@@ -503,7 +692,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _logger.LogWarning(ex, "自動文字起こしQueue投入に失敗しました。File={File}", filePath);
         }
     }
-
     private async Task OpenSettingsAsync()
     {
         try
@@ -538,15 +726,31 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 FfmpegExecutablePath = _options.FfmpegExecutablePath
             };
 
-            if (dialog.ShowDialog() != true) return;
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
 
             var normalizedOffset = Math.Clamp(dialog.AlignmentMilliseconds, -1000, 1000);
-            var normalizedOutput = string.IsNullOrWhiteSpace(dialog.OutputDirectory) ? EnsureDefaults(_options).OutputDirectory : dialog.OutputDirectory;
+            var normalizedOutput = string.IsNullOrWhiteSpace(dialog.OutputDirectory)
+                ? EnsureDefaults(_options).OutputDirectory
+                : dialog.OutputDirectory;
             var normalizedSpeakerGain = Math.Clamp(dialog.DefaultSpeakerPlaybackGainDb, -60d, 48d);
             var normalizedMicGain = Math.Clamp(dialog.DefaultMicPlaybackGainDb, -60d, 48d);
-            if (!KeyboardShortcutHelper.TryParseAndNormalize(dialog.StartStopHotkeyText, out _, out var normalizedHotkey)) normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
-            var normalizedLanguage = string.IsNullOrWhiteSpace(dialog.TranscriptionLanguage) ? string.Empty : dialog.TranscriptionLanguage.Trim();
-            var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None ? TranscriptionOutputFormats.Txt : dialog.TranscriptionOutputFormats;
+
+            if (!KeyboardShortcutHelper.TryParseAndNormalize(dialog.StartStopHotkeyText, out _, out var normalizedHotkey))
+            {
+                normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
+            }
+
+            // 「指定なし」はEngine側へ言語制約を渡さない共通設定なので、空文字のまま永続化する。
+            // Whisperでは自動判定、言語固定モデルではモデル定義側の言語として解釈される。
+            var normalizedLanguage = string.IsNullOrWhiteSpace(dialog.TranscriptionLanguage)
+                ? string.Empty
+                : dialog.TranscriptionLanguage.Trim();
+            var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None
+                ? TranscriptionOutputFormats.Txt
+                : dialog.TranscriptionOutputFormats;
 
             var engines = new Dictionary<string, TranscriptionEngineSettings>(currentTranscription.Engines, StringComparer.OrdinalIgnoreCase)
             {
@@ -593,7 +797,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "設定画面起動失敗");
-            ModernDialog.Show($"設定画面の表示に失敗しました。\n{ex.Message}", "設定画面起動失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+            ModernDialog.Show(
+                $"設定画面の表示に失敗しました。\n{ex.Message}",
+                "設定画面起動失敗",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -601,26 +809,44 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         if (_recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error)
         {
-            if (SelectedOutputMode != OutputCaptureMode.ProcessLoopback) return true;
+            if (SelectedOutputMode != OutputCaptureMode.ProcessLoopback)
+            {
+                return true;
+            }
+
             return SelectedProcessItem is not null;
         }
+
         return _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused;
     }
 
-    private bool CanPauseOrResume() => _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused;
+    private bool CanPauseOrResume()
+    {
+        return _recordingService.CurrentState is RecordingState.Recording or RecordingState.Paused;
+    }
 
     private static IReadOnlyList<AudioDeviceInfo> BuildDeviceOptions(IReadOnlyList<AudioDeviceInfo> devices, DeviceKind kind)
     {
         var defaultName = devices.FirstOrDefault(x => x.IsDefault)?.FriendlyName ?? "デバイス未検出";
-        var options = new List<AudioDeviceInfo>(devices.Count + 1) { new(SystemDefaultDeviceId, $"システム既定 ({defaultName})", true, kind) };
+        var options = new List<AudioDeviceInfo>(devices.Count + 1)
+        {
+            new(SystemDefaultDeviceId, $"システム既定 ({defaultName})", true, kind)
+        };
         options.AddRange(devices);
         return options;
     }
 
     private async Task<string> ResolveDeviceIdAsync(string selectedDeviceId, DeviceKind kind)
     {
-        if (selectedDeviceId != SystemDefaultDeviceId) return selectedDeviceId;
-        var defaultDevice = kind == DeviceKind.Speaker ? await _deviceService.GetDefaultSpeakerDeviceAsync() : await _deviceService.GetDefaultMicrophoneDeviceAsync();
+        if (selectedDeviceId != SystemDefaultDeviceId)
+        {
+            return selectedDeviceId;
+        }
+
+        var defaultDevice = kind == DeviceKind.Speaker
+            ? await _deviceService.GetDefaultSpeakerDeviceAsync()
+            : await _deviceService.GetDefaultMicrophoneDeviceAsync();
+
         return defaultDevice?.DeviceId ?? string.Empty;
     }
 
@@ -628,8 +854,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         RunOnUi(() =>
         {
-            if (state is RecordingState.Stopped or RecordingState.Error) ResetLevelMeters();
-            if (state == RecordingState.Stopped) _ = RegisterLatestRecordingAsync();
+            if (state is RecordingState.Stopped or RecordingState.Error)
+            {
+                ResetLevelMeters();
+            }
+
+            if (state == RecordingState.Stopped)
+            {
+                _ = RegisterLatestRecordingAsync();
+            }
+
             OnPropertyChanged(nameof(IsDeviceSelectionEnabled));
             OnPropertyChanged(nameof(IsSpeakerDeviceSelectionEnabled));
             OnPropertyChanged(nameof(IsStoppedOrError));
@@ -644,33 +878,52 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         });
     }
 
-    private void OnRecordingErrorOccurred(object? sender, string message) => RunOnUi(() => _logger.LogWarning("エラー: {Message}", message));
-    private void OnOutputSourceChanged(object? sender, OutputSourceChangedEvent e) => RunOnUi(() => _logger.LogWarning("出力切替: {Previous} -> {Current} ({Reason})", e.Previous, e.Current, e.Reason));
+    private void OnRecordingErrorOccurred(object? sender, string message)
+    {
+        RunOnUi(() => _logger.LogWarning("エラー: {Message}", message));
+    }
+
+    private void OnOutputSourceChanged(object? sender, OutputSourceChangedEvent e)
+    {
+        RunOnUi(() => _logger.LogWarning("出力切替: {Previous} -> {Current} ({Reason})", e.Previous, e.Current, e.Reason));
+    }
 
     private void OnStatisticsUpdated(object? sender, RecordingStatistics st)
     {
         RunOnUi(() =>
         {
-            if (!string.IsNullOrWhiteSpace(st.OutputFilePath)) _lastRecordedFilePath = st.OutputFilePath;
+            if (!string.IsNullOrWhiteSpace(st.OutputFilePath))
+            {
+                _lastRecordedFilePath = st.OutputFilePath;
+            }
+
             ElapsedText = st.ElapsedTime.ToString(@"hh\:mm\:ss");
             SpeakerLevelPercent = IsSpeakerCaptureEnabled ? ConvertLevelToPercent(st.SpeakerLevel) : 0;
             MicLevelPercent = IsMicCaptureEnabled ? ConvertLevelToPercent(st.MicLevel) : 0;
         });
     }
-
     private void OnTranscriptionJobCompleted(object? sender, ApplicationTranscriptionJobCompletedEventArgs e)
     {
         RunOnUi(() =>
         {
             if (e.Result.Succeeded)
             {
-                if (!_options.Transcription.ToastNotificationEnabled) return;
+                if (!_options.Transcription.ToastNotificationEnabled)
+                {
+                    return;
+                }
+
                 var title = e.Job.Trigger == ApplicationTranscriptionTrigger.AutoAfterRecord ? "自動文字起こし完了" : "文字起こし完了";
                 AppNotificationHub.Notify("VoxArchive", $"{title}: {Path.GetFileName(e.Job.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
                 return;
             }
+
             _logger.LogWarning("文字起こし失敗: {Message}", e.Result.Message);
-            if (!_options.Transcription.ToastNotificationEnabled) return;
+            if (!_options.Transcription.ToastNotificationEnabled)
+            {
+                return;
+            }
+
             var failTitle = e.Job.Trigger == ApplicationTranscriptionTrigger.AutoAfterRecord ? "自動文字起こし失敗" : "文字起こし失敗";
             AppNotificationHub.Notify("VoxArchive", $"{failTitle}: {e.Result.Message}", System.Windows.Forms.ToolTipIcon.Warning);
         });
@@ -689,16 +942,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private static RecordingOptions EnsureDefaults(RecordingOptions options)
     {
-        var output = string.IsNullOrWhiteSpace(options.OutputDirectory)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "VoxArchive")
-            : options.OutputDirectory;
+        var output = options.OutputDirectory;
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            output = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "VoxArchive");
+        }
+
         var hotkey = options.StartStopHotkey;
-        if (!KeyboardShortcutHelper.TryParseAndNormalize(hotkey, out _, out var normalizedHotkey)) normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
+        if (!KeyboardShortcutHelper.TryParseAndNormalize(hotkey, out _, out var normalizedHotkey))
+        {
+            normalizedHotkey = KeyboardShortcutHelper.DefaultStartStopHotkey;
+        }
+
         var transcription = options.Transcription with
         {
-            PreferredLanguage = string.IsNullOrWhiteSpace(options.Transcription.PreferredLanguage) ? string.Empty : options.Transcription.PreferredLanguage.Trim(),
-            OutputFormats = options.Transcription.OutputFormats == TranscriptionOutputFormats.None ? TranscriptionOutputFormats.Txt : options.Transcription.OutputFormats
+            PreferredLanguage = string.IsNullOrWhiteSpace(options.Transcription.PreferredLanguage)
+                ? string.Empty
+                : options.Transcription.PreferredLanguage.Trim(),
+            OutputFormats = options.Transcription.OutputFormats == TranscriptionOutputFormats.None
+                ? TranscriptionOutputFormats.Txt
+                : options.Transcription.OutputFormats
         };
+
         return options with
         {
             OutputDirectory = output,
@@ -724,57 +989,104 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private static string BuildFfmpegMissingMessage(string detail)
     {
-        var baseMessage = "ffmpeg が見つかりません。録音を開始できません。" + Environment.NewLine +
-                          "ffmpeg をインストールして PATH を通した後に再試行してください。" + Environment.NewLine + Environment.NewLine +
-                          "インストール例: winget install Gyan.FFmpeg";
-        return string.IsNullOrWhiteSpace(detail) ? baseMessage : baseMessage + Environment.NewLine + Environment.NewLine + "詳細: " + detail;
-    }
+        var baseMessage =
+            "ffmpeg が見つかりません。録音を開始できません。" + Environment.NewLine +
+            "ffmpeg をインストールして PATH を通した後に再試行してください。" + Environment.NewLine +
+            Environment.NewLine +
+            "インストール例: winget install Gyan.FFmpeg";
 
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return baseMessage;
+        }
+
+        return baseMessage + Environment.NewLine + Environment.NewLine + "詳細: " + detail;
+    }
     private static double ConvertLevelToPercent(double linearLevel)
     {
         var clamped = Math.Clamp(linearLevel, 0d, 1d);
-        if (clamped <= 0d) return 0d;
+        if (clamped <= 0d)
+        {
+            return 0d;
+        }
+
         var db = (20d * Math.Log10(Math.Max(clamped, 1e-6d))) + MeterDisplayGainDb;
         var normalized = (db - MeterFloorDb) / (MeterCeilingDb - MeterFloorDb);
         return Math.Clamp(normalized * 100d, 0d, 100d);
     }
-
-    private void ResetLevelMeters() { SpeakerLevelPercent = 0d; MicLevelPercent = 0d; }
+    private void ResetLevelMeters()
+    {
+        SpeakerLevelPercent = 0d;
+        MicLevelPercent = 0d;
+    }
 
     private static Brush BuildRingBrush(bool isEnabled, double levelPercent, Color accent)
     {
-        if (!isEnabled) return new SolidColorBrush(Color.FromRgb(74, 86, 104));
+        if (!isEnabled)
+        {
+            return new SolidColorBrush(Color.FromRgb(74, 86, 104));
+        }
+
         var t = Math.Clamp(levelPercent / 100d, 0d, 1d);
-        return new SolidColorBrush(InterpolateColor(Color.FromRgb(49, 64, 85), accent, t));
+        var baseColor = Color.FromRgb(49, 64, 85);
+        var ring = InterpolateColor(baseColor, accent, t);
+        return new SolidColorBrush(ring);
     }
 
     private static Color InterpolateColor(Color from, Color to, double t)
-        => Color.FromRgb((byte)(from.R + ((to.R - from.R) * t)), (byte)(from.G + ((to.G - from.G) * t)), (byte)(from.B + ((to.B - from.B) * t)));
-
+    {
+        var r = (byte)(from.R + ((to.R - from.R) * t));
+        var g = (byte)(from.G + ((to.G - from.G) * t));
+        var b = (byte)(from.B + ((to.B - from.B) * t));
+        return Color.FromRgb(r, g, b);
+    }
     private static Brush BuildIconBrush(bool isEnabled, double levelPercent, Color accent)
     {
         _ = levelPercent;
         _ = accent;
-        return new SolidColorBrush(isEnabled ? Color.FromRgb(210, 216, 225) : Color.FromRgb(122, 134, 149));
-    }
 
+        if (!isEnabled)
+        {
+            return new SolidColorBrush(Color.FromRgb(122, 134, 149));
+        }
+
+        return new SolidColorBrush(Color.FromRgb(210, 216, 225));
+    }
     private static void RunOnUi(Action action)
     {
-        if (System.Windows.Application.Current.Dispatcher.CheckAccess()) { action(); return; }
+        if (System.Windows.Application.Current.Dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
         _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(action);
     }
 
     private void EnsureSpeakerDevicePopupState()
     {
-        if (!IsSpeakerDeviceSelectionEnabled) IsSpeakerDevicePopupOpenNormal = false;
+        if (IsSpeakerDeviceSelectionEnabled)
+        {
+            return;
+        }
+
+        IsSpeakerDevicePopupOpenNormal = false;
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
-        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return false;
+        }
+
         field = value;
         OnPropertyChanged(propertyName);
-        if (propertyName is nameof(SelectedOutputMode) or nameof(SelectedProcessItem)) RefreshCommands();
+        if (propertyName is nameof(SelectedOutputMode) or nameof(SelectedProcessItem))
+        {
+            RefreshCommands();
+        }
+
         return true;
     }
 
@@ -786,8 +1098,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _recordingService.StatisticsUpdated -= OnStatisticsUpdated;
         _transcriptionService.JobCompleted -= OnTranscriptionJobCompleted;
     }
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }
 
 public sealed class ProcessListItem
