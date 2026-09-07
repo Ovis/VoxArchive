@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.IO;
 using System.Runtime.CompilerServices;
+using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -10,52 +10,41 @@ namespace VoxArchive.Wpf;
 /// ライブラリで選択中の録音に対する文字起こし結果一覧・選択状態・結果操作を管理する
 /// </summary>
 /// <remarks>
-/// 結果一覧の走査と本文JSONの読み込みを分離し、録音選択時に全結果のsegmentsを読み込まない。
-/// 本文は結果が選択された時点で初めてロードする。再出力と削除も選択中のcanonical documentを基準に行う。
+/// canonical schemaやファイル走査はApplication Use Caseへ委譲する。
+/// WPFはUIの選択状態だけを保持し、Transcription Coreの永続化型やserviceへ直接依存しない。
 /// </remarks>
 public sealed class LibraryTranscriptionResultsState(
-    TranscriptionResultDiscoveryService discoveryService,
-    TranscriptionDocumentStore documentStore,
-    TranscriptionExportService exportService) : INotifyPropertyChanged
+    ITranscriptionApplicationService transcriptionApplicationService) : INotifyPropertyChanged
 {
     private LibraryTranscriptionResultItem? _selectedResult;
-    private TranscriptionDocument? _selectedDocument;
+    private TranscriptionResultDocumentInfo? _selectedDocument;
     private string? _audioFilePath;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>
-    /// 現在の録音に対応する文字起こし結果を取得する
-    /// </summary>
+    /// <summary>現在の録音に対応する文字起こし結果を取得する</summary>
     public ObservableCollection<LibraryTranscriptionResultItem> Results { get; } = [];
 
-    /// <summary>
-    /// 現在選択されている文字起こし結果を取得する
-    /// </summary>
+    /// <summary>現在選択されている文字起こし結果を取得する</summary>
     public LibraryTranscriptionResultItem? SelectedResult
     {
         get => _selectedResult;
         private set => SetField(ref _selectedResult, value);
     }
 
-    /// <summary>
-    /// 選択結果のcanonical documentを取得する
-    /// </summary>
-    public TranscriptionDocument? SelectedDocument
+    /// <summary>選択結果のUI向けcanonical documentを取得する</summary>
+    public TranscriptionResultDocumentInfo? SelectedDocument
     {
         get => _selectedDocument;
         private set => SetField(ref _selectedDocument, value);
     }
 
-    /// <summary>
-    /// 結果件数をライブラリ上で表示するための文字列を取得する
-    /// </summary>
+    /// <summary>結果件数をライブラリ上で表示するための文字列を取得する</summary>
     public string SummaryText => Results.Count == 0 ? "未文字起こし" : $"文字起こし {Results.Count}件";
 
     /// <summary>
     /// 録音を切り替え、対応する結果メタデータを再読み込みする
     /// </summary>
-    /// <param name="audioFilePath">選択された録音ファイル。nullの場合は選択解除として扱う</param>
     public async Task LoadForRecordingAsync(string? audioFilePath, CancellationToken cancellationToken = default)
     {
         _audioFilePath = audioFilePath;
@@ -69,24 +58,21 @@ public sealed class LibraryTranscriptionResultsState(
             return;
         }
 
-        var discovered = await discoveryService.DiscoverAsync(audioFilePath, cancellationToken);
-        foreach (var metadata in discovered)
+        var discovered = await transcriptionApplicationService.DiscoverResultsAsync(audioFilePath, cancellationToken);
+        foreach (var result in discovered)
         {
-            Results.Add(new LibraryTranscriptionResultItem(metadata));
+            Results.Add(new LibraryTranscriptionResultItem(result));
         }
         OnPropertyChanged(nameof(SummaryText));
 
-        // 現段階ではエンジン既定値がまだRequestへ一般化されていないため、最新結果を初期選択する。
-        // Default Engine+Modelが導入された後は、既定結果が存在すればそちらを優先する規則へ差し替える。
         if (Results.Count > 0)
         {
+            // Application側でCreatedAt降順に返すため、先頭が最新のcanonical resultとなる。
             await SelectAsync(Results[0], cancellationToken);
         }
     }
 
-    /// <summary>
-    /// 指定結果を選択し、その結果の本文を遅延読み込みする
-    /// </summary>
+    /// <summary>指定結果を選択し、その結果の本文を遅延読み込みする</summary>
     public async Task SelectAsync(LibraryTranscriptionResultItem result, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -96,46 +82,29 @@ public sealed class LibraryTranscriptionResultsState(
         }
 
         SelectedResult = result;
-        SelectedDocument = await documentStore.LoadAsync(result.DocumentPath, cancellationToken);
+        SelectedDocument = await transcriptionApplicationService.LoadResultAsync(result.DocumentPath, cancellationToken);
     }
 
-    /// <summary>
-    /// 選択中のcanonical documentから指定形式の派生ファイルを再生成する
-    /// </summary>
-    public async Task<IReadOnlyList<string>> ExportSelectedAsync(
+    /// <summary>選択中のcanonical documentから指定形式の派生ファイルを再生成する</summary>
+    public Task<IReadOnlyList<string>> ExportSelectedAsync(
         TranscriptionOutputFormats formats,
         CancellationToken cancellationToken = default)
     {
         var result = SelectedResult ?? throw new InvalidOperationException("文字起こし結果が選択されていません。");
-        var document = SelectedDocument ?? await documentStore.LoadAsync(result.DocumentPath, cancellationToken);
-        return await exportService.WriteDerivedAsync(result.DocumentPath, document, formats, cancellationToken);
+        return transcriptionApplicationService.ExportResultAsync(result.DocumentPath, formats, cancellationToken);
     }
 
     /// <summary>
     /// 選択中のcanonical JSONだけを削除し、派生TXT/SRT/VTTは残す
     /// </summary>
-    /// <remarks>
-    /// 派生ファイルはユーザーが手編集している可能性があるため、自動的には削除しない。
-    /// </remarks>
     public async Task DeleteSelectedAsync(CancellationToken cancellationToken = default)
     {
         var result = SelectedResult ?? throw new InvalidOperationException("文字起こし結果が選択されていません。");
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (File.Exists(result.DocumentPath))
-        {
-            File.Delete(result.DocumentPath);
-        }
-
+        await transcriptionApplicationService.DeleteResultAsync(result.DocumentPath, cancellationToken);
         await RefreshAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// 現在の録音に対する結果一覧を再走査する
-    /// </summary>
-    /// <remarks>
-    /// 文字起こし完了後に呼び出すことを想定し、同じdocument pathが残っていれば選択を維持する。
-    /// </remarks>
+    /// <summary>現在の録音に対する結果一覧を再走査する</summary>
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         var selectedPath = SelectedResult?.DocumentPath;
