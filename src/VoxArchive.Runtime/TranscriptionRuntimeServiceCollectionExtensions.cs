@@ -55,6 +55,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<WhisperEngineDiagnostics>();
         services.AddSingleton<WhisperLanguageCapability>();
         services.AddSingleton<WhisperExecutionValidator>();
+        services.AddSingleton<WhisperArtifactNamingCapability>();
 
         // ReazonSpeech固有の実装・capabilityはReazonSpeech project内に閉じ込める。
         services.AddSingleton<ReazonSpeechRecognizer>();
@@ -63,6 +64,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<ReazonSpeechModelProvider>();
         services.AddSingleton<ReazonSpeechModelRequirementResolver>();
         services.AddSingleton<ReazonSpeechLanguageCapability>();
+        services.AddSingleton<ReazonSpeechArtifactNamingCapability>();
 
         services.AddSingleton(sp => new TranscriptionEngineRegistry(
         [
@@ -73,7 +75,8 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
                 sp.GetRequiredService<WhisperModelRequirementResolver>(),
                 sp.GetRequiredService<WhisperEngineDiagnostics>(),
                 sp.GetRequiredService<WhisperLanguageCapability>(),
-                sp.GetRequiredService<WhisperExecutionValidator>()),
+                sp.GetRequiredService<WhisperExecutionValidator>(),
+                sp.GetRequiredService<WhisperArtifactNamingCapability>()),
             new TranscriptionEngineRegistration(
                 sp.GetRequiredService<ReazonSpeechTranscriptionEngine>(),
                 sp.GetRequiredService<ReazonSpeechEngineSettingsProvider>(),
@@ -81,7 +84,8 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
                 sp.GetRequiredService<ReazonSpeechModelRequirementResolver>(),
                 null,
                 sp.GetRequiredService<ReazonSpeechLanguageCapability>(),
-                null),
+                null,
+                sp.GetRequiredService<ReazonSpeechArtifactNamingCapability>()),
         ]));
 
         services.AddSingleton<TranscriptionModelManager>();
