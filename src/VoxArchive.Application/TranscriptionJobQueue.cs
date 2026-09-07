@@ -74,6 +74,20 @@ public sealed class TranscriptionJobQueue : IDisposable
             throw;
         }
 
+        if (recordingOptions.Transcription.DiagnosticsLogEnabled)
+        {
+            // Queue投入前に終了するRejected/Skipped/RequiresModelも診断対象なので、
+            // Job descriptorが生成されない結果を含めてAdmission境界で構造化して記録する。
+            _logger.LogInformation(
+                "Transcription admission completed. File={File}, Trigger={Trigger}, Outcome={Outcome}, Engine={Engine}, MissingModel={MissingModel}, Message={Message}",
+                audioFilePath,
+                trigger,
+                admission.Outcome,
+                recordingOptions.Transcription.DefaultEngine,
+                admission.MissingModel?.ModelId,
+                admission.Message);
+        }
+
         if (!admission.Succeeded || admission.Job is null)
         {
             ClearStateOnly(audioFilePath);
