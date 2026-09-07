@@ -11,6 +11,7 @@ public sealed class ReazonSpeechRecognizer
 {
     private const int ModelSampleRate = 16_000;
     private const int FeatureDimension = 80;
+    private const string TokenTimestampTraceMetadataKey = "k2TokenTimestampTrace";
 
     /// <summary>
     /// 指定したRecognitionChunkを順次認識する
@@ -43,11 +44,29 @@ public sealed class ReazonSpeechRecognizer
 
             // Decodeはnative同期APIであり呼び出し途中を安全に強制停止できない。
             // safe boundaryであるchunk間ではCancellationTokenを必ず確認し、UIスレッド自体はTask.Runで塞がない。
-            var text = await Task.Run(() => Recognize(recognizer, k2InputSamples), CancellationToken.None);
+            var recognition = await Task.Run(
+                () => Recognize(recognizer, k2InputSamples),
+                CancellationToken.None);
             cancellationToken.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(text))
+            if (string.IsNullOrWhiteSpace(recognition.Text))
             {
                 continue;
+            }
+
+            IReadOnlyDictionary<string, object?>? metadata = null;
+            if (diagnosticsEnabled)
+            {
+                // ReazonSpeech公式K2 APIのtimestampはsubwordごとの単一点であり、segmentの終了時刻は提供されない。
+                // 存在しないrangeを推測してcanonical時刻へ混ぜず、raw→補正後sampleのtraceだけを診断用metadataへ保持する。
+                // 通常ログにはtoken/textを出さず、診断OFF時はtrace生成自体を避ける。
+                var tokenTimestampTrace = ReazonSpeechK2TokenTimestampTraceBuilder.Build(
+                    recognition.Tokens,
+                    recognition.Timestamps,
+                    chunk);
+                metadata = new Dictionary<string, object?>
+                {
+                    [TokenTimestampTraceMetadataKey] = tokenTimestampTrace
+                };
             }
 
             var start = SamplesToTimeSpan(chunk.StartSample, audio.Format.SampleRate);
@@ -55,8 +74,9 @@ public sealed class ReazonSpeechRecognizer
             segments.Add(new RecognizedTranscriptionSegment(
                 start,
                 end,
-                text.Trim(),
-                chunk.RecognitionChunkId));
+                recognition.Text.Trim(),
+                chunk.RecognitionChunkId,
+                metadata));
         }
         return segments;
     }
@@ -79,12 +99,19 @@ public sealed class ReazonSpeechRecognizer
         return config;
     }
 
-    private static string Recognize(OfflineRecognizer recognizer, float[] samples)
+    private static ReazonSpeechNativeRecognitionResult Recognize(OfflineRecognizer recognizer, float[] samples)
     {
         using var stream = recognizer.CreateStream();
         stream.AcceptWaveform(ModelSampleRate, samples);
         recognizer.Decode(stream);
-        return stream.Result.Text ?? string.Empty;
+        var result = stream.Result;
+
+        // OfflineStreamの破棄後にnative領域へ依存しないよう、必要な結果をmanaged配列へコピーしてから返す。
+        // token timestampは診断ON時だけ利用するが、Decode境界でまとめてcopyしてlifetimeを明確にする。
+        return new ReazonSpeechNativeRecognitionResult(
+            result.Text ?? string.Empty,
+            result.Tokens?.ToArray() ?? [],
+            result.Timestamps?.ToArray() ?? []);
     }
 
     private static async Task<float[]> ReadChunkSamplesAsync(
@@ -148,4 +175,12 @@ public sealed class ReazonSpeechRecognizer
             throw new FileNotFoundException("ReazonSpeechモデルを構成するファイルが未配置または不完全です。");
         }
     }
+
+    /// <summary>
+    /// native OfflineRecognizerResultから文字列とtimestamp情報をmanaged lifetimeへ切り離して保持する
+    /// </summary>
+    private sealed record ReazonSpeechNativeRecognitionResult(
+        string Text,
+        IReadOnlyList<string> Tokens,
+        IReadOnlyList<float> Timestamps);
 }
