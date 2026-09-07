@@ -57,7 +57,9 @@ public partial class TranscriptionModelDownloadProgressWindow : Window, ITranscr
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(CloseAfterCompletion);
+            // Application側のfinally直後にDisposeされてもWindowだけ残らないよう、
+            // 完了時のCloseはUIスレッドで同期的に完了させる。
+            Dispatcher.Invoke(CloseAfterCompletion);
             return;
         }
 
