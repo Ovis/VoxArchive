@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.SileroVad;
@@ -9,27 +10,18 @@ namespace VoxArchive.Transcription.SileroVad;
 /// 同一ジョブ内でSileroの途中結果とfallback結果を混在させないため、Silero失敗時は結果をすべて破棄し、
 /// 同じPrepared Audioをfallback detectorで先頭から再解析する。Sileroの正常な0件結果は「無音」としてそのまま返す。
 /// </remarks>
-public sealed class SileroPreferredSpeechRegionDetector : ISpeechRegionDetector
+public sealed class SileroPreferredSpeechRegionDetector(
+    ISpeechRegionDetector sileroDetector,
+    ISpeechRegionDetector fallbackDetector,
+    ILogger<SileroPreferredSpeechRegionDetector> logger) : ISpeechRegionDetector
 {
     private const int ConsecutiveInferenceFailureLimit = 3;
-    private readonly ISpeechRegionDetector _sileroDetector;
-    private readonly ISpeechRegionDetector _fallbackDetector;
+    private readonly ISpeechRegionDetector _sileroDetector = sileroDetector ?? throw new ArgumentNullException(nameof(sileroDetector));
+    private readonly ISpeechRegionDetector _fallbackDetector = fallbackDetector ?? throw new ArgumentNullException(nameof(fallbackDetector));
+    private readonly ILogger<SileroPreferredSpeechRegionDetector> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly object _stateLock = new();
     private int _consecutiveInferenceFailures;
     private bool _sileroSuppressedForSession;
-
-    /// <summary>
-    /// Silero detectorとfallback detectorを指定して初期化する
-    /// </summary>
-    /// <param name="sileroDetector">Silero VADを実行するdetector</param>
-    /// <param name="fallbackDetector">Sileroを利用できない場合に先頭から再実行する音量ベースVAD</param>
-    public SileroPreferredSpeechRegionDetector(
-        ISpeechRegionDetector sileroDetector,
-        ISpeechRegionDetector fallbackDetector)
-    {
-        _sileroDetector = sileroDetector ?? throw new ArgumentNullException(nameof(sileroDetector));
-        _fallbackDetector = fallbackDetector ?? throw new ArgumentNullException(nameof(fallbackDetector));
-    }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<SpeechRegion>> DetectAsync(
@@ -42,6 +34,7 @@ public sealed class SileroPreferredSpeechRegionDetector : ISpeechRegionDetector
 
         if (IsSileroSuppressed())
         {
+            _logger.LogInformation("Silero VAD is suppressed for this application session. Falling back to volume-based VAD.");
             return await RunFallbackAsync(audio, settings, cancellationToken);
         }
 
@@ -59,15 +52,21 @@ public sealed class SileroPreferredSpeechRegionDetector : ISpeechRegionDetector
             // ユーザーキャンセルはSilero障害ではないため、fallbackも失敗回数更新も行わない。
             throw;
         }
-        catch (SileroVadUnavailableException)
+        catch (SileroVadUnavailableException ex)
         {
             // 未配置・破損・初期化失敗はモデル利用不可としてfallbackするが、
             // 「3回連続した推論失敗」によるsession suppressionの対象には含めない。
+            _logger.LogWarning(ex, "Silero VAD is unavailable. Falling back to volume-based VAD.");
             return await RunFallbackAsync(audio, settings, cancellationToken);
         }
-        catch
+        catch (Exception ex)
         {
-            RecordInferenceFailure();
+            var failureCount = RecordInferenceFailure();
+            _logger.LogWarning(
+                ex,
+                "Silero VAD inference failed. Falling back to volume-based VAD. ConsecutiveFailures={ConsecutiveFailures} SuppressedForSession={SuppressedForSession}",
+                failureCount,
+                failureCount >= ConsecutiveInferenceFailureLimit);
 
             // Silero側で途中までregionを得ていても採用せず、同一Prepared Audioをfallbackで最初から解析する。
             // fallbackまで失敗した場合はその例外を上位へ伝え、VADなしでASRへ進ませない。
@@ -97,7 +96,7 @@ public sealed class SileroPreferredSpeechRegionDetector : ISpeechRegionDetector
         }
     }
 
-    private void RecordInferenceFailure()
+    private int RecordInferenceFailure()
     {
         lock (_stateLock)
         {
@@ -107,6 +106,7 @@ public sealed class SileroPreferredSpeechRegionDetector : ISpeechRegionDetector
                 // suppressionはプロセス内状態にだけ保持する。アプリ再起動時には再度Sileroを試す仕様のため永続化しない。
                 _sileroSuppressedForSession = true;
             }
+            return _consecutiveInferenceFailures;
         }
     }
 }
