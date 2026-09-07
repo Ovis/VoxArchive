@@ -18,7 +18,7 @@ public sealed class LibraryRetranscriptionService(
         CancellationToken cancellationToken = default)
     {
         var currentOptions = await settingsService.LoadRecordingOptionsAsync(cancellationToken);
-        if (!currentOptions.TranscriptionEnabled)
+        if (!currentOptions.Transcription.Enabled)
         {
             throw new InvalidOperationException("文字起こし機能が無効です。設定画面で有効化してください。");
         }
@@ -46,7 +46,7 @@ public sealed class LibraryRetranscriptionService(
             TranscriptionTrigger.Manual,
             cancellationToken);
 
-        if (result.Enqueued && prepared.Options.TranscriptionToastNotificationEnabled)
+        if (result.Enqueued && prepared.Options.Transcription.ToastNotificationEnabled)
         {
             AppNotificationHub.Notify(
                 "VoxArchive",
