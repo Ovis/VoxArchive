@@ -13,11 +13,11 @@ public sealed class ReazonSpeechRecognizer
     private const int FeatureDimension = 80;
 
     /// <summary>
-    /// 指定したVAD区間を順次認識する
+    /// 指定したRecognitionChunkを順次認識する
     /// </summary>
     public async Task<IReadOnlyList<RecognizedTranscriptionSegment>> RecognizeAsync(
         IPreparedTranscriptionAudio audio,
-        IReadOnlyList<SpeechRegion> regions,
+        IReadOnlyList<RecognitionChunk> chunks,
         ReazonSpeechEngineOptions options,
         bool diagnosticsEnabled,
         CancellationToken cancellationToken = default)
@@ -25,20 +25,20 @@ public sealed class ReazonSpeechRecognizer
         ValidateModelFiles(options);
         var config = CreateRecognizerConfig(options, diagnosticsEnabled);
 
-        // ONNXモデルのロードは高コストなので、VAD区間ごとにRecognizerを作り直さず1 Jobで共有する。
+        // ONNXモデルのロードは高コストなので、RecognitionChunkごとにRecognizerを作り直さず1 Jobで共有する。
         using var recognizer = new OfflineRecognizer(config);
-        var segments = new List<RecognizedTranscriptionSegment>(regions.Count);
-        foreach (var region in regions)
+        var segments = new List<RecognizedTranscriptionSegment>(chunks.Count);
+        foreach (var chunk in chunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var samples = await ReadRegionSamplesAsync(audio, region, cancellationToken);
+            var samples = await ReadChunkSamplesAsync(audio, chunk, cancellationToken);
             if (samples.Length == 0)
             {
                 continue;
             }
 
             // Decodeはnative同期APIであり呼び出し途中を安全に強制停止できない。
-            // safe boundaryである区間間ではCancellationTokenを必ず確認し、UIスレッド自体はTask.Runで塞がない。
+            // safe boundaryであるchunk間ではCancellationTokenを必ず確認し、UIスレッド自体はTask.Runで塞がない。
             var text = await Task.Run(() => Recognize(recognizer, samples), CancellationToken.None);
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(text))
@@ -46,9 +46,13 @@ public sealed class ReazonSpeechRecognizer
                 continue;
             }
 
-            var start = SamplesToTimeSpan(region.StartSample, audio.Format.SampleRate);
-            var end = SamplesToTimeSpan(region.EndSample, audio.Format.SampleRate);
-            segments.Add(new RecognizedTranscriptionSegment(start, end, text.Trim()));
+            var start = SamplesToTimeSpan(chunk.StartSample, audio.Format.SampleRate);
+            var end = SamplesToTimeSpan(chunk.EndSample, audio.Format.SampleRate);
+            segments.Add(new RecognizedTranscriptionSegment(
+                start,
+                end,
+                text.Trim(),
+                chunk.RecognitionChunkId));
         }
         return segments;
     }
@@ -79,9 +83,9 @@ public sealed class ReazonSpeechRecognizer
         return stream.Result.Text ?? string.Empty;
     }
 
-    private static async Task<float[]> ReadRegionSamplesAsync(
+    private static async Task<float[]> ReadChunkSamplesAsync(
         IPreparedTranscriptionAudio audio,
-        SpeechRegion region,
+        RecognitionChunk chunk,
         CancellationToken cancellationToken)
     {
         await using var source = await audio.OpenReadAsync(cancellationToken);
@@ -93,9 +97,9 @@ public sealed class ReazonSpeechRecognizer
                 $"ReazonSpeech入力は16kHz monoである必要があります。実際={provider.WaveFormat.SampleRate}Hz/{provider.WaveFormat.Channels}ch");
         }
 
-        // SpeechRegionはPrepared Audio上のsample座標を正本とするため、秒への往復変換を挟まず直接切り出す。
-        var skipSamples = Math.Max(0L, region.StartSample);
-        var requestedSamples = checked((int)Math.Min(int.MaxValue, Math.Max(0L, region.Length)));
+        // RecognitionChunkはPrepared Audio上のsample座標を正本とするため、秒への往復変換を挟まず直接切り出す。
+        var skipSamples = Math.Max(0L, chunk.StartSample);
+        var requestedSamples = checked((int)Math.Min(int.MaxValue, Math.Max(0L, chunk.Length)));
         var scratch = new float[8192];
         while (skipSamples > 0)
         {
