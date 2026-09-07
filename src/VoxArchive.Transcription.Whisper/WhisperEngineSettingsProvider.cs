@@ -4,7 +4,7 @@ using VoxArchive.Transcription.Abstractions;
 namespace VoxArchive.Transcription.Whisper;
 
 /// <summary>
-/// Whisper固有settings JSONをtyped optionsへ変換する
+/// Whisper固有settings JSONとtyped optionsの相互変換を担当する
 /// </summary>
 public sealed class WhisperEngineSettingsProvider : ITranscriptionEngineSettingsProvider
 {
@@ -30,6 +30,18 @@ public sealed class WhisperEngineSettingsProvider : ITranscriptionEngineSettings
             Language = ReadString(settings, "language") ?? string.Empty,
             DiagnosticsEnabled = ReadBoolean(settings, "diagnosticsEnabled") ?? false
         };
+    }
+
+    /// <inheritdoc />
+    public JsonElement Serialize(ITranscriptionEngineOptions options)
+    {
+        var whisper = options as WhisperEngineOptions
+            ?? throw new ArgumentException("Whisper以外のEngine optionsが渡されました。", nameof(options));
+        return JsonSerializer.SerializeToElement(new
+        {
+            modelId = whisper.ModelId.Value,
+            executionMode = whisper.ExecutionMode.ToString().ToLowerInvariant()
+        });
     }
 
     /// <inheritdoc />
