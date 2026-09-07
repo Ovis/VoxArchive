@@ -81,12 +81,18 @@ public partial class MainWindow : Window
         try
         {
             var processPath = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(processPath)) return null;
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return null;
+            }
+
             return Drawing.Icon.ExtractAssociatedIcon(processPath)?.Clone() as Drawing.Icon;
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
     }
-
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         _hwndSource = (HwndSource?)PresentationSource.FromVisual(this);
@@ -96,13 +102,24 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        if (_isExitRequested) return;
+        if (_isExitRequested)
+        {
+            return;
+        }
 
         if (_viewModel is not null && !_viewModel.SuppressCloseToTrayNotice)
         {
-            var notice = new CloseToTrayNoticeWindow { Owner = this };
+            var notice = new CloseToTrayNoticeWindow
+            {
+                Owner = this
+            };
+
             _ = notice.ShowDialog();
-            if (notice.SuppressFutureNotice) _ = _viewModel.SetSuppressCloseToTrayNoticeAsync(true);
+
+            if (notice.SuppressFutureNotice)
+            {
+                _ = _viewModel.SetSuppressCloseToTrayNoticeAsync(true);
+            }
         }
 
         e.Cancel = true;
@@ -111,7 +128,10 @@ public partial class MainWindow : Window
 
     private void OnStateChanged(object? sender, EventArgs e)
     {
-        if (WindowState == WindowState.Minimized) HideToTray();
+        if (WindowState == WindowState.Minimized)
+        {
+            HideToTray();
+        }
     }
 
     private void OnClosed(object? sender, EventArgs e)
@@ -125,6 +145,7 @@ public partial class MainWindow : Window
 
         _trayAppIcon?.Dispose();
         _trayAppIcon = null;
+
         if (_notifyIcon is not null)
         {
             _notifyIcon.Visible = false;
@@ -141,7 +162,12 @@ public partial class MainWindow : Window
             _ = Dispatcher.BeginInvoke(() => OnBalloonRequested(title, message, icon));
             return;
         }
-        if (_notifyIcon is null) return;
+
+        if (_notifyIcon is null)
+        {
+            return;
+        }
+
         _notifyIcon.BalloonTipTitle = title;
         _notifyIcon.BalloonTipText = message;
         _notifyIcon.BalloonTipIcon = icon;
@@ -150,9 +176,17 @@ public partial class MainWindow : Window
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (_viewModel is not null) _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        if (_viewModel is not null)
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
         _viewModel = e.NewValue as MainViewModel;
-        if (_viewModel is null) return;
+        if (_viewModel is null)
+        {
+            return;
+        }
+
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         ApplyWindowSize();
         UpdateGlobalStartStopHotkey();
@@ -160,14 +194,25 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(MainViewModel.WindowWidth) or nameof(MainViewModel.WindowHeight)) ApplyWindowSize();
-        if (e.PropertyName == nameof(MainViewModel.StartStopHotkeyText)) UpdateGlobalStartStopHotkey();
+        if (e.PropertyName is nameof(MainViewModel.WindowWidth) or nameof(MainViewModel.WindowHeight))
+        {
+            ApplyWindowSize();
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.StartStopHotkeyText))
+        {
+            UpdateGlobalStartStopHotkey();
+        }
     }
 
     private void OpenLibraryFromTray()
     {
         ShowFromTray();
-        if (_viewModel?.OpenLibraryCommand.CanExecute(null) == true) _viewModel.OpenLibraryCommand.Execute(null);
+
+        if (_viewModel?.OpenLibraryCommand.CanExecute(null) == true)
+        {
+            _viewModel.OpenLibraryCommand.Execute(null);
+        }
     }
 
     private async Task ExitFromTrayAsync()
@@ -183,14 +228,23 @@ public partial class MainWindow : Window
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning,
                 MessageBoxResult.Cancel);
-            if (result != MessageBoxResult.OK) return;
+            if (result != MessageBoxResult.OK)
+            {
+                return;
+            }
 
-            // 明示終了では確認直後にApplication所有のdownloadを停止し、staging cleanup完了まで待つ。
+            // Close後のOnExitまで待つとUI上の確認と実際のキャンセルに時間差が生じるため、
+            // 明示終了ではApplicationが所有する取得処理を停止し、stagingのbest effortクリーンアップ完了まで待つ。
             await _transcriptionApplicationService.CancelActiveModelDownloadAndWaitAsync();
         }
 
         _isExitRequested = true;
-        if (_notifyIcon is not null) _notifyIcon.Visible = false;
+
+        if (_notifyIcon is not null)
+        {
+            _notifyIcon.Visible = false;
+        }
+
         Close();
     }
 
@@ -211,44 +265,74 @@ public partial class MainWindow : Window
 
     private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton == MouseButton.Left) DragMove();
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            DragMove();
+        }
     }
 
-    private void OnTitleBarCloseButtonClick(object sender, RoutedEventArgs e) => Close();
-
+    private void OnTitleBarCloseButtonClick(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
     private void OnDeviceListBoxPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (_viewModel is null) return;
+        if (_viewModel is null)
+        {
+            return;
+        }
+
         var origin = e.OriginalSource as DependencyObject;
         var listBoxItem = FindAncestor<ListBoxItem>(origin);
-        if (listBoxItem is null) return;
+        if (listBoxItem is null)
+        {
+            return;
+        }
+
         _viewModel.IsSpeakerDevicePopupOpenNormal = false;
         _viewModel.IsMicDevicePopupOpenNormal = false;
     }
 
     private void OnProcessListBoxPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (_viewModel is null) return;
+        if (_viewModel is null)
+        {
+            return;
+        }
+
         var origin = e.OriginalSource as DependencyObject;
         var listBoxItem = FindAncestor<ListBoxItem>(origin);
-        if (listBoxItem is null) return;
+        if (listBoxItem is null)
+        {
+            return;
+        }
+
         _viewModel.IsProcessPopupOpenNormal = false;
     }
-
-    private static T? FindAncestor<T>(DependencyObject? start) where T : DependencyObject
+    private static T? FindAncestor<T>(DependencyObject? start)
+        where T : DependencyObject
     {
         var current = start;
         while (current is not null)
         {
-            if (current is T result) return result;
+            if (current is T result)
+            {
+                return result;
+            }
+
             current = VisualTreeHelper.GetParent(current);
         }
+
         return null;
     }
 
     private void ApplyWindowSize()
     {
-        if (_viewModel is null) return;
+        if (_viewModel is null)
+        {
+            return;
+        }
+
         Width = _viewModel.WindowWidth;
         Height = _viewModel.WindowHeight;
         MinWidth = _viewModel.WindowWidth;
@@ -260,26 +344,46 @@ public partial class MainWindow : Window
     private void UpdateGlobalStartStopHotkey()
     {
         UnregisterGlobalStartStopHotkey();
-        if (_viewModel is null || _hwndSource is null) return;
+
+        if (_viewModel is null || _hwndSource is null)
+        {
+            return;
+        }
 
         if (!KeyboardShortcutHelper.TryParseAndNormalize(_viewModel.StartStopHotkeyText, out var gesture, out var normalized)
-            || gesture is null) return;
+            || gesture is null)
+        {
+            return;
+        }
 
         var modifiers = ToNativeModifiers(gesture.Modifiers) | ModNoRepeat;
         var virtualKey = (uint)KeyInterop.VirtualKeyFromKey(gesture.Key);
-        if (virtualKey == 0) return;
+        if (virtualKey == 0)
+        {
+            return;
+        }
 
         if (!RegisterHotKey(_hwndSource.Handle, StartStopHotkeyId, modifiers, virtualKey))
         {
-            ModernDialog.Show(this, $"ショートカット '{normalized}' を登録できませんでした。\n他アプリで使用中の可能性があります。", "ホットキー登録失敗", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ModernDialog.Show(
+                this,
+                $"ショートカット '{normalized}' を登録できませんでした。\n他アプリで使用中の可能性があります。",
+                "ホットキー登録失敗",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
             return;
         }
+
         _isStartStopHotkeyRegistered = true;
     }
 
     private void UnregisterGlobalStartStopHotkey()
     {
-        if (!_isStartStopHotkeyRegistered || _hwndSource is null) return;
+        if (!_isStartStopHotkeyRegistered || _hwndSource is null)
+        {
+            return;
+        }
+
         _ = UnregisterHotKey(_hwndSource.Handle, StartStopHotkeyId);
         _isStartStopHotkeyRegistered = false;
     }
@@ -288,19 +392,40 @@ public partial class MainWindow : Window
     {
         if (msg == WmHotKey && wParam.ToInt32() == StartStopHotkeyId)
         {
-            if (_viewModel?.StartStopCommand.CanExecute(null) == true) _viewModel.StartStopCommand.Execute(null);
+            if (_viewModel?.StartStopCommand.CanExecute(null) == true)
+            {
+                _viewModel.StartStopCommand.Execute(null);
+            }
+
             handled = true;
         }
+
         return IntPtr.Zero;
     }
 
     private static uint ToNativeModifiers(ModifierKeys modifiers)
     {
         var native = 0u;
-        if (modifiers.HasFlag(ModifierKeys.Alt)) native |= ModAlt;
-        if (modifiers.HasFlag(ModifierKeys.Control)) native |= ModControl;
-        if (modifiers.HasFlag(ModifierKeys.Shift)) native |= ModShift;
-        if (modifiers.HasFlag(ModifierKeys.Windows)) native |= ModWin;
+        if (modifiers.HasFlag(ModifierKeys.Alt))
+        {
+            native |= ModAlt;
+        }
+
+        if (modifiers.HasFlag(ModifierKeys.Control))
+        {
+            native |= ModControl;
+        }
+
+        if (modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            native |= ModShift;
+        }
+
+        if (modifiers.HasFlag(ModifierKeys.Windows))
+        {
+            native |= ModWin;
+        }
+
         return native;
     }
 
