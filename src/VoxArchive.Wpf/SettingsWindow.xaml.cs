@@ -53,7 +53,6 @@ public partial class SettingsWindow : Window
         PreviewKeyDown += OnWindowPreviewKeyDown;
 
         InitializeTranscriptionTabs();
-        WhisperExecutionMode = "auto";
         WhisperModelId = "small";
         ReazonSpeechModelId = "ja";
         AutoTranscriptionPriority = TranscriptionPriority.Low;
@@ -143,11 +142,19 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// Whisperへ要求する実行方式を安定文字列IDで取得・設定する
+    /// Whisperが公開する実行方式descriptorを設定画面へ投影する
+    /// </summary>
+    public IReadOnlyList<TranscriptionExecutionModeInfo> WhisperExecutionModes
+    {
+        set => PopulateExecutionModes(value);
+    }
+
+    /// <summary>
+    /// Whisperへ要求する実行方式をEngineが公開する安定文字列IDで取得・設定する
     /// </summary>
     public string WhisperExecutionMode
     {
-        get => NormalizeExecutionMode((ExecutionModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString());
+        get => (ExecutionModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString()?.Trim() ?? string.Empty;
         set => SelectExecutionMode(value);
     }
 
@@ -487,30 +494,43 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void PopulateExecutionModes(IReadOnlyList<TranscriptionExecutionModeInfo> modes)
+    {
+        ArgumentNullException.ThrowIfNull(modes);
+
+        ExecutionModeComboBox.Items.Clear();
+        foreach (var mode in modes)
+        {
+            ExecutionModeComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = mode.DisplayName,
+                Tag = mode.Id
+            });
+        }
+
+        ExecutionModeComboBox.IsEnabled = ExecutionModeComboBox.Items.Count > 0;
+        if (ExecutionModeComboBox.Items.Count > 0)
+        {
+            ExecutionModeComboBox.SelectedIndex = 0;
+        }
+    }
+
     private void SelectExecutionMode(string? value)
     {
-        var target = NormalizeExecutionMode(value);
+        var target = value?.Trim() ?? string.Empty;
         foreach (var item in ExecutionModeComboBox.Items.OfType<ComboBoxItem>())
         {
-            if (NormalizeExecutionMode(item.Tag?.ToString()) == target)
+            if (string.Equals(item.Tag?.ToString()?.Trim(), target, StringComparison.OrdinalIgnoreCase))
             {
                 ExecutionModeComboBox.SelectedItem = item;
                 return;
             }
         }
 
-        ExecutionModeComboBox.SelectedIndex = 0;
-    }
-
-    private static string NormalizeExecutionMode(string? value)
-    {
-        return value?.Trim().ToLowerInvariant() switch
+        if (ExecutionModeComboBox.Items.Count > 0)
         {
-            "cpu" or "cpuonly" => "cpu",
-            "cuda" => "cuda",
-            "vulkan" => "vulkan",
-            _ => "auto"
-        };
+            ExecutionModeComboBox.SelectedIndex = 0;
+        }
     }
 
     private void SelectLanguage(string? value)
