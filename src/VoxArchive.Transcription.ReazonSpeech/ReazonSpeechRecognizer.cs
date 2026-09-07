@@ -20,10 +20,11 @@ public sealed class ReazonSpeechRecognizer
         IPreparedTranscriptionAudio audio,
         IReadOnlyList<SpeechRegion> regions,
         ReazonSpeechEngineOptions options,
+        bool diagnosticsEnabled,
         CancellationToken cancellationToken = default)
     {
         ValidateModelFiles(options);
-        var config = CreateRecognizerConfig(options);
+        var config = CreateRecognizerConfig(options, diagnosticsEnabled);
 
         // ONNXモデルのロードは高コストなので、VAD区間ごとにRecognizerを作り直さず1 Jobで共有する。
         using var recognizer = new OfflineRecognizer(config);
@@ -51,7 +52,7 @@ public sealed class ReazonSpeechRecognizer
         return segments;
     }
 
-    private static OfflineRecognizerConfig CreateRecognizerConfig(ReazonSpeechEngineOptions options)
+    private static OfflineRecognizerConfig CreateRecognizerConfig(ReazonSpeechEngineOptions options, bool diagnosticsEnabled)
     {
         var config = new OfflineRecognizerConfig();
         config.FeatConfig.SampleRate = ModelSampleRate;
@@ -64,7 +65,7 @@ public sealed class ReazonSpeechRecognizer
         // 現行ReazonSpeech実装の挙動を変えないためCPU固定・最大4 thread・greedy_searchを維持する。
         config.ModelConfig.Provider = "cpu";
         config.ModelConfig.NumThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
-        config.ModelConfig.Debug = options.DiagnosticsEnabled ? 1 : 0;
+        config.ModelConfig.Debug = diagnosticsEnabled ? 1 : 0;
         config.DecodingMethod = "greedy_search";
         return config;
     }
