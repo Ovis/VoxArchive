@@ -53,6 +53,7 @@ public sealed class TranscriptionEngineRegistryTests
     private sealed class StubSettingsProvider : ITranscriptionEngineSettingsProvider
     {
         public ITranscriptionEngineOptions Deserialize(JsonElement settings, int schemaVersion) => new StubOptions();
+        public JsonElement Serialize(ITranscriptionEngineOptions options) => JsonSerializer.SerializeToElement(new { });
         public IReadOnlyList<TranscriptionValidationError> Validate(ITranscriptionEngineOptions options) => [];
     }
 
