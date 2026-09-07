@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace VoxArchive.Transcription.Abstractions;
 
 /// <summary>
@@ -9,20 +11,13 @@ namespace VoxArchive.Transcription.Abstractions;
 /// </remarks>
 public readonly record struct AudioSampleRange(long StartSample, long EndSample)
 {
-    /// <summary>
-    /// 区間に含まれるsample数を取得する
-    /// </summary>
+    /// <summary>区間に含まれるsample数を取得する</summary>
     public long Length => EndSample - StartSample;
 }
 
 /// <summary>
 /// VADが発話と判断した原音上の範囲を表す
 /// </summary>
-/// <param name="SpeechRegionId">ジョブ内で一意となる連番ID</param>
-/// <param name="StartSample">paddingを含む開始sample位置</param>
-/// <param name="EndSample">paddingを含む終了sample位置。区間は半開区間として扱う</param>
-/// <param name="CoreRanges">VADが実際に発話として検出したpadding前の範囲</param>
-/// <param name="SourceRawSpeechRegionIds">この区間の生成元となったraw region ID</param>
 public sealed record SpeechRegion(
     int SpeechRegionId,
     long StartSample,
@@ -30,45 +25,38 @@ public sealed record SpeechRegion(
     IReadOnlyList<AudioSampleRange> CoreRanges,
     IReadOnlyList<int> SourceRawSpeechRegionIds)
 {
-    /// <summary>
-    /// paddingを含む区間のsample数を取得する
-    /// </summary>
+    /// <summary>paddingを含む区間のsample数を取得する</summary>
     public long Length => EndSample - StartSample;
 }
 
 /// <summary>
 /// ASRエンジンを1回呼び出すための原音上の範囲を表す
 /// </summary>
-/// <param name="RecognitionChunkId">ジョブ内で一意となる連番ID</param>
-/// <param name="SpeechRegionId">生成元となったSpeechRegion ID</param>
-/// <param name="StartSample">開始sample位置</param>
-/// <param name="EndSample">終了sample位置。区間は半開区間として扱う</param>
 public sealed record RecognitionChunk(
     int RecognitionChunkId,
     int SpeechRegionId,
     long StartSample,
     long EndSample)
 {
-    /// <summary>
-    /// ASRへ渡す区間のsample数を取得する
-    /// </summary>
+    /// <summary>ASRへ渡す区間のsample数を取得する</summary>
     public long Length => EndSample - StartSample;
 }
 
 /// <summary>
-/// VADが生成したSpeechRegionをASRエンジン固有の呼び出し単位へ分割する
+/// VAD設定をQueue投入時点で固定するopaque snapshotを表す
 /// </summary>
 /// <remarks>
-/// VADの責務へエンジン固有の入力長制約を持ち込まないため、
-/// SpeechRegionとRecognitionChunkの変換を独立した契約として定義する。
+/// Common AbstractionsへSilero固有型を持ち込まず、Silero projectがschemaとJSONを解釈する。
+/// JsonElementはAdmission時にCloneした値を渡し、設定画面の変更が実行中ジョブへ混入しないようにする。
 /// </remarks>
+public sealed record SpeechRegionDetectorSettingsSnapshot(int SchemaVersion, JsonElement Settings);
+
+/// <summary>
+/// VADが生成したSpeechRegionをASRエンジン固有の呼び出し単位へ分割する
+/// </summary>
 public interface IRecognitionChunker
 {
-    /// <summary>
-    /// 指定した発話区間から認識chunkを生成する
-    /// </summary>
-    /// <param name="audio">sample rateを含む前処理済み音声</param>
-    /// <param name="speechRegions">VADが生成した発話区間</param>
+    /// <summary>指定した発話区間から認識chunkを生成する</summary>
     IReadOnlyList<RecognitionChunk> CreateChunks(
         IPreparedTranscriptionAudio audio,
         IReadOnlyList<SpeechRegion> speechRegions);
@@ -80,11 +68,13 @@ public interface IRecognitionChunker
 public interface ISpeechRegionDetector
 {
     /// <summary>
-    /// 発話区間を検出する
+    /// ジョブ開始時に固定された設定を使用して発話区間を検出する
     /// </summary>
     /// <param name="audio">Common側が所有する前処理済み音声</param>
+    /// <param name="settings">Queue投入時点で固定されたVAD設定</param>
     /// <param name="cancellationToken">処理のキャンセルを通知するトークン</param>
     Task<IReadOnlyList<SpeechRegion>> DetectAsync(
         IPreparedTranscriptionAudio audio,
+        SpeechRegionDetectorSettingsSnapshot settings,
         CancellationToken cancellationToken = default);
 }
