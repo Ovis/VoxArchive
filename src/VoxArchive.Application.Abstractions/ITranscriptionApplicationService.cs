@@ -33,6 +33,20 @@ public interface ITranscriptionApplicationService
     Task<IReadOnlyList<string>> ExportResultAsync(string documentPath, TranscriptionOutputFormats formats, CancellationToken cancellationToken = default);
     Task DeleteResultAsync(string documentPath, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// opaqueなEngine settingsをUI向けの共通設定値へ投影する
+    /// </summary>
+    TranscriptionEngineConfigurationInfo GetEngineConfiguration(string engineId, TranscriptionEngineSettings settings);
+
+    /// <summary>
+    /// UIで選択された共通設定値をEngine capability経由でopaque settingsへ反映する
+    /// </summary>
+    TranscriptionEngineSettings UpdateEngineConfiguration(
+        string engineId,
+        TranscriptionEngineSettings settings,
+        string? modelId,
+        string? executionModeId);
+
     IReadOnlyList<TranscriptionModelInfo> GetAvailableModels(string engineId);
     TranscriptionModelStatusInfo InspectModel(string engineId, string modelId);
     Task<TranscriptionModelStatusInfo> ReverifyModelAsync(string engineId, string modelId, CancellationToken cancellationToken = default);
@@ -58,6 +72,17 @@ public sealed record TranscriptionMissingModelInfo(string EngineId, string Model
 public sealed record TranscriptionJobStateInfo(string AudioFilePath, TranscriptionJobState State);
 public sealed record TranscriptionModelInfo(string Id, string DisplayName);
 public sealed record TranscriptionModelStatusInfo(string State, bool IsReady);
+
+/// <summary>
+/// Engine固有settingsをUIがJSONとして解釈せずに表示するための共通投影を表す
+/// </summary>
+public sealed record TranscriptionEngineConfigurationInfo(
+    string? ModelId,
+    string? ExecutionModeId,
+    IReadOnlyList<TranscriptionExecutionModeInfo> ExecutionModes);
+
+/// <summary>Engineが公開する実行方式の安定IDと表示名を表す</summary>
+public sealed record TranscriptionExecutionModeInfo(string Id, string DisplayName);
 
 public sealed record TranscriptionResultInfo(
     string DocumentPath,
