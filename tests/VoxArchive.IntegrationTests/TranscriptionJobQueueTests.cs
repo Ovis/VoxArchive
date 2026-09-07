@@ -97,18 +97,13 @@ public sealed class TranscriptionJobQueueTests
             var blockerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var releaseBlocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var executionOrder = new List<string>();
+            var completionOrder = new List<string>();
+            var invocationCount = 0;
             var completionCount = 0;
 
-            using var context = TranscriptionPipelineTestFixture.CreatePipeline(async (request, cancellationToken) =>
+            using var context = TranscriptionPipelineTestFixture.CreatePipeline(async (_, cancellationToken) =>
             {
-                var fileName = Path.GetFileName(request.Audio.SourcePath);
-                lock (executionOrder)
-                {
-                    executionOrder.Add(fileName);
-                }
-
-                if (string.Equals(fileName, "blocker.wav", StringComparison.OrdinalIgnoreCase))
+                if (Interlocked.Increment(ref invocationCount) == 1)
                 {
                     blockerStarted.TrySetResult();
                     await releaseBlocker.Task.WaitAsync(cancellationToken);
@@ -116,8 +111,13 @@ public sealed class TranscriptionJobQueueTests
 
                 return new TranscriptionEngineResult([]);
             });
-            context.Queue.JobCompleted += (_, _) =>
+            context.Queue.JobCompleted += (_, e) =>
             {
+                lock (completionOrder)
+                {
+                    completionOrder.Add(Path.GetFileName(e.Job.AudioFilePath));
+                }
+
                 if (Interlocked.Increment(ref completionCount) == 4)
                 {
                     completed.TrySetResult();
@@ -136,7 +136,7 @@ public sealed class TranscriptionJobQueueTests
             await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
             Assert.That(
-                executionOrder,
+                completionOrder,
                 Is.EqualTo(new[] { "blocker.wav", "normal-first.wav", "normal-second.wav", "low-first.wav" }));
         }
         finally
