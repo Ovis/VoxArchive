@@ -10,25 +10,38 @@ namespace VoxArchive.IntegrationTests;
 public sealed class RecognitionChunkerTests
 {
     [Test]
-    public void Whisper_CreateChunks_MapsSpeechRegionsOneToOne()
+    public async Task Whisper_CreateChunksAsync_MapsSpeechRegionsOneToOne()
     {
         var regions = CreateRegions();
         var sut = new WhisperRecognitionChunker();
 
-        var chunks = sut.CreateChunks(new TestPreparedAudio(), regions);
+        var chunks = await sut.CreateChunksAsync(new TestPreparedAudio(), regions);
 
         AssertChunks(chunks, regions);
     }
 
     [Test]
-    public void ReazonSpeech_CreateChunks_CurrentPhaseMapsSpeechRegionsOneToOne()
+    public async Task ReazonSpeech_CreateChunksAsync_CurrentPhaseMapsSpeechRegionsOneToOne()
     {
         var regions = CreateRegions();
         var sut = new ReazonSpeechRecognitionChunker();
 
-        var chunks = sut.CreateChunks(new TestPreparedAudio(), regions);
+        var chunks = await sut.CreateChunksAsync(new TestPreparedAudio(), regions);
 
         AssertChunks(chunks, regions);
+    }
+
+    [Test]
+    public void CreateChunksAsync_WhenCancelled_StopsBeforeChunkGeneration()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await new WhisperRecognitionChunker().CreateChunksAsync(
+                new TestPreparedAudio(),
+                CreateRegions(),
+                cancellation.Token));
     }
 
     private static IReadOnlyList<SpeechRegion> CreateRegions()
