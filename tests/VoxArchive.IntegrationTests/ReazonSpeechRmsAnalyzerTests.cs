@@ -1,4 +1,3 @@
-using System.Text;
 using VoxArchive.Transcription.Abstractions;
 using VoxArchive.Transcription.ReazonSpeech;
 
@@ -109,13 +108,13 @@ public sealed class ReazonSpeechRmsAnalyzerTests
     private static byte[] CreatePcm16Wave(IReadOnlyList<float> samples)
     {
         using var stream = new MemoryStream();
-        using (var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true))
+        using (var writer = new BinaryWriter(stream, System.Text.Encoding.ASCII, leaveOpen: true))
         {
             var dataLength = checked(samples.Count * sizeof(short));
-            writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+            writer.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));
             writer.Write(36 + dataLength);
-            writer.Write(Encoding.ASCII.GetBytes("WAVE"));
-            writer.Write(Encoding.ASCII.GetBytes("fmt "));
+            writer.Write(System.Text.Encoding.ASCII.GetBytes("WAVE"));
+            writer.Write(System.Text.Encoding.ASCII.GetBytes("fmt "));
             writer.Write(16);
             writer.Write((short)1);
             writer.Write((short)1);
@@ -123,7 +122,7 @@ public sealed class ReazonSpeechRmsAnalyzerTests
             writer.Write(32_000);
             writer.Write((short)2);
             writer.Write((short)16);
-            writer.Write(Encoding.ASCII.GetBytes("data"));
+            writer.Write(System.Text.Encoding.ASCII.GetBytes("data"));
             writer.Write(dataLength);
             foreach (var sample in samples)
             {
