@@ -12,21 +12,37 @@ public partial class SettingsWindow
 {
     private const string WhisperEngineId = "whisper";
     private const string ReazonSpeechEngineId = "reazonspeech";
+
     private bool _whisperTabVisited;
     private bool _reazonSpeechTabVisited;
 
     /// <summary>新規文字起こしで既定として使用するEngineの安定IDを取得・設定する</summary>
     public string DefaultTranscriptionEngine
     {
-        get => DefaultEngineComboBox.SelectedItem is ComboBoxItem item && item.Tag is string id ? id : WhisperEngineId;
-        set => SelectComboBoxStringTag(DefaultEngineComboBox,
-            string.Equals(value, ReazonSpeechEngineId, StringComparison.OrdinalIgnoreCase) ? ReazonSpeechEngineId : WhisperEngineId);
+        get
+        {
+            if (DefaultEngineComboBox.SelectedItem is ComboBoxItem item && item.Tag is string id)
+            {
+                return id;
+            }
+
+            return WhisperEngineId;
+        }
+        set
+        {
+            var normalized = string.Equals(value, ReazonSpeechEngineId, StringComparison.OrdinalIgnoreCase)
+                ? ReazonSpeechEngineId
+                : WhisperEngineId;
+            SelectComboBoxStringTag(DefaultEngineComboBox, normalized);
+        }
     }
 
     /// <summary>ReazonSpeechで使用する論理モデルIDを取得・設定する</summary>
     public string ReazonSpeechModelId
     {
-        get => string.IsNullOrWhiteSpace(ReazonSpeechModelManagerControl.SelectedModelId) ? "ja" : ReazonSpeechModelManagerControl.SelectedModelId!;
+        get => string.IsNullOrWhiteSpace(ReazonSpeechModelManagerControl.SelectedModelId)
+            ? "ja"
+            : ReazonSpeechModelManagerControl.SelectedModelId!;
         set => ReazonSpeechModelManagerControl.SelectedModelId = string.IsNullOrWhiteSpace(value) ? "ja" : value.Trim().ToLowerInvariant();
     }
 
@@ -39,6 +55,7 @@ public partial class SettingsWindow
         WhisperModelManagerControl.VerifyRequested += OnWhisperModelVerifyRequested;
         WhisperModelManagerControl.InstallRequested += OnWhisperModelInstallRequested;
         WhisperModelManagerControl.DeleteRequested += OnWhisperModelDeleteRequested;
+
         ReazonSpeechModelManagerControl.SelectedModelChanged += OnReazonSpeechModelSelectionChanged;
         ReazonSpeechModelManagerControl.VerifyRequested += OnReazonSpeechModelVerifyRequested;
         ReazonSpeechModelManagerControl.InstallRequested += OnReazonSpeechModelInstallRequested;
@@ -55,12 +72,20 @@ public partial class SettingsWindow
         {
             control.Models.Add(new TranscriptionModelChoice(model.Id, model.DisplayName));
         }
-        if (control.Models.Count > 0 && string.IsNullOrWhiteSpace(control.SelectedModelId)) control.SelectedModelId = control.Models[0].Id;
+
+        if (control.Models.Count > 0 && string.IsNullOrWhiteSpace(control.SelectedModelId))
+        {
+            control.SelectedModelId = control.Models[0].Id;
+        }
     }
 
     private void OnTranscriptionTabSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!IsInitialized || e.Source != TranscriptionTabControl) return;
+        if (!IsInitialized || e.Source != TranscriptionTabControl)
+        {
+            return;
+        }
+
         if (TranscriptionTabControl.SelectedIndex == 1)
         {
             _whisperTabVisited = true;
@@ -75,34 +100,61 @@ public partial class SettingsWindow
 
     private void OnWhisperModelSelectionChanged(object? sender, EventArgs e)
     {
-        if (_whisperTabVisited) RefreshModelControl(WhisperEngineId, WhisperModelManagerControl);
+        if (_whisperTabVisited)
+        {
+            RefreshModelControl(WhisperEngineId, WhisperModelManagerControl);
+        }
+
         SetDefaultEnvironmentStatus();
     }
 
     private void OnReazonSpeechModelSelectionChanged(object? sender, EventArgs e)
     {
-        if (_reazonSpeechTabVisited) RefreshModelControl(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+        if (_reazonSpeechTabVisited)
+        {
+            RefreshModelControl(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+        }
     }
 
-    private void OnWhisperModelVerifyRequested(object? sender, EventArgs e) => _ = VerifyModelAsync(WhisperEngineId, WhisperModelManagerControl);
-    private void OnReazonSpeechModelVerifyRequested(object? sender, EventArgs e) => _ = VerifyModelAsync(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
-    private void OnWhisperModelInstallRequested(object? sender, EventArgs e) => _ = InstallOrCancelModelAsync(WhisperEngineId, WhisperModelManagerControl);
-    private void OnReazonSpeechModelInstallRequested(object? sender, EventArgs e) => _ = InstallOrCancelModelAsync(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
-    private void OnWhisperModelDeleteRequested(object? sender, EventArgs e) => _ = DeleteModelAsync(WhisperEngineId, WhisperModelManagerControl);
-    private void OnReazonSpeechModelDeleteRequested(object? sender, EventArgs e) => _ = DeleteModelAsync(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+    private void OnWhisperModelVerifyRequested(object? sender, EventArgs e)
+        => _ = VerifyModelAsync(WhisperEngineId, WhisperModelManagerControl);
+
+    private void OnReazonSpeechModelVerifyRequested(object? sender, EventArgs e)
+        => _ = VerifyModelAsync(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+
+    private void OnWhisperModelInstallRequested(object? sender, EventArgs e)
+        => _ = InstallOrCancelModelAsync(WhisperEngineId, WhisperModelManagerControl);
+
+    private void OnReazonSpeechModelInstallRequested(object? sender, EventArgs e)
+        => _ = InstallOrCancelModelAsync(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+
+    private void OnWhisperModelDeleteRequested(object? sender, EventArgs e)
+        => _ = DeleteModelAsync(WhisperEngineId, WhisperModelManagerControl);
+
+    private void OnReazonSpeechModelDeleteRequested(object? sender, EventArgs e)
+        => _ = DeleteModelAsync(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
 
     private async Task VerifyModelAsync(string engineId, TranscriptionModelManagerControl control)
     {
-        if (!TryGetSelectedModel(control, out var modelId)) return;
+        if (!TryGetSelectedModel(control, out var modelId))
+        {
+            return;
+        }
+
         control.CanVerify = false;
         control.MessageText = "モデルファイルの完全性を確認しています...";
         try
         {
             var inspection = await _transcriptionService.ReverifyModelAsync(engineId, modelId);
             ApplyInspectionState(control, inspection.State);
-            control.MessageText = inspection.IsReady
-                ? "モデルファイルの完全性を確認しました。"
-                : "完全性確認で問題が見つかりました。モデルを再取得してください。";
+            if (inspection.IsReady)
+            {
+                control.MessageText = "モデルファイルの完全性を確認しました。";
+            }
+            else
+            {
+                control.MessageText = "完全性確認で問題が見つかりました。モデルを再取得してください。";
+            }
         }
         catch (Exception ex)
         {
@@ -116,7 +168,11 @@ public partial class SettingsWindow
 
     private async Task InstallOrCancelModelAsync(string engineId, TranscriptionModelManagerControl control)
     {
-        if (!TryGetSelectedModel(control, out var modelId)) return;
+        if (!TryGetSelectedModel(control, out var modelId))
+        {
+            return;
+        }
+
         var active = _transcriptionService.GetActiveModelDownload();
         if (active is not null
             && string.Equals(active.EngineId, engineId, StringComparison.OrdinalIgnoreCase)
@@ -131,8 +187,12 @@ public partial class SettingsWindow
                     MessageBoxButton.OKCancel,
                     MessageBoxImage.Warning,
                     MessageBoxResult.Cancel);
-                if (result != MessageBoxResult.OK) return;
+                if (result != MessageBoxResult.OK)
+                {
+                    return;
+                }
             }
+
             _transcriptionService.CancelModelDownload(engineId, modelId);
             return;
         }
@@ -142,11 +202,8 @@ public partial class SettingsWindow
             var inspection = _transcriptionService.InspectModel(engineId, modelId);
             var force = !string.Equals(inspection.State, "Missing", StringComparison.OrdinalIgnoreCase);
             var progress = new Progress<TranscriptionModelTransferInfo>(_ => RefreshModelControl(engineId, control));
-            _ = ObserveSettingsDownloadAsync(
-                _transcriptionService.InstallModelAsync(engineId, modelId, force, progress),
-                engineId,
-                modelId,
-                control);
+            var downloadTask = _transcriptionService.InstallModelAsync(engineId, modelId, force, progress);
+            _ = ObserveSettingsDownloadAsync(downloadTask, engineId, modelId, control);
             RefreshModelControl(engineId, control);
         }
         catch (Exception ex)
@@ -155,7 +212,11 @@ public partial class SettingsWindow
         }
     }
 
-    private async Task ObserveSettingsDownloadAsync(Task downloadTask, string engineId, string modelId, TranscriptionModelManagerControl control)
+    private async Task ObserveSettingsDownloadAsync(
+        Task downloadTask,
+        string engineId,
+        string modelId,
+        TranscriptionModelManagerControl control)
     {
         try
         {
@@ -194,16 +255,21 @@ public partial class SettingsWindow
 
     private async Task DeleteModelAsync(string engineId, TranscriptionModelManagerControl control)
     {
-        if (!TryGetSelectedModel(control, out var modelId)) return;
+        if (!TryGetSelectedModel(control, out var modelId))
+        {
+            return;
+        }
+
         var displayName = GetModelDisplayName(engineId, modelId);
         var engineName = string.Equals(engineId, WhisperEngineId, StringComparison.OrdinalIgnoreCase) ? "Whisper" : "ReazonSpeech";
-        if (ModernDialog.Show(
-                this,
-                $"{engineName} / {displayName} のローカルモデルファイルを削除します。\nモデルの選択設定は維持され、再度利用するにはモデル取得が必要です。",
-                "モデル削除",
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Warning,
-                MessageBoxResult.Cancel) != MessageBoxResult.OK)
+        var result = ModernDialog.Show(
+            this,
+            $"{engineName} / {displayName} のローカルモデルファイルを削除します。\nモデルの選択設定は維持され、再度利用するにはモデル取得が必要です。",
+            "モデル削除",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+        if (result != MessageBoxResult.OK)
         {
             return;
         }
@@ -220,9 +286,16 @@ public partial class SettingsWindow
         }
     }
 
-    private void RefreshModelControl(string engineId, TranscriptionModelManagerControl control, bool preserveMessage = false)
+    private void RefreshModelControl(
+        string engineId,
+        TranscriptionModelManagerControl control,
+        bool preserveMessage = false)
     {
-        if (!TryGetSelectedModel(control, out var modelId)) return;
+        if (!TryGetSelectedModel(control, out var modelId))
+        {
+            return;
+        }
+
         var previousMessage = control.MessageText;
         control.ProgressVisibility = Visibility.Collapsed;
         control.ProgressPercent = 0;
@@ -232,6 +305,7 @@ public partial class SettingsWindow
         {
             var inspection = _transcriptionService.InspectModel(engineId, modelId);
             ApplyInspectionState(control, inspection.State);
+
             var isProtected = _transcriptionService.IsModelProtected(engineId, modelId);
             var active = _transcriptionService.GetActiveModelDownload();
             var isCurrentDownload = active is not null
@@ -258,13 +332,18 @@ public partial class SettingsWindow
                 control.ProgressVisibility = Visibility.Visible;
                 control.ProgressPercent = active.Percent;
                 control.ProgressText = FormatProgress(active.BytesReceived, active.TotalBytes);
-                if (!preserveMessage) control.MessageText = string.Empty;
+                if (!preserveMessage)
+                {
+                    control.MessageText = string.Empty;
+                }
                 return;
             }
 
             control.CanVerify = true;
             control.CanDelete = !string.Equals(inspection.State, "Missing", StringComparison.OrdinalIgnoreCase);
-            control.InstallButtonText = string.Equals(inspection.State, "Missing", StringComparison.OrdinalIgnoreCase) ? "モデル取得" : "モデル再取得";
+            control.InstallButtonText = string.Equals(inspection.State, "Missing", StringComparison.OrdinalIgnoreCase)
+                ? "モデル取得"
+                : "モデル再取得";
             control.CanInstall = active is null;
 
             if (active is not null && !preserveMessage)
@@ -309,13 +388,21 @@ public partial class SettingsWindow
             _ = Dispatcher.BeginInvoke(RefreshVisitedModelControls);
             return;
         }
+
         RefreshVisitedModelControls();
     }
 
     private void RefreshVisitedModelControls()
     {
-        if (_whisperTabVisited) RefreshModelControl(WhisperEngineId, WhisperModelManagerControl);
-        if (_reazonSpeechTabVisited) RefreshModelControl(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+        if (_whisperTabVisited)
+        {
+            RefreshModelControl(WhisperEngineId, WhisperModelManagerControl);
+        }
+
+        if (_reazonSpeechTabVisited)
+        {
+            RefreshModelControl(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+        }
     }
 
     private static bool TryGetSelectedModel(TranscriptionModelManagerControl control, out string modelId)
@@ -325,16 +412,24 @@ public partial class SettingsWindow
             modelId = control.SelectedModelId.Trim();
             return true;
         }
+
         modelId = string.Empty;
         return false;
     }
 
     private string GetModelDisplayName(string engineId, string modelId)
-        => _transcriptionService.GetAvailableModels(engineId).FirstOrDefault(model => string.Equals(model.Id, modelId, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? modelId;
+    {
+        return _transcriptionService.GetAvailableModels(engineId)
+            .FirstOrDefault(model => string.Equals(model.Id, modelId, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? modelId;
+    }
 
     private static string FormatProgress(long received, long total)
     {
-        if (total <= 0) return FormatBytes(received);
+        if (total <= 0)
+        {
+            return FormatBytes(received);
+        }
+
         var percent = Math.Clamp(received * 100d / total, 0d, 100d);
         return $"{percent:F0}%（{FormatBytes(received)} / {FormatBytes(total)}）";
     }
@@ -349,6 +444,7 @@ public partial class SettingsWindow
             size /= 1024;
             unit++;
         }
+
         return $"{size:F1} {units[unit]}";
     }
 
@@ -374,6 +470,7 @@ public partial class SettingsWindow
                 return;
             }
         }
+
         comboBox.SelectedIndex = 0;
     }
 }
