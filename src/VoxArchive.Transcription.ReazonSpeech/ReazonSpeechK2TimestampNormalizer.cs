@@ -6,8 +6,8 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// <remarks>
 /// ReazonSpeech K2 v2の公式APIが返すtimestampはsubwordごとの単一点であり、開始・終了rangeではない。
 /// そのため存在しない終了時刻を推測せず、raw point timestampだけをsample座標へ変換して0.9秒分を補正する。
-/// 秒同士を先に減算すると浮動小数点誤差で境界sampleが1つずれる場合があるため、
-/// canonical timelineであるsample座標へ変換してから整数sampleのpaddingを引く。
+/// sherpa-onnxはtimestampをfloatで返すため、公称1.4秒のような値も内部的にはわずかに小さくなる場合がある。
+/// point timestampをfloorするとその量子化誤差を1sample前倒ししてしまうため、最寄りsampleへ丸めてから整数sampleのpaddingを引く。
 /// </remarks>
 internal static class ReazonSpeechK2TimestampNormalizer
 {
@@ -28,9 +28,11 @@ internal static class ReazonSpeechK2TimestampNormalizer
             throw new ArgumentOutOfRangeException(nameof(chunkLengthSamples));
         }
 
-        // point timestampは開始位置と同様にfloorでsampleへ寄せる。
-        // raw秒をsample化してから14,400sampleを引くことで、1.4 - 0.9のdouble減算誤差を避ける。
-        var rawSample = checked((long)Math.Floor(rawSeconds * ReazonSpeechK2InputPadding.SampleRate));
+        // point timestampは区間境界ではないため、包含関係を守るfloor/ceilではなく最寄りsampleへ寄せる。
+        // raw秒をsample化してから14,400sampleを引くことで、padding補正自体も整数座標上で完結させる。
+        var rawSample = checked((long)Math.Round(
+            rawSeconds * ReazonSpeechK2InputPadding.SampleRate,
+            MidpointRounding.AwayFromZero));
         var correctedSample = rawSample - ReazonSpeechK2InputPadding.PaddingSamples;
         return Math.Clamp(correctedSample, 0L, chunkLengthSamples);
     }
