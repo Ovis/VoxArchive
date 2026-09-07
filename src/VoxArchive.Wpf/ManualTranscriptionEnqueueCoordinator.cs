@@ -35,8 +35,7 @@ public sealed class ManualTranscriptionEnqueueCoordinator(ITranscriptionApplicat
 
         var missingModel = result.MissingModel;
         var confirmation = ModernDialog.Show(
-            $"文字起こしに必要なモデル「{missingModel.DisplayName}」が取得されていません。
-モデルを取得して文字起こしを続行しますか？",
+            $"文字起こしに必要なモデル「{missingModel.DisplayName}」が取得されていません。\nモデルを取得して文字起こしを続行しますか？",
             "文字起こしモデル未取得",
             System.Windows.MessageBoxButton.OKCancel,
             System.Windows.MessageBoxImage.Question,
