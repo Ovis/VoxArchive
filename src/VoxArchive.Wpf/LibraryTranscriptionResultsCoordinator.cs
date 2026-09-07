@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
+using VoxArchive.Application.Abstractions;
 
 namespace VoxArchive.Wpf;
 
@@ -7,8 +8,8 @@ namespace VoxArchive.Wpf;
 /// LibraryViewModelの録音選択・文字起こし状態と、文字起こし結果状態を同期する
 /// </summary>
 /// <remarks>
-/// <see cref="LibraryTranscriptionResultsState"/> 自体はファイル発見・結果操作を担当し、
-/// Library固有の選択変更やジョブ完了との同期だけを本クラスへ分離する。
+/// <see cref="LibraryTranscriptionResultsState"/> はUI選択状態だけを保持し、
+/// canonical result操作と再文字起こしはApplication Use Caseへ委譲する。
 /// </remarks>
 public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChanged, IDisposable
 {
@@ -21,24 +22,20 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
     public LibraryTranscriptionResultsCoordinator(LibraryViewModel libraryViewModel)
     {
         _libraryViewModel = libraryViewModel;
-        State = new LibraryTranscriptionResultsState(new TranscriptionResultDiscoveryService(), new TranscriptionDocumentStore(), new TranscriptionExportService());
-        // LibraryWindowは既存構造上MainViewModelから手動生成されるため、再文字起こしUse Caseも
-        // アプリケーション共有DIコンテナから解決し、Queue/モデル管理の状態を分断しない。
-        _retranscriptionService = ActivatorUtilities.CreateInstance<LibraryRetranscriptionService>(((App)System.Windows.Application.Current).Services);
+        var services = ((App)System.Windows.Application.Current).Services;
+        State = new LibraryTranscriptionResultsState(services.GetRequiredService<ITranscriptionApplicationService>());
+        _retranscriptionService = ActivatorUtilities.CreateInstance<LibraryRetranscriptionService>(services);
         _wasTranscribing = libraryViewModel.IsTranscribing;
         _libraryViewModel.PropertyChanged += OnLibraryPropertyChanged;
         State.PropertyChanged += OnStatePropertyChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    /// <summary>UIから参照する文字起こし結果状態を取得する</summary>
     public LibraryTranscriptionResultsState State { get; }
-    /// <summary>現在選択中の録音に対する結果一覧を初期化する</summary>
     public Task InitializeAsync() => State.LoadForRecordingAsync(_libraryViewModel.SelectedItem?.FilePath);
-    /// <summary>UIで指定された結果を選択し、本文を遅延読み込みする</summary>
     public Task SelectAsync(LibraryTranscriptionResultItem? result) => result is null ? Task.CompletedTask : State.SelectAsync(result);
 
-    /// <summary>選択中の文字起こし結果を、保存済みのEngine/Model/requested optionsを基準に再文字起こしする</summary>
+    /// <summary>選択中のcanonical resultを基準に再文字起こしする</summary>
     public async Task RetranscribeSelectedAsync()
     {
         var audioFilePath = _libraryViewModel.SelectedItem?.FilePath ?? throw new InvalidOperationException("録音ファイルが選択されていません。");
@@ -47,15 +44,14 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
         var replaceConfirm = ModernDialog.Show($"{result.DisplayName} を再文字起こしします。\n成功した場合は現在の文字起こし結果を新しい結果で置き換えます。\n失敗またはキャンセルした場合は現在の結果を残します。", "再文字起こし", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.Cancel);
         if (replaceConfirm != System.Windows.MessageBoxResult.OK) return;
 
-        var prepared = await _retranscriptionService.PrepareAsync(audioFilePath, document, result.IsLegacy);
+        var prepared = await _retranscriptionService.PrepareAsync(audioFilePath, document);
         if (prepared.UsedCurrentSettingsFallback)
         {
-            var fallbackConfirm = ModernDialog.Show("この文字起こし結果には再実行に必要な設定の一部が保存されていません。\n不足分は現在のWhisper設定で補完して再文字起こしします。", "再文字起こし", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.Cancel);
+            var fallbackConfirm = ModernDialog.Show("この文字起こし結果には再実行に必要なEngine固有設定の全ては保存されていません。\nモデル以外は現在の設定で補完して再文字起こしします。", "再文字起こし", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.Cancel);
             if (fallbackConfirm != System.Windows.MessageBoxResult.OK) return;
         }
 
-        // 既存のcanonical JSONはジョブ開始時には削除しない。
-        // 認識に失敗・キャンセルした場合も以前の正常結果をLibraryで参照し続けられるようにする。
+        // 既存canonical JSONは開始時に削除しない。失敗・キャンセル時も以前の正常結果を参照可能にする。
         var enqueueResult = await _retranscriptionService.EnqueueAsync(audioFilePath, prepared);
         if (!enqueueResult.Enqueued)
         {
@@ -74,12 +70,7 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
         }
         if (e.PropertyName != nameof(LibraryViewModel.IsTranscribing)) return;
         var isTranscribing = _libraryViewModel.IsTranscribing;
-        if (_wasTranscribing && !isTranscribing)
-        {
-            // ジョブ完了通知では成功/失敗にかかわらず状態が解除される。
-            // 成功時に追加されたJSONを拾い、失敗時は同じ一覧へ戻るだけなので、ここでは無条件に再走査する。
-            _ = RefreshAfterTranscriptionAsync();
-        }
+        if (_wasTranscribing && !isTranscribing) _ = RefreshAfterTranscriptionAsync();
         _wasTranscribing = isTranscribing;
     }
 
@@ -88,7 +79,7 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
         try { await State.LoadForRecordingAsync(_libraryViewModel.SelectedItem?.FilePath); }
         catch
         {
-            // 録音選択そのものは再生・編集にも使うため、文字起こしJSONの読み込み失敗でLibrary操作全体を止めない。
+            // 文字起こし結果の読み込み失敗で録音の再生・編集操作全体を止めない。
         }
     }
 
@@ -97,7 +88,7 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
         try { await State.RefreshAsync(); }
         catch
         {
-            // 認識ジョブの完了処理を結果一覧更新の失敗で巻き戻さない。
+            // 結果一覧更新失敗を認識ジョブの完了処理へ波及させない。
         }
     }
 
@@ -105,14 +96,11 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
     {
         if (e.PropertyName == nameof(LibraryTranscriptionResultsState.SummaryText))
         {
-            // 結果削除では録音選択やQueue状態が変化しないため、従来はTranscribeCommandのCanExecuteが再評価されなかった。
-            // canonical JSONの増減を検知した時点で明示的に再評価し、削除直後から再文字起こしできる状態へ戻す。
             _libraryViewModel.NotifyOptionsChanged();
         }
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(State)));
     }
 
-    /// <inheritdoc />
     public void Dispose()
     {
         if (_disposed) return;
