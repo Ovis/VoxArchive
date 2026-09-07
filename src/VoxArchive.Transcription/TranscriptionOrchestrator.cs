@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription;
@@ -10,7 +12,8 @@ public sealed class TranscriptionOrchestrator(
     TranscriptionAudioPreparationService audioPreparationService,
     TranscriptionEngineResultValidator resultValidator,
     TranscriptionSpeakerLabelService speakerLabelService,
-    TranscriptionArtifactService artifactService)
+    TranscriptionArtifactService artifactService,
+    ILogger<TranscriptionOrchestrator> logger)
 {
     /// <summary>
     /// Audio Preparationからartifact確定までの共通pipelineを実行する
@@ -22,29 +25,41 @@ public sealed class TranscriptionOrchestrator(
         ArgumentNullException.ThrowIfNull(request);
         var registration = engineRegistry.Get(request.EngineId);
         var engine = registration.Engine;
+        var pipelineStopwatch = Stopwatch.StartNew();
 
+        LogStage(request, "audio-preparation", "started", pipelineStopwatch.ElapsedMilliseconds);
         await using var preparedAudio = await audioPreparationService.PrepareAsync(
             request.SourceRecordingPath,
             request.SpeakerGainDb,
             request.MicrophoneGainDb,
             engine.AudioRequirements,
             cancellationToken);
+        LogStage(request, "audio-preparation", "completed", pipelineStopwatch.ElapsedMilliseconds);
 
         // Prepared Audioの所有権はCommon pipelineにある。EngineはborrowするだけでDisposeしないため、
         // recognition後のvalidator/post-processが終わるまで同じ音声を安全に再利用できる。
+        LogStage(request, "recognition", "started", pipelineStopwatch.ElapsedMilliseconds);
         var engineResult = await engine.TranscribeAsync(
             new TranscriptionEngineRequest(
                 preparedAudio,
                 request.EngineOptions,
                 new TranscriptionEngineExecutionContext(request.DiagnosticsEnabled)),
             cancellationToken);
+        LogStage(request, "recognition", "completed", pipelineStopwatch.ElapsedMilliseconds);
 
+        LogStage(request, "validation", "started", pipelineStopwatch.ElapsedMilliseconds);
         resultValidator.Validate(engineResult, preparedAudio.Duration);
+        LogStage(request, "validation", "completed", pipelineStopwatch.ElapsedMilliseconds);
+
+        LogStage(request, "speaker-labeling", "started", pipelineStopwatch.ElapsedMilliseconds);
         var labeled = speakerLabelService.Apply(
             request.SourceRecordingPath,
             engineResult.Segments,
             cancellationToken);
+        LogStage(request, "speaker-labeling", "completed", pipelineStopwatch.ElapsedMilliseconds);
+
         var finishedAt = DateTimeOffset.Now;
+        LogStage(request, "artifact-write", "started", pipelineStopwatch.ElapsedMilliseconds);
         var artifact = await artifactService.WriteAsync(
             request.SourceRecordingPath,
             request.EngineId,
@@ -53,12 +68,46 @@ public sealed class TranscriptionOrchestrator(
             labeled,
             finishedAt,
             cancellationToken);
+        LogStage(request, "artifact-write", "completed", pipelineStopwatch.ElapsedMilliseconds);
+
+        if (request.DiagnosticsEnabled)
+        {
+            logger.LogInformation(
+                "Transcription pipeline completed. File={File}, Engine={Engine}, ElapsedMs={ElapsedMs}, SegmentCount={SegmentCount}, GeneratedFileCount={GeneratedFileCount}",
+                request.SourceRecordingPath,
+                request.EngineId,
+                pipelineStopwatch.ElapsedMilliseconds,
+                engineResult.Segments.Count,
+                artifact.GeneratedFiles.Count);
+        }
 
         return new TranscriptionOrchestrationResult(
             artifact.DocumentPath,
             artifact.GeneratedFiles,
             engineResult.Metadata,
             finishedAt);
+    }
+
+    private void LogStage(
+        TranscriptionOrchestrationRequest request,
+        string stage,
+        string state,
+        long elapsedMilliseconds)
+    {
+        if (!request.DiagnosticsEnabled)
+        {
+            return;
+        }
+
+        // native ASR障害の切り分けでは「どのEngineか」だけでなく、共通pipelineのどこまで進んだかが重要になる。
+        // stageごとの経過時間を同じ構造で残し、UIやEngine固有実装へ診断責務を分散させない。
+        logger.LogInformation(
+            "Transcription pipeline stage. File={File}, Engine={Engine}, Stage={Stage}, State={State}, ElapsedMs={ElapsedMs}",
+            request.SourceRecordingPath,
+            request.EngineId,
+            stage,
+            state,
+            elapsedMilliseconds);
     }
 }
 
