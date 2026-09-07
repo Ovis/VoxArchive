@@ -1,27 +1,20 @@
 using System.IO;
 using VoxArchive.Application.Abstractions;
-using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// Libraryで選択した文字起こし結果を、保存済み条件を基準にApplication Use Caseへ再投入する
+/// Libraryで選択した文字起こし結果をApplication Use Caseへ再投入する
 /// </summary>
 public sealed class LibraryRetranscriptionService(
     ITranscriptionApplicationService transcriptionApplicationService,
     ISettingsService settingsService)
 {
     /// <summary>
-    /// 再文字起こし用の設定snapshotを準備する
+    /// 保存済みcanonical resultと現在設定から再文字起こし用snapshotを準備する
     /// </summary>
-    /// <remarks>
-    /// canonical documentに保存されているEngine/Model/requested optionsを優先し、
-    /// 保存されていない設定だけを現在の永続設定から補完する。
-    /// </remarks>
-    public async Task<RetranscriptionRequestBuildResult> PrepareAsync(
-        string audioFilePath,
-        VoxArchive.Domain.TranscriptionDocument document,
-        bool isLegacy,
+    public async Task<TranscriptionRetranscriptionPreparation> PrepareAsync(
+        string documentPath,
         CancellationToken cancellationToken = default)
     {
         var currentOptions = await settingsService.LoadRecordingOptionsAsync(cancellationToken);
@@ -30,11 +23,10 @@ public sealed class LibraryRetranscriptionService(
             throw new InvalidOperationException("文字起こし機能が無効です。設定画面で有効化してください。");
         }
 
-        return TranscriptionRetranscriptionRequestFactory.Create(
-            audioFilePath,
-            document,
+        return await transcriptionApplicationService.PrepareRetranscriptionAsync(
+            documentPath,
             currentOptions,
-            isLegacy);
+            cancellationToken);
     }
 
     /// <summary>
@@ -42,7 +34,7 @@ public sealed class LibraryRetranscriptionService(
     /// </summary>
     public async Task<TranscriptionEnqueueResult> EnqueueAsync(
         string audioFilePath,
-        RetranscriptionRequestBuildResult prepared,
+        TranscriptionRetranscriptionPreparation prepared,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);
@@ -56,7 +48,6 @@ public sealed class LibraryRetranscriptionService(
 
         if (result.Enqueued && prepared.Options.TranscriptionToastNotificationEnabled)
         {
-            // 通常のLibrary手動実行と同じ開始通知を維持する。
             AppNotificationHub.Notify(
                 "VoxArchive",
                 $"文字起こし開始: {Path.GetFileName(audioFilePath)}",
