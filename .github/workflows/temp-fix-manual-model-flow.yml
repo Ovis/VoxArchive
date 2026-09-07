@@ -1,0 +1,117 @@
+name: Temporary Fix Manual Model Flow
+
+on:
+  push:
+    branches:
+      - feature/transcription-foundation-refactoring
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.event.head_commit.message != 'Fix manual missing-model application flow'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/transcription-foundation-refactoring
+
+      - name: Refactor manual missing-model ownership
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              raw = p.read_bytes()
+              newline = '\r\n' if b'\r\n' in raw else '\n'
+              text = raw.decode('utf-8').replace('\r\n', '\n')
+              if old not in text:
+                  raise SystemExit(f'anchor not found: {path}')
+              text = text.replace(old, new, 1)
+              p.write_bytes(text.replace('\n', newline).encode('utf-8'))
+
+          # Application Facadeへ「ユーザー確認済みモデルの取得→再Admission」をまとめる。
+          # Presentation固有の確認Dialog/Windowは受け取らず、確認済みmodel DTOと進捗だけを入力とする。
+          replace_once(
+              'src/VoxArchive.Application.Abstractions/ITranscriptionApplicationService.cs',
+              '''    Task<TranscriptionEnqueueResult> TryEnqueueAsync(string audioFilePath, RecordingOptions recordingOptions, TranscriptionTrigger trigger, CancellationToken cancellationToken = default);\n''',
+              '''    Task<TranscriptionEnqueueResult> TryEnqueueAsync(string audioFilePath, RecordingOptions recordingOptions, TranscriptionTrigger trigger, CancellationToken cancellationToken = default);\n\n    /// <summary>\n    /// 手動Admissionで不足したモデルについて利用者確認が完了した後、モデル取得と再Admissionを行う\n    /// </summary>\n    /// <remarks>\n    /// UIは確認と進捗表示だけを担当し、download完了待ちと再Queue投入のpolicyはApplicationへ集約する。\n    /// 確認後に必要モデルが変化した場合は、未確認の別モデルを暗黙に取得せずMissingModelを返す。\n    /// </remarks>\n    Task<TranscriptionEnqueueResult> DownloadMissingModelAndRetryManualEnqueueAsync(\n        string audioFilePath,\n        RecordingOptions recordingOptions,\n        TranscriptionMissingModelInfo confirmedModel,\n        IProgress<TranscriptionModelTransferInfo>? progress = null,\n        CancellationToken cancellationToken = default);\n''')
+
+          replace_once(
+              'src/VoxArchive.Application/TranscriptionApplicationService.cs',
+              '''    /// <inheritdoc />\n    public bool CancelJob(string audioFilePath) => _jobQueue.Cancel(audioFilePath);\n''',
+              '''    /// <inheritdoc />\n    public async Task<VoxArchive.Application.Abstractions.TranscriptionEnqueueResult> DownloadMissingModelAndRetryManualEnqueueAsync(\n        string audioFilePath,\n        RecordingOptions recordingOptions,\n        TranscriptionMissingModelInfo confirmedModel,\n        IProgress<TranscriptionModelTransferInfo>? progress = null,\n        CancellationToken cancellationToken = default)\n    {\n        ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);\n        ArgumentNullException.ThrowIfNull(recordingOptions);\n        ArgumentNullException.ThrowIfNull(confirmedModel);\n\n        // 確認Dialog表示後にも設定・Queue状態・別downloadが変化し得るため、取得前に必ず再Admissionする。\n        // ここで既にenqueue可能ならdownloadを開始せず、その結果をそのまま返す。\n        var current = await _jobQueue.TryEnqueueAsync(\n            audioFilePath,\n            recordingOptions,\n            TranscriptionTrigger.Manual,\n            cancellationToken);\n        if (current.Enqueued || current.MissingModel is null)\n        {\n            return ToEnqueueResult(current);\n        }\n\n        if (!IsSameModel(current.MissingModel, confirmedModel))\n        {\n            // 利用者が確認していない別モデルへ要求が変わった場合は安全側に倒す。\n            // Presentationへ新しいMissingModelを返し、暗黙downloadは行わない。\n            return ToEnqueueResult(current);\n        }\n\n        var adapter = progress is null\n            ? null\n            : new Progress<TranscriptionModelTransferProgress>(x =>\n                progress.Report(new TranscriptionModelTransferInfo(x.BytesReceived, x.TotalBytes)));\n        await _modelManager.InstallAsync(\n            ToModelKey(confirmedModel.EngineId, confirmedModel.ModelId),\n            force: false,\n            adapter,\n            cancellationToken);\n\n        // download完了後のreadiness・reservation・immutable snapshotはAdmissionで改めて確定する。\n        // WPF側でAdmission手順を複製しないことで、通常実行と再文字起こしのpolicyを一致させる。\n        var retried = await _jobQueue.TryEnqueueAsync(\n            audioFilePath,\n            recordingOptions,\n            TranscriptionTrigger.Manual,\n            cancellationToken);\n        return ToEnqueueResult(retried);\n    }\n\n    /// <inheritdoc />\n    public bool CancelJob(string audioFilePath) => _jobQueue.Cancel(audioFilePath);\n''')
+
+          replace_once(
+              'src/VoxArchive.Application/TranscriptionApplicationService.cs',
+              '''    private static TranscriptionModelStatusInfo ToStatus(TranscriptionModelPackageState state, bool isReady) => new(state.ToString(), isReady);\n    private static EngineId ToEngineId(string value) => new(value);\n''',
+              '''    private static VoxArchive.Application.Abstractions.TranscriptionEnqueueResult ToEnqueueResult(TranscriptionEnqueueResult result)\n        => new(result.Enqueued, result.Message, result.MissingModel);\n\n    private static bool IsSameModel(TranscriptionMissingModelInfo left, TranscriptionMissingModelInfo right)\n        => string.Equals(left.EngineId, right.EngineId, StringComparison.OrdinalIgnoreCase)\n           && string.Equals(left.ModelId, right.ModelId, StringComparison.OrdinalIgnoreCase);\n\n    private static TranscriptionModelStatusInfo ToStatus(TranscriptionModelPackageState state, bool isReady) => new(state.ToString(), isReady);\n    private static EngineId ToEngineId(string value) => new(value);\n''')
+
+          # 既存TryEnqueueのDTO変換も同じhelperへ寄せ、変換規則を二重化しない。
+          replace_once(
+              'src/VoxArchive.Application/TranscriptionApplicationService.cs',
+              '''        return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(\n            result.Enqueued,\n            result.Message,\n            result.MissingModel);\n''',
+              '''        return ToEnqueueResult(result);\n''')
+
+          coordinator = '''using VoxArchive.Application.Abstractions;\nusing VoxArchive.Domain;\n\nnamespace VoxArchive.Wpf;\n\n/// <summary>\n/// 手動文字起こしの利用者確認とモデル取得進捗UIをApplication Use Caseへ接続する\n/// </summary>\n/// <remarks>\n/// MissingModelの判定、download完了待ち、再AdmissionはApplicationが所有する。\n/// 本クラスは利用者の承認とWindow表示だけを担当し、通常実行と再文字起こしで同じPresentation flowを共有する。\n/// </remarks>\npublic sealed class ManualTranscriptionEnqueueCoordinator(ITranscriptionApplicationService transcriptionService)\n{\n    /// <summary>\n    /// 手動文字起こしを要求し、不足モデルがある場合は確認後にApplicationへ継続を委譲する\n    /// </summary>\n    public async Task<TranscriptionEnqueueResult> TryEnqueueAsync(\n        string audioFilePath,\n        RecordingOptions options,\n        CancellationToken cancellationToken = default)\n    {\n        ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);\n        ArgumentNullException.ThrowIfNull(options);\n\n        var result = await transcriptionService.TryEnqueueAsync(\n            audioFilePath,\n            options,\n            TranscriptionTrigger.Manual,\n            cancellationToken);\n        if (result.Enqueued || result.MissingModel is null)\n        {\n            return result;\n        }\n\n        var missingModel = result.MissingModel;\n        var confirmation = ModernDialog.Show(\n            $"文字起こしに必要なモデル「{missingModel.DisplayName}」が取得されていません。\\nモデルを取得して文字起こしを続行しますか？",\n            "文字起こしモデル未取得",\n            System.Windows.MessageBoxButton.OKCancel,\n            System.Windows.MessageBoxImage.Question,\n            System.Windows.MessageBoxResult.Cancel);\n        if (confirmation != System.Windows.MessageBoxResult.OK)\n        {\n            return new TranscriptionEnqueueResult(\n                false,\n                "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");\n        }\n\n        var progressWindow = new TranscriptionModelDownloadProgressWindow(\n            missingModel,\n            () => transcriptionService.CancelModelDownload(missingModel.EngineId, missingModel.ModelId))\n        {\n            Owner = System.Windows.Application.Current?.MainWindow\n        };\n        var progress = new Progress<TranscriptionModelTransferInfo>(progressWindow.Report);\n\n        try\n        {\n            // Application側が再Admissionしてから必要な場合だけdownloadを開始する。\n            // すでにモデルがreadyになっていた場合はWindowを一瞬表示しない。\n            var continuation = transcriptionService.DownloadMissingModelAndRetryManualEnqueueAsync(\n                audioFilePath,\n                options,\n                missingModel,\n                progress,\n                cancellationToken);\n\n            if (!continuation.IsCompleted)\n            {\n                progressWindow.Show();\n                var activeDownload = transcriptionService.GetActiveModelDownload();\n                if (activeDownload is not null\n                    && string.Equals(activeDownload.EngineId, missingModel.EngineId, StringComparison.OrdinalIgnoreCase)\n                    && string.Equals(activeDownload.ModelId, missingModel.ModelId, StringComparison.OrdinalIgnoreCase))\n                {\n                    progressWindow.Report(new TranscriptionModelTransferInfo(\n                        activeDownload.BytesReceived,\n                        activeDownload.TotalBytes));\n                }\n            }\n\n            return await continuation;\n        }\n        catch (OperationCanceledException)\n        {\n            return new TranscriptionEnqueueResult(\n                false,\n                "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");\n        }\n        finally\n        {\n            progressWindow.CloseAfterCompletion();\n        }\n    }\n}\n'''
+          Path('src/VoxArchive.Wpf/ManualTranscriptionEnqueueCoordinator.cs').write_text(coordinator, encoding='utf-8', newline='')
+
+          # DIへ共通Presentation coordinatorだけを登録する。Engine具象依存は追加しない。
+          replace_once(
+              'src/VoxArchive.Wpf/App.xaml.cs',
+              '''                    services.AddVoxArchiveTranscription();\n\n                    services.AddTransient<MainViewModel>(sp =>\n''',
+              '''                    services.AddVoxArchiveTranscription();\n                    services.AddSingleton<ManualTranscriptionEnqueueCoordinator>();\n\n                    services.AddTransient<MainViewModel>(sp =>\n''')
+
+          # LibraryViewModelはPresentation coordinatorを呼ぶだけに戻し、download/retry手順を持たせない。
+          replace_once(
+              'src/VoxArchive.Wpf/LibraryViewModel.cs',
+              '''    private readonly ITranscriptionApplicationService _transcriptionService;\n    private readonly Func<RecordingOptions> _optionsProvider;\n''',
+              '''    private readonly ITranscriptionApplicationService _transcriptionService;\n    private readonly ManualTranscriptionEnqueueCoordinator _manualTranscriptionCoordinator;\n    private readonly Func<RecordingOptions> _optionsProvider;\n''')
+          replace_once(
+              'src/VoxArchive.Wpf/LibraryViewModel.cs',
+              '''        RecordingCatalogService catalogService,\n        ITranscriptionApplicationService transcriptionService,\n        Func<RecordingOptions> optionsProvider,\n''',
+              '''        RecordingCatalogService catalogService,\n        ITranscriptionApplicationService transcriptionService,\n        ManualTranscriptionEnqueueCoordinator manualTranscriptionCoordinator,\n        Func<RecordingOptions> optionsProvider,\n''')
+          replace_once(
+              'src/VoxArchive.Wpf/LibraryViewModel.cs',
+              '''        _transcriptionService = transcriptionService;\n        _optionsProvider = optionsProvider;\n''',
+              '''        _transcriptionService = transcriptionService;\n        _manualTranscriptionCoordinator = manualTranscriptionCoordinator;\n        _optionsProvider = optionsProvider;\n''')
+          replace_once(
+              'src/VoxArchive.Wpf/LibraryViewModel.cs',
+              '''            var result = await TryEnqueueManualTranscriptionAsync(SelectedItem.FilePath, options);\n''',
+              '''            var result = await _manualTranscriptionCoordinator.TryEnqueueAsync(SelectedItem.FilePath, options);\n''')
+
+          lib = Path('src/VoxArchive.Wpf/LibraryViewModel.cs')
+          raw = lib.read_bytes()
+          newline = '\r\n' if b'\r\n' in raw else '\n'
+          text = raw.decode('utf-8').replace('\r\n', '\n')
+          start = text.find('    /// <summary>\n    /// 手動文字起こしをAdmissionし、不足モデルがある場合だけ利用者確認と取得UIを挟んで再Admissionする\n')
+          end = text.find('    private void OnTranscriptionJobCompleted(', start)
+          if start < 0 or end < 0:
+              raise SystemExit('Library manual helper block not found')
+          text = text[:start] + text[end:]
+          lib.write_bytes(text.replace('\n', newline).encode('utf-8'))
+
+          # 再文字起こしも同じPresentation coordinatorを利用する。
+          replace_once(
+              'src/VoxArchive.Wpf/LibraryRetranscriptionService.cs',
+              '''public sealed class LibraryRetranscriptionService(\n    ITranscriptionApplicationService transcriptionApplicationService,\n    ISettingsService settingsService)\n''',
+              '''public sealed class LibraryRetranscriptionService(\n    ITranscriptionApplicationService transcriptionApplicationService,\n    ISettingsService settingsService,\n    ManualTranscriptionEnqueueCoordinator manualTranscriptionCoordinator)\n''')
+          replace_once(
+              'src/VoxArchive.Wpf/LibraryRetranscriptionService.cs',
+              '''        var result = await transcriptionApplicationService.TryEnqueueAsync(\n            audioFilePath,\n            prepared.Options,\n            TranscriptionTrigger.Manual,\n            cancellationToken);\n''',
+              '''        // 通常の手動実行と同じPresentation flowを使い、missing-model確認だけが\n        // 再文字起こし経路から抜け落ちることを防ぐ。download/retry policyはApplicationが所有する。\n        var result = await manualTranscriptionCoordinator.TryEnqueueAsync(\n            audioFilePath,\n            prepared.Options,\n            cancellationToken);\n''')
+
+          # temporary workflowは最終差分へ残さない。
+          Path('.github/workflows/temp-fix-manual-model-flow.yml').unlink()
+
+      - name: Commit refactor
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'Fix manual missing-model application flow'
+          git push
