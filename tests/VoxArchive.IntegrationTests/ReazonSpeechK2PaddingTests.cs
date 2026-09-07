@@ -3,7 +3,7 @@ using VoxArchive.Transcription.ReazonSpeech;
 namespace VoxArchive.IntegrationTests;
 
 /// <summary>
-/// ReazonSpeech K2入力の前後0.9秒無音とtimestamp補正を確認する
+/// ReazonSpeech K2入力の前後0.9秒無音とsubword point timestamp補正を確認する
 /// </summary>
 public sealed class ReazonSpeechK2PaddingTests
 {
@@ -24,77 +24,51 @@ public sealed class ReazonSpeechK2PaddingTests
     }
 
     [Test]
-    public void Normalize_SubtractsPrePaddingAndConvertsToChunkRelativeSamples()
+    public void NormalizePoint_SubtractsPrePaddingAndConvertsToChunkRelativeSample()
     {
-        var normalized = ReazonSpeechK2TimestampNormalizer.Normalize(
-            rawStartSeconds: 1.40d,
-            rawEndSeconds: 2.90d,
+        var normalized = ReazonSpeechK2TimestampNormalizer.NormalizePoint(
+            rawSeconds: 1.40d,
             chunkLengthSamples: 160_000);
 
-        Assert.That(normalized, Is.Not.Null);
-        Assert.Multiple(() =>
-        {
-            Assert.That(normalized!.Value.StartSample, Is.EqualTo(8_000));
-            Assert.That(normalized.Value.EndSample, Is.EqualTo(32_000));
-        });
+        Assert.That(normalized, Is.EqualTo(8_000));
     }
 
     [Test]
-    public void Normalize_ClampsTimestampThatStartsInsidePrePaddingToChunkStart()
+    public void NormalizePoint_ClampsTimestampInsidePrePaddingToChunkStart()
     {
-        var normalized = ReazonSpeechK2TimestampNormalizer.Normalize(
-            rawStartSeconds: 0.20d,
-            rawEndSeconds: 1.40d,
+        var normalized = ReazonSpeechK2TimestampNormalizer.NormalizePoint(
+            rawSeconds: 0.20d,
             chunkLengthSamples: 160_000);
 
-        Assert.That(normalized, Is.Not.Null);
-        Assert.Multiple(() =>
-        {
-            Assert.That(normalized!.Value.StartSample, Is.Zero);
-            Assert.That(normalized.Value.EndSample, Is.EqualTo(8_000));
-        });
+        Assert.That(normalized, Is.Zero);
     }
 
     [Test]
-    public void Normalize_ClampsTimestampThatEndsInsidePostPaddingToChunkEnd()
+    public void NormalizePoint_ClampsTimestampInsidePostPaddingToChunkEnd()
     {
-        var normalized = ReazonSpeechK2TimestampNormalizer.Normalize(
-            rawStartSeconds: 10.40d,
-            rawEndSeconds: 11.40d,
+        var normalized = ReazonSpeechK2TimestampNormalizer.NormalizePoint(
+            rawSeconds: 11.40d,
             chunkLengthSamples: 160_000);
 
-        Assert.That(normalized, Is.Not.Null);
-        Assert.Multiple(() =>
-        {
-            Assert.That(normalized!.Value.StartSample, Is.EqualTo(152_000));
-            Assert.That(normalized.Value.EndSample, Is.EqualTo(160_000));
-        });
+        Assert.That(normalized, Is.EqualTo(160_000));
     }
 
     [Test]
-    public void Normalize_WhenCorrectedRangeHasNoLength_ReturnsNull()
+    public void NormalizePoint_UsesFloorWhenConvertingPointTimestamp()
     {
-        var normalized = ReazonSpeechK2TimestampNormalizer.Normalize(
-            rawStartSeconds: 0.10d,
-            rawEndSeconds: 0.80d,
+        var normalized = ReazonSpeechK2TimestampNormalizer.NormalizePoint(
+            rawSeconds: 0.90001d,
             chunkLengthSamples: 160_000);
 
-        Assert.That(normalized, Is.Null);
+        Assert.That(normalized, Is.Zero);
     }
 
     [Test]
-    public void Normalize_UsesFloorForStartAndCeilingForEnd()
+    public void NormalizePoint_WhenTimestampIsNotFinite_Throws()
     {
-        var normalized = ReazonSpeechK2TimestampNormalizer.Normalize(
-            rawStartSeconds: 0.90001d,
-            rawEndSeconds: 0.90001d,
-            chunkLengthSamples: 160_000);
-
-        Assert.That(normalized, Is.Not.Null);
-        Assert.Multiple(() =>
-        {
-            Assert.That(normalized!.Value.StartSample, Is.Zero);
-            Assert.That(normalized.Value.EndSample, Is.EqualTo(1));
-        });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ReazonSpeechK2TimestampNormalizer.NormalizePoint(
+                double.NaN,
+                chunkLengthSamples: 160_000));
     }
 }
