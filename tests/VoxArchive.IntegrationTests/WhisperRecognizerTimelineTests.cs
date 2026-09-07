@@ -4,21 +4,21 @@ using VoxArchive.Transcription.Whisper;
 namespace VoxArchive.IntegrationTests;
 
 /// <summary>
-/// Whisper.netの相対timestampをVAD区間へ正規化する境界処理を確認する
+/// Whisper.netの相対timestampをRecognitionChunkへ正規化する境界処理を確認する
 /// </summary>
 public sealed class WhisperRecognizerTimelineTests
 {
     private const int SampleRate = 16_000;
 
     [Test]
-    public void NormalizeSegmentTimeline_EndExceedsVadRegion_ClampsToRegionEnd()
+    public void NormalizeSegmentTimeline_EndExceedsChunk_ClampsToChunkEnd()
     {
-        var region = CreateRegion(10, 20);
+        var chunk = CreateChunk(10, 20);
 
         var result = WhisperRecognizer.NormalizeSegmentTimeline(
             TimeSpan.FromSeconds(9.5),
             TimeSpan.FromSeconds(10.5),
-            region,
+            chunk,
             SampleRate,
             TimeSpan.FromSeconds(20));
 
@@ -30,14 +30,14 @@ public sealed class WhisperRecognizerTimelineTests
     }
 
     [Test]
-    public void NormalizeSegmentTimeline_NegativeStart_ClampsToRegionStart()
+    public void NormalizeSegmentTimeline_NegativeStart_ClampsToChunkStart()
     {
-        var region = CreateRegion(10, 20);
+        var chunk = CreateChunk(10, 20);
 
         var result = WhisperRecognizer.NormalizeSegmentTimeline(
             TimeSpan.FromMilliseconds(-200),
             TimeSpan.FromMilliseconds(500),
-            region,
+            chunk,
             SampleRate,
             TimeSpan.FromSeconds(30));
 
@@ -49,14 +49,14 @@ public sealed class WhisperRecognizerTimelineTests
     }
 
     [Test]
-    public void NormalizeSegmentTimeline_RegionExceedsAudio_ClampsToAudioDuration()
+    public void NormalizeSegmentTimeline_ChunkExceedsAudio_ClampsToAudioDuration()
     {
-        var region = CreateRegion(18, 21);
+        var chunk = CreateChunk(18, 21);
 
         var result = WhisperRecognizer.NormalizeSegmentTimeline(
             TimeSpan.FromSeconds(1),
             TimeSpan.FromSeconds(3),
-            region,
+            chunk,
             SampleRate,
             TimeSpan.FromSeconds(20));
 
@@ -68,14 +68,14 @@ public sealed class WhisperRecognizerTimelineTests
     }
 
     [Test]
-    public void NormalizeSegmentTimeline_StartBeyondRegion_EndDoesNotBecomeEarlierThanStart()
+    public void NormalizeSegmentTimeline_StartBeyondChunk_EndDoesNotBecomeEarlierThanStart()
     {
-        var region = CreateRegion(10, 20);
+        var chunk = CreateChunk(10, 20);
 
         var result = WhisperRecognizer.NormalizeSegmentTimeline(
             TimeSpan.FromSeconds(11),
             TimeSpan.FromSeconds(10.5),
-            region,
+            chunk,
             SampleRate,
             TimeSpan.FromSeconds(20));
 
@@ -86,15 +86,10 @@ public sealed class WhisperRecognizerTimelineTests
         });
     }
 
-    private static SpeechRegion CreateRegion(double startSeconds, double endSeconds)
-    {
-        var start = (long)(startSeconds * SampleRate);
-        var end = (long)(endSeconds * SampleRate);
-        return new SpeechRegion(
+    private static RecognitionChunk CreateChunk(double startSeconds, double endSeconds)
+        => new(
             0,
-            start,
-            end,
-            [new AudioSampleRange(start, end)],
-            [0]);
-    }
+            0,
+            (long)(startSeconds * SampleRate),
+            (long)(endSeconds * SampleRate));
 }
