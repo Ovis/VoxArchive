@@ -15,6 +15,7 @@ public interface ITranscriptionApplicationService
     event EventHandler? ModelStateChanged;
 
     Task<TranscriptionEnqueueResult> TryEnqueueAsync(string audioFilePath, RecordingOptions recordingOptions, TranscriptionTrigger trigger, CancellationToken cancellationToken = default);
+    bool CancelJob(string audioFilePath);
     IReadOnlyList<TranscriptionJobStateInfo> GetJobStates();
     string? FindCanonicalResultPath(string audioFilePath, RecordingOptions recordingOptions);
 
