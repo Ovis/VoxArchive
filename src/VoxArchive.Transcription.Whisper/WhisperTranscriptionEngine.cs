@@ -7,7 +7,6 @@ namespace VoxArchive.Transcription.Whisper;
 /// Whisper固有の認識処理だけをEngine契約へ接続する
 /// </summary>
 public sealed class WhisperTranscriptionEngine(
-    WhisperSpeechRegionStrategy speechRegionStrategy,
     WhisperRecognitionChunker recognitionChunker,
     WhisperProcessorFactory processorFactory,
     WhisperRecognizer recognizer,
@@ -33,13 +32,7 @@ public sealed class WhisperTranscriptionEngine(
             throw new ArgumentException("Whisper Engineへ異なるoptions型が渡されました。", nameof(request));
         }
 
-        var regions = await speechRegionStrategy.GetRegionsAsync(request.Audio, cancellationToken);
-        if (regions.Count == 0)
-        {
-            return new TranscriptionEngineResult([]);
-        }
-
-        var chunks = recognitionChunker.CreateChunks(request.Audio, regions);
+        var chunks = recognitionChunker.CreateChunks(request.Audio, request.SpeechRegions);
         if (chunks.Count == 0)
         {
             return new TranscriptionEngineResult([]);
