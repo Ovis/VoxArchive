@@ -159,6 +159,65 @@ public sealed class ManagedModelFileTransactionTests
         }
     }
 
+    [Test]
+    public void DeleteAtomically_RemovesOfficialPathOnlyAfterRename()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var destination = Path.Combine(root, "models", "silero-vad");
+            Directory.CreateDirectory(destination);
+            File.WriteAllText(Path.Combine(destination, "silero_vad.onnx"), "model");
+            var temporaryRoot = Path.Combine(root, ".model-ops");
+            using var client = CreateClient(new Dictionary<string, byte[]>());
+            var transaction = new ManagedModelFileTransaction(client);
+
+            transaction.DeleteAtomically(destination, temporaryRoot);
+
+            Assert.That(Directory.Exists(destination), Is.False);
+            Assert.That(Directory.Exists(temporaryRoot)
+                        && Directory.EnumerateDirectories(temporaryRoot).Any(), Is.False);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void CleanupOwnedTemporaryDirectories_DeletesOnlyVoxArchiveGuidNamedDirectories()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var temporaryRoot = Path.Combine(root, ".model-ops");
+            Directory.CreateDirectory(temporaryRoot);
+            var download = Path.Combine(temporaryRoot, $"download-{Guid.NewGuid():N}");
+            var backup = Path.Combine(temporaryRoot, $"backup-{Guid.NewGuid():N}");
+            var deletion = Path.Combine(temporaryRoot, $"delete-{Guid.NewGuid():N}");
+            var unrelated = Path.Combine(temporaryRoot, "keep-me");
+            var spoofed = Path.Combine(temporaryRoot, "download-not-a-guid");
+            foreach (var path in new[] { download, backup, deletion, unrelated, spoofed }) Directory.CreateDirectory(path);
+            using var client = CreateClient(new Dictionary<string, byte[]>());
+            var transaction = new ManagedModelFileTransaction(client);
+
+            transaction.CleanupOwnedTemporaryDirectories(temporaryRoot);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Directory.Exists(download), Is.False);
+                Assert.That(Directory.Exists(backup), Is.False);
+                Assert.That(Directory.Exists(deletion), Is.False);
+                Assert.That(Directory.Exists(unrelated), Is.True);
+                Assert.That(Directory.Exists(spoofed), Is.True);
+            });
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static HttpClient CreateClient(IReadOnlyDictionary<string, byte[]> responses)
         => new(new StubHttpMessageHandler(request =>
         {
