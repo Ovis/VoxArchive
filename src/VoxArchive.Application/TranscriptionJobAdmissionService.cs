@@ -84,15 +84,36 @@ public sealed class TranscriptionJobAdmissionService(
                 var modelId = registration.ModelRequirementResolver.ResolveRequiredModel(engineOptions);
                 resolvedModelId = modelId;
                 var modelKey = new TranscriptionModelKey(engineId, modelId);
-                reservation = usageTracker.Acquire(modelKey);
 
                 if (!modelManager.IsReady(modelKey))
                 {
+                    // 同一モデルを既に取得中なら、Auto/Manualを問わずそのownerへ相乗りして完了を待つ。
+                    // 別途取得を開始するとglobal download concurrency=1とowner/waiter共有規則を壊すため行わない。
                     var waited = await modelManager.WaitForActiveDownloadAsync(modelKey, cancellationToken);
                     if (!waited || !modelManager.IsReady(modelKey))
                     {
-                        return RejectAndRelease(reservation, $"文字起こしモデル '{modelId}' が未配置または不完全です。設定画面からモデルを取得してください。");
+                        var displayName = modelManager.GetAvailableModels(engineId)
+                            .FirstOrDefault(x => x.ModelId == modelId)?.DisplayName ?? modelId.Value;
+                        var missing = new TranscriptionMissingModelInfo(engineId.Value, modelId.Value, displayName);
+                        return trigger == TranscriptionTrigger.Manual
+                            ? TranscriptionAdmissionResult.RequiresModel(missing)
+                            : TranscriptionAdmissionResult.Skipped($"文字起こしモデル '{displayName}' が未取得のため自動文字起こしをスキップしました。");
                     }
+                }
+
+                // モデル取得完了後にusage reservationを取得する。
+                // 未配置状態で先に予約すると、手動取得自身が「使用中」と判定されて開始できなくなるため順序を固定する。
+                reservation = usageTracker.Acquire(modelKey);
+                if (!modelManager.IsReady(modelKey))
+                {
+                    reservation.Dispose();
+                    reservation = null;
+                    var displayName = modelManager.GetAvailableModels(engineId)
+                        .FirstOrDefault(x => x.ModelId == modelId)?.DisplayName ?? modelId.Value;
+                    var missing = new TranscriptionMissingModelInfo(engineId.Value, modelId.Value, displayName);
+                    return trigger == TranscriptionTrigger.Manual
+                        ? TranscriptionAdmissionResult.RequiresModel(missing)
+                        : TranscriptionAdmissionResult.Skipped($"文字起こしモデル '{displayName}' が未取得のため自動文字起こしをスキップしました。");
                 }
 
                 var installation = modelManager.GetInstallation(modelKey);
@@ -116,12 +137,6 @@ public sealed class TranscriptionJobAdmissionService(
             reservation?.Dispose();
             throw;
         }
-    }
-
-    private static TranscriptionAdmissionResult RejectAndRelease(TranscriptionModelUsageReservation reservation, string message)
-    {
-        reservation.Dispose();
-        return TranscriptionAdmissionResult.Rejected(message);
     }
 
     private static string FormatValidationErrors(IReadOnlyList<TranscriptionValidationError> errors)
@@ -151,10 +166,17 @@ public sealed record AdmittedTranscriptionJob(
 }
 
 /// <summary>
-/// Admissionの成否を表す
+/// Admissionの成否、skip、手動モデル取得要求を表す
 /// </summary>
-public sealed record TranscriptionAdmissionResult(bool Succeeded, string Message, AdmittedTranscriptionJob? Job)
+public sealed record TranscriptionAdmissionResult(
+    bool Succeeded,
+    string Message,
+    AdmittedTranscriptionJob? Job,
+    TranscriptionMissingModelInfo? MissingModel)
 {
-    public static TranscriptionAdmissionResult Accepted(AdmittedTranscriptionJob job) => new(true, string.Empty, job);
-    public static TranscriptionAdmissionResult Rejected(string message) => new(false, message, null);
+    public static TranscriptionAdmissionResult Accepted(AdmittedTranscriptionJob job) => new(true, string.Empty, job, null);
+    public static TranscriptionAdmissionResult Rejected(string message) => new(false, message, null, null);
+    public static TranscriptionAdmissionResult Skipped(string message) => new(false, message, null, null);
+    public static TranscriptionAdmissionResult RequiresModel(TranscriptionMissingModelInfo model)
+        => new(false, $"文字起こしモデル '{model.DisplayName}' の取得が必要です。", null, model);
 }
