@@ -58,6 +58,28 @@ public interface ITranscriptionModelRequirementResolver
         TranscriptionModelInstallation installation);
 }
 
+/// <summary>
+/// Engineが利用者へ選択可能な実行方式を公開するoptional capability
+/// </summary>
+/// <remarks>
+/// UIがWhisper等のtyped optionsやsettings JSONを直接解釈しないための境界である。
+/// 実行方式を選択できないEngineはこのcapabilityを登録しない。
+/// </remarks>
+public interface ITranscriptionExecutionModeCapability
+{
+    /// <summary>UIで選択可能な実行方式を返す</summary>
+    IReadOnlyList<TranscriptionExecutionModeDescriptor> GetAvailableModes();
+
+    /// <summary>指定optionsで要求されている実行方式の安定IDを返す</summary>
+    string GetSelectedMode(ITranscriptionEngineOptions options);
+
+    /// <summary>指定実行方式をoptions snapshotへ反映した新しいoptionsを返す</summary>
+    ITranscriptionEngineOptions SelectMode(ITranscriptionEngineOptions options, string modeId);
+}
+
+/// <summary>UIへ公開する実行方式の安定IDと表示名を表す</summary>
+public sealed record TranscriptionExecutionModeDescriptor(string Id, string DisplayName);
+
 /// <summary>PreferredLanguageの対応可否とEngine固有optionsへの解決を行うoptional capability</summary>
 public interface ITranscriptionLanguageCapability
 {
@@ -99,7 +121,8 @@ public sealed record TranscriptionEngineRegistration(
     ITranscriptionEngineDiagnostics? Diagnostics = null,
     ITranscriptionLanguageCapability? LanguageCapability = null,
     ITranscriptionEngineExecutionValidator? ExecutionValidator = null,
-    ITranscriptionArtifactNamingCapability? ArtifactNamingCapability = null);
+    ITranscriptionArtifactNamingCapability? ArtifactNamingCapability = null,
+    ITranscriptionExecutionModeCapability? ExecutionModeCapability = null);
 
 public sealed record TranscriptionValidationError(string Code, string Message);
 public sealed record TranscriptionDiagnosticItem(string Code, string Message, TranscriptionDiagnosticSeverity Severity);
