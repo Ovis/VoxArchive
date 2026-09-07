@@ -65,9 +65,10 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<LocalRecordingBootstrapper>();
                     services.AddSingleton<RecordingRuntimeContextHolder>();
 
-                    // 利用者への確認だけはPresentation責務なのでWPF adapterを登録する。
+                    // 利用者への確認と進捗表示だけはPresentation責務なのでWPF adapterを登録する。
                     // download所有権、モデル検証、再AdmissionはApplicationへ残し、UI技術へ実行ロジックを戻さない。
                     services.AddSingleton<ITranscriptionModelDownloadConfirmation, WpfTranscriptionModelDownloadConfirmation>();
+                    services.AddSingleton<ITranscriptionModelDownloadProgressPresentation, WpfTranscriptionModelDownloadProgressPresentation>();
 
                     // 文字起こしのCommon/Engine/Application構成はRuntimeだけが所有する。
                     // WPFからWhisper/ReazonSpeech具象型を登録するとComposition Rootが分散するため、ここでは拡張1本だけを呼ぶ。
