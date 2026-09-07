@@ -81,7 +81,14 @@ public sealed class ReazonSpeechRecognizer
         return segments;
     }
 
-    private static OfflineRecognizerConfig CreateRecognizerConfig(ReazonSpeechEngineOptions options, bool diagnosticsEnabled)
+    /// <summary>
+    /// Job開始時に確定したReazonSpeech設定からsherpa-onnx recognizer設定を生成する
+    /// </summary>
+    /// <remarks>
+    /// 値の妥当性はAdmission前のsettings validationで確認済みとし、ここではclampや既定値への置換を行わない。
+    /// 実行時に保存値を暗黙補正すると診断JSONのsnapshotと実際の推論条件が一致しなくなるためである。
+    /// </remarks>
+    internal static OfflineRecognizerConfig CreateRecognizerConfig(ReazonSpeechEngineOptions options, bool diagnosticsEnabled)
     {
         var config = new OfflineRecognizerConfig();
         config.FeatConfig.SampleRate = ModelSampleRate;
@@ -91,11 +98,17 @@ public sealed class ReazonSpeechRecognizer
         config.ModelConfig.Transducer.Joiner = options.JoinerPath!;
         config.ModelConfig.Tokens = options.TokensPath!;
 
-        // 現行ReazonSpeech実装の挙動を変えないためCPU固定・最大4 thread・greedy_searchを維持する。
+        // 今フェーズではReazonSpeechはCPU固定とし、threads/decodingだけを利用者設定から反映する。
         config.ModelConfig.Provider = "cpu";
-        config.ModelConfig.NumThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+        config.ModelConfig.NumThreads = options.CpuThreads;
         config.ModelConfig.Debug = diagnosticsEnabled ? 1 : 0;
-        config.DecodingMethod = "greedy_search";
+        config.DecodingMethod = options.DecodingMethod switch
+        {
+            ReazonSpeechDecodingMethod.GreedySearch => "greedy_search",
+            ReazonSpeechDecodingMethod.ModifiedBeamSearch => "modified_beam_search",
+            _ => throw new ArgumentOutOfRangeException(nameof(options.DecodingMethod), options.DecodingMethod, "未対応のReazonSpeech decoding methodです。")
+        };
+        config.MaxActivePaths = options.MaxActivePaths;
         return config;
     }
 
