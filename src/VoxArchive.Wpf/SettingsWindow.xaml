@@ -399,8 +399,8 @@
                                             <StackPanel Grid.Column="0">
                                                 <TextBlock Style="{StaticResource FieldLabelStyle}" Text="実行モード" />
                                                 <ComboBox x:Name="ExecutionModeComboBox" SelectedValuePath="Tag" SelectionChanged="OnTranscriptionEnvironmentSelectionChanged">
-                                                    <ComboBoxItem Content="自動" Tag="{x:Static domain:TranscriptionExecutionMode.Auto}" />
-                                                    <ComboBoxItem Content="CPUのみ" Tag="{x:Static domain:TranscriptionExecutionMode.CpuOnly}" />
+                                                    <ComboBoxItem Content="自動" Tag="auto" />
+                                                    <ComboBoxItem Content="CPUのみ" Tag="cpu" />
                                                 </ComboBox>
                                                 <local:TranscriptionModelManagerControl x:Name="WhisperModelManagerControl" Margin="0,12,0,0" />
                                             </StackPanel>
