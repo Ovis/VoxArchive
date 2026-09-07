@@ -65,8 +65,8 @@ internal static class ReazonSpeechForcedBoundarySelector
                 searchEnd);
 
             if (best is null
-                || frame.Rms < bestRms
-                || (frame.Rms.Equals(bestRms) && midpoint > best.SelectedSample))
+                || frame.Rms < bestRms!.Value
+                || (frame.Rms.Equals(bestRms.Value) && midpoint > best.SelectedSample))
             {
                 // RMSが同値の場合は25秒側に近いframeを採用する。
                 // 同品質なら長いchunkを優先した方が不要な追加分割を増やさず、結果も決定的になる。
