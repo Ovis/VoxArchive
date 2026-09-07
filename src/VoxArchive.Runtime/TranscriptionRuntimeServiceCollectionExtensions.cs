@@ -75,6 +75,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<ReazonSpeechEngineSettingsProvider>();
         services.AddSingleton<ReazonSpeechModelProvider>();
         services.AddSingleton<ReazonSpeechModelRequirementResolver>();
+        services.AddSingleton<ReazonSpeechModelSelectionCapability>();
         services.AddSingleton<ReazonSpeechLanguageCapability>();
         services.AddSingleton<ReazonSpeechArtifactNamingCapability>();
 
@@ -98,7 +99,9 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
                 null,
                 sp.GetRequiredService<ReazonSpeechLanguageCapability>(),
                 null,
-                sp.GetRequiredService<ReazonSpeechArtifactNamingCapability>()),
+                sp.GetRequiredService<ReazonSpeechArtifactNamingCapability>(),
+                null,
+                sp.GetRequiredService<ReazonSpeechModelSelectionCapability>()),
         ]));
 
         services.AddSingleton<TranscriptionModelManager>();
