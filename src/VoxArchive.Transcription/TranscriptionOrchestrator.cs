@@ -40,11 +40,12 @@ public sealed class TranscriptionOrchestrator(
         // VADはWhisper/ReazonSpeechで共通の前処理であり、Engine内部で個別実行すると
         // detector選択やfallback結果がEngineごとに分岐するためCommon pipelineで一度だけ確定する。
         LogStage(request, "vad", "started", pipelineStopwatch.ElapsedMilliseconds);
-        var speechRegions = await speechRegionDetector.DetectAsync(preparedAudio, cancellationToken);
+        var speechRegions = await speechRegionDetector.DetectAsync(
+            preparedAudio,
+            request.SpeechRegionDetectorSettings,
+            cancellationToken);
         LogStage(request, "vad", "completed", pipelineStopwatch.ElapsedMilliseconds);
 
-        // Prepared Audioの所有権はCommon pipelineにある。EngineはborrowするだけでDisposeしないため、
-        // recognition後のvalidator/post-processが終わるまで同じ音声を安全に再利用できる。
         LogStage(request, "recognition", "started", pipelineStopwatch.ElapsedMilliseconds);
         var engineResult = await engine.TranscribeAsync(
             new TranscriptionEngineRequest(
@@ -60,10 +61,7 @@ public sealed class TranscriptionOrchestrator(
         LogStage(request, "validation", "completed", pipelineStopwatch.ElapsedMilliseconds);
 
         LogStage(request, "speaker-labeling", "started", pipelineStopwatch.ElapsedMilliseconds);
-        var labeled = speakerLabelService.Apply(
-            request.SourceRecordingPath,
-            engineResult.Segments,
-            cancellationToken);
+        var labeled = speakerLabelService.Apply(request.SourceRecordingPath, engineResult.Segments, cancellationToken);
         LogStage(request, "speaker-labeling", "completed", pipelineStopwatch.ElapsedMilliseconds);
 
         var finishedAt = DateTimeOffset.Now;
@@ -90,26 +88,12 @@ public sealed class TranscriptionOrchestrator(
                 artifact.GeneratedFiles.Count);
         }
 
-        return new TranscriptionOrchestrationResult(
-            artifact.DocumentPath,
-            artifact.GeneratedFiles,
-            engineResult.Metadata,
-            finishedAt);
+        return new TranscriptionOrchestrationResult(artifact.DocumentPath, artifact.GeneratedFiles, engineResult.Metadata, finishedAt);
     }
 
-    private void LogStage(
-        TranscriptionOrchestrationRequest request,
-        string stage,
-        string state,
-        long elapsedMilliseconds)
+    private void LogStage(TranscriptionOrchestrationRequest request, string stage, string state, long elapsedMilliseconds)
     {
-        if (!request.DiagnosticsEnabled)
-        {
-            return;
-        }
-
-        // native ASR障害の切り分けでは「どのEngineか」だけでなく、共通pipelineのどこまで進んだかが重要になる。
-        // stageごとの経過時間を同じ構造で残し、UIやEngine固有実装へ診断責務を分散させない。
+        if (!request.DiagnosticsEnabled) return;
         logger.LogInformation(
             "Transcription pipeline stage. File={File}, Engine={Engine}, Stage={Stage}, State={State}, ElapsedMs={ElapsedMs}",
             request.SourceRecordingPath,
@@ -127,6 +111,7 @@ public sealed record TranscriptionOrchestrationRequest(
     string SourceRecordingPath,
     TranscriptionEngineId EngineId,
     ITranscriptionEngineOptions EngineOptions,
+    SpeechRegionDetectorSettingsSnapshot SpeechRegionDetectorSettings,
     double SpeakerGainDb,
     double MicrophoneGainDb,
     TranscriptionArtifactOptions ArtifactOptions,
