@@ -63,16 +63,23 @@ public sealed class TranscriptionJobAdmissionService(
             {
                 return TranscriptionAdmissionResult.Rejected($"Engine '{engineId}' は希望言語 '{settings.PreferredLanguage}' をサポートしていません。");
             }
+
             engineOptions = registration.LanguageCapability.Resolve(engineOptions, settings.PreferredLanguage);
         }
 
         var validationErrors = registration.SettingsProvider.Validate(engineOptions);
-        if (validationErrors.Count > 0) return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(validationErrors));
+        if (validationErrors.Count > 0)
+        {
+            return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(validationErrors));
+        }
 
         if (registration.ExecutionValidator is not null)
         {
             var executionErrors = await registration.ExecutionValidator.ValidateAsync(engineOptions, cancellationToken);
-            if (executionErrors.Count > 0) return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(executionErrors));
+            if (executionErrors.Count > 0)
+            {
+                return TranscriptionAdmissionResult.Rejected(FormatValidationErrors(executionErrors));
+            }
         }
 
         ModelId? resolvedModelId = null;
@@ -122,13 +129,20 @@ public sealed class TranscriptionJobAdmissionService(
 
             var priority = trigger == TranscriptionTrigger.AutoAfterRecord ? settings.AutoPriority : settings.ManualPriority;
             var descriptor = new TranscriptionJobDescriptor(audioFilePath, engineId, resolvedModelId, trigger, settings.DiagnosticsLogEnabled);
+
+            // 既存artifact名との互換性が必要なEngineは自身のcapabilityでsuffixを確定する。
+            // Queue投入後に設定が変わっても出力先が変化しないようAdmission snapshotへ含める。
+            var artifactSuffix = registration.ArtifactNamingCapability?.BuildFileNameSuffix(resolvedModelId);
             var orchestrationRequest = new TranscriptionOrchestrationRequest(
                 audioFilePath,
                 engineId,
                 engineOptions,
                 recordingOptions.DefaultSpeakerPlaybackGainDb,
                 recordingOptions.DefaultMicPlaybackGainDb,
-                new TranscriptionArtifactOptions(resolvedModelId, ToArtifactFormats(settings.OutputFormats)));
+                new TranscriptionArtifactOptions(
+                    resolvedModelId,
+                    ToArtifactFormats(settings.OutputFormats),
+                    artifactSuffix));
 
             return TranscriptionAdmissionResult.Accepted(new AdmittedTranscriptionJob(descriptor, orchestrationRequest, priority, reservation));
         }
