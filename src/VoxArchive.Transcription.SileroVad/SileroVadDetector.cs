@@ -27,7 +27,7 @@ public sealed class SileroVadDetector(string modelPath) : ISpeechRegionDetector
         ArgumentNullException.ThrowIfNull(settings);
         if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
         {
-            throw new FileNotFoundException("Silero VADモデルが配置されていません。", modelPath);
+            throw new SileroVadUnavailableException("Silero VADモデルが配置されていません。");
         }
         if (audio.Format.SampleRate != RequiredSampleRate || audio.Format.Channels != 1)
         {
@@ -43,38 +43,52 @@ public sealed class SileroVadDetector(string modelPath) : ISpeechRegionDetector
         // Prepared Audio全体を収容できる値を使う。K2の25秒制約はRecognitionChunkerの責務であり、
         // Silero側のMaxSpeechDurationでSpeechRegionを分割しない。
         var bufferSeconds = Math.Max(MinimumBufferSeconds, (float)Math.Ceiling(audio.Duration.TotalSeconds + 1d));
-        using var detector = new VoiceActivityDetector(config, bufferSeconds);
-        await using var stream = await audio.OpenReadAsync(cancellationToken);
-        using var reader = new WaveFileReader(stream);
-        ISampleProvider provider = reader.ToSampleProvider();
-        ValidateWaveFormat(provider.WaveFormat);
-
-        var window = new float[WindowSize];
-        while (true)
+        VoiceActivityDetector detector;
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var read = provider.Read(window.AsSpan());
-            if (read <= 0)
-            {
-                break;
-            }
-
-            if (read == window.Length)
-            {
-                detector.AcceptWaveform(window);
-            }
-            else
-            {
-                // 最終端を0で埋めると人工無音がVAD判断へ混入するため、実際に存在するsampleだけを渡す。
-                var tail = new float[read];
-                Array.Copy(window, tail, read);
-                detector.AcceptWaveform(tail);
-            }
-            DrainSegments(detector, rawRegions);
+            detector = new VoiceActivityDetector(config, bufferSeconds);
+        }
+        catch (Exception ex)
+        {
+            // native detectorを生成できない段階は推論失敗ではなくモデル利用不可として扱う。
+            // 上位selectorはこの区別を使って、連続推論失敗によるsession suppressionを誤って進めない。
+            throw new SileroVadUnavailableException("Silero VADモデルを初期化できませんでした。", ex);
         }
 
-        detector.Flush();
-        DrainSegments(detector, rawRegions);
+        using (detector)
+        {
+            await using var stream = await audio.OpenReadAsync(cancellationToken);
+            using var reader = new WaveFileReader(stream);
+            ISampleProvider provider = reader.ToSampleProvider();
+            ValidateWaveFormat(provider.WaveFormat);
+
+            var window = new float[WindowSize];
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var read = provider.Read(window.AsSpan());
+                if (read <= 0)
+                {
+                    break;
+                }
+
+                if (read == window.Length)
+                {
+                    detector.AcceptWaveform(window);
+                }
+                else
+                {
+                    // 最終端を0で埋めると人工無音がVAD判断へ混入するため、実際に存在するsampleだけを渡す。
+                    var tail = new float[read];
+                    Array.Copy(window, tail, read);
+                    detector.AcceptWaveform(tail);
+                }
+                DrainSegments(detector, rawRegions);
+            }
+
+            detector.Flush();
+            DrainSegments(detector, rawRegions);
+        }
 
         var sampleCount = Math.Max(0L, (long)Math.Floor(audio.Duration.TotalSeconds * audio.Format.SampleRate));
         return SileroVadRegionBuilder.Build(rawRegions, sampleCount, audio.Format.SampleRate, options);
