@@ -50,10 +50,58 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
 
         // 利用者への確認やWindow表示はPresentation責務なので、ApplicationからUIを逆呼び出ししない。
         // Admissionが不足モデルを返した場合は構造化したままWPFへ返し、取得Use Caseは明示的なInstallModelAsyncで実行する。
-        return new VoxArchive.Application.Abstractions.TranscriptionEnqueueResult(
-            result.Enqueued,
-            result.Message,
-            result.MissingModel);
+        return ToEnqueueResult(result);
+    }
+
+    /// <inheritdoc />
+    public async Task<VoxArchive.Application.Abstractions.TranscriptionEnqueueResult> DownloadMissingModelAndRetryManualEnqueueAsync(
+        string audioFilePath,
+        RecordingOptions recordingOptions,
+        TranscriptionMissingModelInfo confirmedModel,
+        IProgress<TranscriptionModelTransferInfo>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);
+        ArgumentNullException.ThrowIfNull(recordingOptions);
+        ArgumentNullException.ThrowIfNull(confirmedModel);
+
+        // 確認Dialog表示後にも設定・Queue状態・別downloadが変化し得るため、取得前に必ず再Admissionする。
+        // ここで既にenqueue可能ならdownloadを開始せず、その結果をそのまま返す。
+        var current = await _jobQueue.TryEnqueueAsync(
+            audioFilePath,
+            recordingOptions,
+            TranscriptionTrigger.Manual,
+            cancellationToken);
+        if (current.Enqueued || current.MissingModel is null)
+        {
+            return ToEnqueueResult(current);
+        }
+
+        if (!IsSameModel(current.MissingModel, confirmedModel))
+        {
+            // 利用者が確認していない別モデルへ要求が変わった場合は安全側に倒す。
+            // Presentationへ新しいMissingModelを返し、暗黙downloadは行わない。
+            return ToEnqueueResult(current);
+        }
+
+        var adapter = progress is null
+            ? null
+            : new Progress<TranscriptionModelTransferProgress>(x =>
+                progress.Report(new TranscriptionModelTransferInfo(x.BytesReceived, x.TotalBytes)));
+        await _modelManager.InstallAsync(
+            ToModelKey(confirmedModel.EngineId, confirmedModel.ModelId),
+            force: false,
+            adapter,
+            cancellationToken);
+
+        // download完了後のreadiness・reservation・immutable snapshotはAdmissionで改めて確定する。
+        // WPF側でAdmission手順を複製しないことで、通常実行と再文字起こしのpolicyを一致させる。
+        var retried = await _jobQueue.TryEnqueueAsync(
+            audioFilePath,
+            recordingOptions,
+            TranscriptionTrigger.Manual,
+            cancellationToken);
+        return ToEnqueueResult(retried);
     }
 
     /// <inheritdoc />
@@ -309,6 +357,13 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         if (formats.HasFlag(TranscriptionOutputFormats.Vtt)) result |= TranscriptionArtifactFormats.Vtt;
         return result;
     }
+
+    private static VoxArchive.Application.Abstractions.TranscriptionEnqueueResult ToEnqueueResult(TranscriptionEnqueueResult result)
+        => new(result.Enqueued, result.Message, result.MissingModel);
+
+    private static bool IsSameModel(TranscriptionMissingModelInfo left, TranscriptionMissingModelInfo right)
+        => string.Equals(left.EngineId, right.EngineId, StringComparison.OrdinalIgnoreCase)
+           && string.Equals(left.ModelId, right.ModelId, StringComparison.OrdinalIgnoreCase);
 
     private static TranscriptionModelStatusInfo ToStatus(TranscriptionModelPackageState state, bool isReady) => new(state.ToString(), isReady);
     private static EngineId ToEngineId(string value) => new(value);

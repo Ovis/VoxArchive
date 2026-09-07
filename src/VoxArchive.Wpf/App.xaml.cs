@@ -68,6 +68,7 @@ public partial class App : System.Windows.Application
                     // 文字起こしのCommon/Engine/Application構成はRuntimeだけが所有する。
                     // WPFからWhisper/ReazonSpeech具象型を登録するとComposition Rootが分散するため、ここでは拡張1本だけを呼ぶ。
                     services.AddVoxArchiveTranscription();
+                    services.AddSingleton<ManualTranscriptionEnqueueCoordinator>();
 
                     services.AddTransient<MainViewModel>(sp =>
                     {

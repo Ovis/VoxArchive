@@ -15,6 +15,20 @@ public interface ITranscriptionApplicationService
     event EventHandler? ModelStateChanged;
 
     Task<TranscriptionEnqueueResult> TryEnqueueAsync(string audioFilePath, RecordingOptions recordingOptions, TranscriptionTrigger trigger, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 手動Admissionで不足したモデルについて利用者確認が完了した後、モデル取得と再Admissionを行う
+    /// </summary>
+    /// <remarks>
+    /// UIは確認と進捗表示だけを担当し、download完了待ちと再Queue投入のpolicyはApplicationへ集約する。
+    /// 確認後に必要モデルが変化した場合は、未確認の別モデルを暗黙に取得せずMissingModelを返す。
+    /// </remarks>
+    Task<TranscriptionEnqueueResult> DownloadMissingModelAndRetryManualEnqueueAsync(
+        string audioFilePath,
+        RecordingOptions recordingOptions,
+        TranscriptionMissingModelInfo confirmedModel,
+        IProgress<TranscriptionModelTransferInfo>? progress = null,
+        CancellationToken cancellationToken = default);
     bool CancelJob(string audioFilePath);
     IReadOnlyList<TranscriptionJobStateInfo> GetJobStates();
     string? FindCanonicalResultPath(string audioFilePath, RecordingOptions recordingOptions);

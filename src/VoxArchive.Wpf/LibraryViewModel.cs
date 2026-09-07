@@ -23,6 +23,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     private readonly IRecordingPlaybackService _playbackService;
     private readonly DispatcherTimer _positionTimer;
     private readonly ITranscriptionApplicationService _transcriptionService;
+    private readonly ManualTranscriptionEnqueueCoordinator _manualTranscriptionCoordinator;
     private readonly Func<RecordingOptions> _optionsProvider;
 
     private LibraryRecordingItem? _selectedItem;
@@ -49,6 +50,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
     public LibraryViewModel(
         RecordingCatalogService catalogService,
         ITranscriptionApplicationService transcriptionService,
+        ManualTranscriptionEnqueueCoordinator manualTranscriptionCoordinator,
         Func<RecordingOptions> optionsProvider,
         IRecordingPlaybackService playbackService,
         double defaultSpeakerGainDb = 0d,
@@ -57,6 +59,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _catalogService = catalogService;
         _catalogSession = _catalogService.AcquireInteractiveSession();
         _transcriptionService = transcriptionService;
+        _manualTranscriptionCoordinator = manualTranscriptionCoordinator;
         _optionsProvider = optionsProvider;
 
         _transcriptionService.JobCompleted += OnTranscriptionJobCompleted;
@@ -759,7 +762,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                 return;
             }
 
-            var result = await TryEnqueueManualTranscriptionAsync(SelectedItem.FilePath, options);
+            var result = await _manualTranscriptionCoordinator.TryEnqueueAsync(SelectedItem.FilePath, options);
             if (!result.Enqueued)
             {
                 StatusText = IsTranscribingForPath(SelectedItem.FilePath)
@@ -785,86 +788,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
-    }
-
-    /// <summary>
-    /// 手動文字起こしをAdmissionし、不足モデルがある場合だけ利用者確認と取得UIを挟んで再Admissionする
-    /// </summary>
-    private async Task<TranscriptionEnqueueResult> TryEnqueueManualTranscriptionAsync(
-        string audioFilePath,
-        RecordingOptions options)
-    {
-        var result = await _transcriptionService.TryEnqueueAsync(
-            audioFilePath,
-            options,
-            ApplicationTranscriptionTrigger.Manual);
-        if (result.Enqueued || result.MissingModel is null)
-        {
-            return result;
-        }
-
-        var missingModel = result.MissingModel;
-        var confirmation = ModernDialog.Show(
-            $"文字起こしに必要なモデル「{missingModel.DisplayName}」が取得されていません。\nモデルを取得して文字起こしを続行しますか？",
-            "文字起こしモデル未取得",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Question,
-            MessageBoxResult.Cancel);
-        if (confirmation != MessageBoxResult.OK)
-        {
-            return new TranscriptionEnqueueResult(
-                false,
-                "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");
-        }
-
-        var progressWindow = new TranscriptionModelDownloadProgressWindow(
-            missingModel,
-            () => _transcriptionService.CancelModelDownload(missingModel.EngineId, missingModel.ModelId))
-        {
-            Owner = System.Windows.Application.Current?.MainWindow
-        };
-        var progress = new Progress<TranscriptionModelTransferInfo>(progressWindow.Report);
-
-        try
-        {
-            // InstallModelAsyncを先に呼んで共有download ownerを確立してからWindowを表示する。
-            // これにより表示直後のキャンセルも確実にApplication側のownerへ届く。
-            var installTask = _transcriptionService.InstallModelAsync(
-                missingModel.EngineId,
-                missingModel.ModelId,
-                force: false,
-                progress);
-            progressWindow.Show();
-
-            var activeDownload = _transcriptionService.GetActiveModelDownload();
-            if (activeDownload is not null
-                && string.Equals(activeDownload.EngineId, missingModel.EngineId, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(activeDownload.ModelId, missingModel.ModelId, StringComparison.OrdinalIgnoreCase))
-            {
-                progressWindow.Report(new TranscriptionModelTransferInfo(
-                    activeDownload.BytesReceived,
-                    activeDownload.TotalBytes));
-            }
-
-            await installTask;
-        }
-        catch (OperationCanceledException)
-        {
-            return new TranscriptionEnqueueResult(
-                false,
-                "モデル取得がキャンセルされたため文字起こしを開始しませんでした。");
-        }
-        finally
-        {
-            progressWindow.CloseAfterCompletion();
-        }
-
-        // モデル取得後は設定を作り直さず、同じRecordingOptionsを再Admissionする。
-        // Admission側でreadiness・reservation・immutable snapshotを改めて確定する。
-        return await _transcriptionService.TryEnqueueAsync(
-            audioFilePath,
-            options,
-            ApplicationTranscriptionTrigger.Manual);
     }
 
     private void OnTranscriptionJobCompleted(object? sender, ApplicationTranscriptionJobCompletedEventArgs e)

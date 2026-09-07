@@ -8,7 +8,8 @@ namespace VoxArchive.Wpf;
 /// </summary>
 public sealed class LibraryRetranscriptionService(
     ITranscriptionApplicationService transcriptionApplicationService,
-    ISettingsService settingsService)
+    ISettingsService settingsService,
+    ManualTranscriptionEnqueueCoordinator manualTranscriptionCoordinator)
 {
     /// <summary>
     /// 保存済みcanonical resultと現在設定から再文字起こし用snapshotを準備する
@@ -40,10 +41,11 @@ public sealed class LibraryRetranscriptionService(
         ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);
         ArgumentNullException.ThrowIfNull(prepared);
 
-        var result = await transcriptionApplicationService.TryEnqueueAsync(
+        // 通常の手動実行と同じPresentation flowを使い、missing-model確認だけが
+        // 再文字起こし経路から抜け落ちることを防ぐ。download/retry policyはApplicationが所有する。
+        var result = await manualTranscriptionCoordinator.TryEnqueueAsync(
             audioFilePath,
             prepared.Options,
-            TranscriptionTrigger.Manual,
             cancellationToken);
 
         if (result.Enqueued && prepared.Options.Transcription.ToastNotificationEnabled)
