@@ -12,6 +12,12 @@ public sealed class WhisperModelRequirementResolver : ITranscriptionModelRequire
         => GetOptions(options).ModelId;
 
     /// <inheritdoc />
+    public ITranscriptionEngineOptions SelectModel(
+        ITranscriptionEngineOptions options,
+        TranscriptionModelId modelId)
+        => GetOptions(options) with { ModelId = modelId, ModelPath = null };
+
+    /// <inheritdoc />
     public ITranscriptionEngineOptions BindInstallation(
         ITranscriptionEngineOptions options,
         TranscriptionModelInstallation installation)
