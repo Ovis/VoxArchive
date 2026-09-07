@@ -133,6 +133,14 @@ public sealed class TranscriptionJobAdmissionService(
             // 既存artifact名との互換性が必要なEngineは自身のcapabilityでsuffixを確定する。
             // Queue投入後に設定が変わっても出力先が変化しないようAdmission snapshotへ含める。
             var artifactSuffix = registration.ArtifactNamingCapability?.BuildFileNameSuffix(resolvedModelId);
+
+            // 再文字起こしで当時の要求条件を復元できるよう、Engine固有settingsはopaque JSONのまま保存する。
+            // 物理モデルパスなどBindInstallation後の実行時情報ではなく、利用者が保存した論理設定をsnapshot化する。
+            var executionSnapshot = new TranscriptionExecutionSnapshot(
+                persistedEngineSettings.SchemaVersion,
+                persistedEngineSettings.Settings.Clone(),
+                settings.PreferredLanguage);
+
             var orchestrationRequest = new TranscriptionOrchestrationRequest(
                 audioFilePath,
                 engineId,
@@ -142,7 +150,8 @@ public sealed class TranscriptionJobAdmissionService(
                 new TranscriptionArtifactOptions(
                     resolvedModelId,
                     ToArtifactFormats(settings.OutputFormats),
-                    artifactSuffix),
+                    artifactSuffix,
+                    executionSnapshot),
                 settings.DiagnosticsLogEnabled);
 
             return TranscriptionAdmissionResult.Accepted(new AdmittedTranscriptionJob(descriptor, orchestrationRequest, priority, reservation));
