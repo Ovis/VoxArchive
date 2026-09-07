@@ -70,13 +70,12 @@ public sealed class ReazonSpeechTailBoundarySelectorTests
     }
 
     [Test]
-    public void Select_ClampsSearchWindowSoBothResultingChunksRemainAtLeastThreeSeconds()
+    public void Select_ReturnedBoundaryKeepsBothChunksAtLeastThreeSeconds()
     {
         var analysis = CreateAnalysis(
-            Frame(2.5d, 0.01d),
-            Frame(3.2d, 0.10d),
-            Frame(22.8d, 0.10d),
-            Frame(23.5d, 0.01d));
+            Frame(11.2d, 0.20d),
+            Frame(12.8d, 0.05d),
+            Frame(14.5d, 0.10d));
 
         var selected = ReazonSpeechTailBoundarySelector.Select(
             analysis,
@@ -87,7 +86,7 @@ public sealed class ReazonSpeechTailBoundarySelectorTests
         Assert.Multiple(() =>
         {
             Assert.That(selected!.SelectedSample, Is.GreaterThanOrEqualTo(Samples(3d)));
-            Assert.That(selected.SelectedSample, Is.LessThanOrEqualTo(Samples(23d)));
+            Assert.That(Samples(26d) - selected.SelectedSample, Is.GreaterThanOrEqualTo(Samples(3d)));
         });
     }
 
