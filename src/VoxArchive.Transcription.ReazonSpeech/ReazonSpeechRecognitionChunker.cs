@@ -85,9 +85,9 @@ public sealed class ReazonSpeechRecognitionChunker : IRecognitionChunker
             }
 
             if (selectedSample is null
-                || selectedSample <= chunkStart
-                || selectedSample > chunkStart + MaximumChunkSamples
-                || selectedSample >= region.EndSample)
+                || selectedSample.Value <= chunkStart
+                || selectedSample.Value > chunkStart + MaximumChunkSamples
+                || selectedSample.Value >= region.EndSample)
             {
                 throw new InvalidDataException(
                     $"SpeechRegion {region.SpeechRegionId} を25秒以下へ安全に分割できませんでした。"
