@@ -31,6 +31,13 @@ public sealed class TranscriptionJobAdmissionService(
         ArgumentNullException.ThrowIfNull(recordingOptions);
 
         var settings = recordingOptions.Transcription;
+        if (!settings.Enabled)
+        {
+            // Presentation側の事前チェックだけに依存すると、新しい呼び出し経路を追加した際に
+            // 無効設定のままQueueへ到達できるため、ApplicationのAdmission境界でも実行可否を保証する。
+            return TranscriptionAdmissionResult.Rejected("文字起こし機能が無効です。設定画面で有効化してください。");
+        }
+
         var engineId = new TranscriptionEngineId(settings.DefaultEngine);
         TranscriptionEngineRegistration registration;
         try
