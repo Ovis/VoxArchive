@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 
@@ -8,7 +9,8 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// </summary>
 public sealed class ReazonSpeechTranscriptionEngine(
     ISpeechRegionDetector speechRegionDetector,
-    ReazonSpeechRecognizer recognizer) : ITranscriptionEngine
+    ReazonSpeechRecognizer recognizer,
+    ILogger<ReazonSpeechTranscriptionEngine> logger) : ITranscriptionEngine
 {
     private static readonly TranscriptionAudioRequirements Requirements =
         new(16_000, 1, TranscriptionSampleFormat.Pcm16);
@@ -36,18 +38,60 @@ public sealed class ReazonSpeechTranscriptionEngine(
             return new TranscriptionEngineResult([]);
         }
 
-        var segments = await recognizer.RecognizeAsync(
-            request.Audio,
-            regions,
-            options,
-            request.Context.DiagnosticsEnabled,
-            cancellationToken);
-        return new TranscriptionEngineResult(
-            segments,
-            new Dictionary<string, object?>
+        const string provider = "cpu";
+        const string decodingMethod = "greedy_search";
+        if (request.Context.DiagnosticsEnabled)
+        {
+            logger.LogInformation(
+                "ReazonSpeech recognition started. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}, RegionCount={RegionCount}",
+                provider,
+                options.ModelId,
+                decodingMethod,
+                regions.Count);
+        }
+
+        try
+        {
+            var segments = await recognizer.RecognizeAsync(
+                request.Audio,
+                regions,
+                options,
+                request.Context.DiagnosticsEnabled,
+                cancellationToken);
+
+            if (request.Context.DiagnosticsEnabled)
             {
-                ["provider"] = "cpu",
-                ["decodingMethod"] = "greedy_search"
-            });
+                logger.LogInformation(
+                    "ReazonSpeech recognition completed. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}, SegmentCount={SegmentCount}",
+                    provider,
+                    options.ModelId,
+                    decodingMethod,
+                    segments.Count);
+            }
+
+            return new TranscriptionEngineResult(
+                segments,
+                new Dictionary<string, object?>
+                {
+                    ["provider"] = provider,
+                    ["decodingMethod"] = decodingMethod
+                });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // native sherpa-onnxの失敗時にprovider/model/decode条件が欠落すると再現条件を追えないため、
+            // 成功時metadataと同じ識別情報を構造化ログへ残す。
+            logger.LogError(
+                ex,
+                "ReazonSpeech recognition failed. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}",
+                provider,
+                options.ModelId,
+                decodingMethod);
+            throw;
+        }
     }
 }
