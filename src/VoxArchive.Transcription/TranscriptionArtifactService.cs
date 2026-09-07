@@ -40,26 +40,49 @@ public sealed class TranscriptionArtifactService(
                 x.SpeakerLabel)).ToArray()
         };
 
-        var documentPath = BuildDocumentPath(sourceRecordingPath, engineId, options.ModelId);
+        var documentPath = BuildDocumentPath(sourceRecordingPath, engineId, options.ModelId, options.FileNameSuffix);
         await documentStore.SaveAsync(documentPath, document, cancellationToken);
         var derived = await exportService.WriteDerivedAsync(documentPath, document, options.Formats, cancellationToken);
         return new TranscriptionArtifactResult(documentPath, [documentPath, .. derived]);
     }
 
     /// <summary>
-    /// Engine/Model IDから衝突しないcanonical document pathを生成する
+    /// Engineが指定したsuffix、またはEngine/Model IDからcanonical document pathを生成する
     /// </summary>
     public static string BuildDocumentPath(
         string sourceRecordingPath,
         TranscriptionEngineId engineId,
-        TranscriptionModelId? modelId)
+        TranscriptionModelId? modelId,
+        string? fileNameSuffix = null)
     {
         var directory = Path.GetDirectoryName(sourceRecordingPath) ?? string.Empty;
         var fileName = Path.GetFileNameWithoutExtension(sourceRecordingPath);
-        var suffix = modelId is null
-            ? engineId.Value
-            : $"{engineId.Value}-{modelId.Value.Value}";
+        var suffix = string.IsNullOrWhiteSpace(fileNameSuffix)
+            ? modelId is null
+                ? engineId.Value
+                : $"{engineId.Value}-{modelId.Value.Value}"
+            : fileNameSuffix.Trim();
+
+        ValidateFileNameSuffix(suffix);
         return Path.Combine(directory, $"{fileName}-{suffix}.json");
+    }
+
+    private static void ValidateFileNameSuffix(string suffix)
+    {
+        if (string.IsNullOrWhiteSpace(suffix))
+        {
+            throw new ArgumentException("Artifact file name suffix must not be empty.", nameof(suffix));
+        }
+
+        // Engine capabilityの値をPath.Combineへ直接渡すと録音ディレクトリ外へ書き込めるため、
+        // suffixは単一ファイル名要素に限定する。
+        if (suffix.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || suffix.Contains(Path.DirectorySeparatorChar)
+            || suffix.Contains(Path.AltDirectorySeparatorChar)
+            || suffix is "." or "..")
+        {
+            throw new ArgumentException($"Invalid artifact file name suffix: {suffix}", nameof(suffix));
+        }
     }
 }
 
