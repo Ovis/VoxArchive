@@ -27,8 +27,7 @@ public sealed class WhisperEngineSettingsProvider : ITranscriptionEngineSettings
         {
             ModelId = new TranscriptionModelId(modelId),
             ExecutionMode = executionMode,
-            Language = ReadString(settings, "language") ?? string.Empty,
-            DiagnosticsEnabled = ReadBoolean(settings, "diagnosticsEnabled") ?? false
+            Language = ReadString(settings, "language") ?? string.Empty
         };
     }
 
@@ -65,12 +64,5 @@ public sealed class WhisperEngineSettingsProvider : ITranscriptionEngineSettings
            && settings.TryGetProperty(name, out var value)
            && value.ValueKind == JsonValueKind.String
             ? value.GetString()
-            : null;
-
-    private static bool? ReadBoolean(JsonElement settings, string name)
-        => settings.ValueKind == JsonValueKind.Object
-           && settings.TryGetProperty(name, out var value)
-           && value.ValueKind is JsonValueKind.True or JsonValueKind.False
-            ? value.GetBoolean()
             : null;
 }
