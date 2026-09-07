@@ -18,9 +18,6 @@ public sealed record WhisperEngineOptions : ITranscriptionEngineOptions
 
     /// <summary>Whisperへ渡す言語。空文字は自動判定を意味する</summary>
     public string Language { get; init; } = string.Empty;
-
-    /// <summary>native診断ログを取得するかどうか</summary>
-    public bool DiagnosticsEnabled { get; init; }
 }
 
 /// <summary>
