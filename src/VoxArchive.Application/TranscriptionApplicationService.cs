@@ -73,6 +73,9 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
     }
 
     /// <inheritdoc />
+    public bool CancelJob(string audioFilePath) => _jobQueue.Cancel(audioFilePath);
+
+    /// <inheritdoc />
     public IReadOnlyList<TranscriptionJobStateInfo> GetJobStates()
         => _jobQueue.GetStateSnapshot().Select(x => new TranscriptionJobStateInfo(x.AudioFilePath, x.State)).ToArray();
 
