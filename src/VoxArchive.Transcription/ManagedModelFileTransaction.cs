@@ -63,32 +63,36 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
                 var parent = Path.GetDirectoryName(stagingPath);
                 if (!string.IsNullOrWhiteSpace(parent)) Directory.CreateDirectory(parent);
 
-                using var response = await httpClient.GetAsync(
-                    file.SourceUrl,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken);
-                response.EnsureSuccessStatusCode();
-                await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-                await using var destination = new FileStream(
-                    stagingPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    CopyBufferSize,
-                    useAsync: true);
-
-                var buffer = new byte[CopyBufferSize];
-                while (true)
+                // 取得ストリームを完全に破棄してからサイズやnative loadを確認する。
+                // FileStreamがmanaged bufferを保持したままFileInfo.Lengthを見ると、正常取得でも短いと誤判定する可能性がある。
+                using (var response = await httpClient.GetAsync(
+                           file.SourceUrl,
+                           HttpCompletionOption.ResponseHeadersRead,
+                           cancellationToken))
                 {
-                    var read = await source.ReadAsync(buffer.AsMemory(), cancellationToken);
-                    if (read == 0) break;
-                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                    transferred += read;
-                    progress?.Report(new ManagedModelTransactionProgress(
-                        transferred,
-                        totalBytes,
-                        file.DestinationName,
-                        IsValidating: false));
+                    response.EnsureSuccessStatusCode();
+                    await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+                    await using var destination = new FileStream(
+                        stagingPath,
+                        FileMode.CreateNew,
+                        FileAccess.Write,
+                        FileShare.None,
+                        CopyBufferSize,
+                        useAsync: true);
+
+                    var buffer = new byte[CopyBufferSize];
+                    while (true)
+                    {
+                        var read = await source.ReadAsync(buffer.AsMemory(), cancellationToken);
+                        if (read == 0) break;
+                        await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                        transferred += read;
+                        progress?.Report(new ManagedModelTransactionProgress(
+                            transferred,
+                            totalBytes,
+                            file.DestinationName,
+                            IsValidating: false));
+                    }
                 }
 
                 // SHA-256は使用しないが、配布元が固定サイズを定義している場合は明白な途中切断だけを検出する。
