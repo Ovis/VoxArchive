@@ -77,6 +77,19 @@ public interface ITranscriptionEngineDiagnostics
     Task<IReadOnlyList<TranscriptionDiagnosticItem>> DiagnoseAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Engineが従来から利用しているartifact file name suffixをCommonへ提供するoptional capability
+/// </summary>
+/// <remarks>
+/// CommonがEngine名やモデル命名規則を知るとEngine追加のたびに共通層の変更が必要になるため、
+/// 既存UXとの互換性が必要な命名規則はEngine側で決定する。
+/// </remarks>
+public interface ITranscriptionArtifactNamingCapability
+{
+    /// <summary>拡張子を含まないartifact suffixを返す</summary>
+    string BuildFileNameSuffix(TranscriptionModelId? modelId);
+}
+
 /// <summary>Engine registrationの構成要素をまとめる</summary>
 public sealed record TranscriptionEngineRegistration(
     ITranscriptionEngine Engine,
@@ -85,7 +98,8 @@ public sealed record TranscriptionEngineRegistration(
     ITranscriptionModelRequirementResolver? ModelRequirementResolver = null,
     ITranscriptionEngineDiagnostics? Diagnostics = null,
     ITranscriptionLanguageCapability? LanguageCapability = null,
-    ITranscriptionEngineExecutionValidator? ExecutionValidator = null);
+    ITranscriptionEngineExecutionValidator? ExecutionValidator = null,
+    ITranscriptionArtifactNamingCapability? ArtifactNamingCapability = null);
 
 public sealed record TranscriptionValidationError(string Code, string Message);
 public sealed record TranscriptionDiagnosticItem(string Code, string Message, TranscriptionDiagnosticSeverity Severity);
