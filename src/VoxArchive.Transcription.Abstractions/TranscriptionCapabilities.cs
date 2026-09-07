@@ -3,12 +3,15 @@ using System.Text.Json;
 namespace VoxArchive.Transcription.Abstractions;
 
 /// <summary>
-/// Engine固有設定のdeserializeとvalidationを担当する
+/// Engine固有設定とtyped execution optionsの相互変換・validationを担当する
 /// </summary>
 public interface ITranscriptionEngineSettingsProvider
 {
     /// <summary>永続化されたJSONから実行用options snapshotを生成する</summary>
     ITranscriptionEngineOptions Deserialize(JsonElement settings, int schemaVersion);
+
+    /// <summary>typed optionsを現行schemaの永続化JSONへ変換する</summary>
+    JsonElement Serialize(ITranscriptionEngineOptions options);
 
     /// <summary>settingsとして成立しているか検証する</summary>
     IReadOnlyList<TranscriptionValidationError> Validate(ITranscriptionEngineOptions options);
@@ -44,9 +47,7 @@ public interface ITranscriptionModelRequirementResolver
     /// <summary>指定optionsが必要とする論理モデルIDを取得する</summary>
     TranscriptionModelId ResolveRequiredModel(ITranscriptionEngineOptions options);
 
-    /// <summary>
-    /// 保存済み結果などで指定された論理モデルIDをoptions snapshotへ反映した新しいoptionsを返す
-    /// </summary>
+    /// <summary>保存済み結果などで指定された論理モデルIDをoptions snapshotへ反映した新しいoptionsを返す</summary>
     ITranscriptionEngineOptions SelectModel(
         ITranscriptionEngineOptions options,
         TranscriptionModelId modelId);
@@ -57,33 +58,23 @@ public interface ITranscriptionModelRequirementResolver
         TranscriptionModelInstallation installation);
 }
 
-/// <summary>
-/// PreferredLanguageの対応可否とEngine固有optionsへの解決を行うoptional capability
-/// </summary>
+/// <summary>PreferredLanguageの対応可否とEngine固有optionsへの解決を行うoptional capability</summary>
 public interface ITranscriptionLanguageCapability
 {
-    /// <summary>指定言語をEngineが扱えるか判定する</summary>
     bool Supports(string? preferredLanguage);
-
-    /// <summary>PreferredLanguageをEngine固有の実行optionsへ反映する</summary>
-    ITranscriptionEngineOptions Resolve(
-        ITranscriptionEngineOptions options,
-        string? preferredLanguage);
+    ITranscriptionEngineOptions Resolve(ITranscriptionEngineOptions options, string? preferredLanguage);
 }
 
 /// <summary>Job Admission時の実行環境検証を担当するoptional capability</summary>
 public interface ITranscriptionEngineExecutionValidator
 {
-    Task<IReadOnlyList<TranscriptionValidationError>> ValidateAsync(
-        ITranscriptionEngineOptions options,
-        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TranscriptionValidationError>> ValidateAsync(ITranscriptionEngineOptions options, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Engine固有診断情報を取得するoptional capability</summary>
 public interface ITranscriptionEngineDiagnostics
 {
-    Task<IReadOnlyList<TranscriptionDiagnosticItem>> DiagnoseAsync(
-        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TranscriptionDiagnosticItem>> DiagnoseAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>Engine registrationの構成要素をまとめる</summary>
