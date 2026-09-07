@@ -10,6 +10,7 @@ namespace VoxArchive.Transcription;
 public sealed class ManagedModelFileTransaction(HttpClient httpClient)
 {
     private const int CopyBufferSize = 81920;
+    private static readonly string[] OwnedTemporaryPrefixes = ["download-", "backup-", "delete-"];
 
     /// <summary>一時領域のbest effort削除に失敗した場合の通知先</summary>
     public Action<string, Exception>? CleanupFailureHandler { get; set; }
@@ -141,6 +142,55 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
             TryDeleteDirectory(stagingDirectory);
             throw;
         }
+    }
+
+    /// <summary>
+    /// 確定モデルを同一ファイルシステム上の削除用一時名へrenameしてから物理削除する
+    /// </summary>
+    /// <remarks>
+    /// renameに失敗した場合は確定ディレクトリを変更せず例外を返す。部分削除を避けるため、
+    /// 個別ファイル削除へのfallbackは行わない。rename成功後の物理削除失敗は利用可能パスから既に隔離済みなので、
+    /// CleanupFailureHandlerへ記録し次回cleanup対象として残す。
+    /// </remarks>
+    public void DeleteAtomically(string destinationDirectory, string temporaryRootDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(temporaryRootDirectory);
+        if (!Directory.Exists(destinationDirectory)) return;
+
+        Directory.CreateDirectory(temporaryRootDirectory);
+        var deletionDirectory = Path.Combine(temporaryRootDirectory, $"delete-{Guid.NewGuid():N}");
+
+        // Directory.Move失敗時はここで処理を中断する。確定モデルへ手を入れる別手段へfallbackしない。
+        Directory.Move(destinationDirectory, deletionDirectory);
+        TryDeleteDirectory(deletionDirectory);
+    }
+
+    /// <summary>
+    /// 前回異常終了などで残ったVoxArchive管理の一時ディレクトリだけをbest effortで掃除する
+    /// </summary>
+    public void CleanupOwnedTemporaryDirectories(string temporaryRootDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(temporaryRootDirectory);
+        if (!Directory.Exists(temporaryRootDirectory)) return;
+
+        foreach (var directory in Directory.EnumerateDirectories(temporaryRootDirectory))
+        {
+            var name = Path.GetFileName(directory);
+            if (!IsOwnedTemporaryDirectoryName(name)) continue;
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private static bool IsOwnedTemporaryDirectoryName(string name)
+    {
+        foreach (var prefix in OwnedTemporaryPrefixes)
+        {
+            if (!name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            var suffix = name[prefix.Length..];
+            return Guid.TryParseExact(suffix, "N", out _);
+        }
+        return false;
     }
 
     private static void ValidateFiles(IReadOnlyList<ManagedModelDownloadFile> files)
