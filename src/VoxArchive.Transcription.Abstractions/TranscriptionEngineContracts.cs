@@ -40,8 +40,13 @@ public sealed record TranscriptionEngineExecutionContext(bool DiagnosticsEnabled
 /// <summary>
 /// エンジンへ渡す認識専用requestを表す
 /// </summary>
+/// <remarks>
+/// VADはEngine非依存のCommon pipelineで一度だけ実行し、Engineは確定済みSpeechRegionから
+/// 自身のRecognitionChunkを生成する。これによりSilero fallback等の共通判断をEngineごとに重複させない。
+/// </remarks>
 public sealed record TranscriptionEngineRequest(
     IPreparedTranscriptionAudio Audio,
+    IReadOnlyList<SpeechRegion> SpeechRegions,
     ITranscriptionEngineOptions Options,
     TranscriptionEngineExecutionContext Context);
 
