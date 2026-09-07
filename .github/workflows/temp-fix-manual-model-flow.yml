@@ -17,7 +17,7 @@ jobs:
         with:
           ref: feature/transcription-foundation-refactoring
       - name: Refactor manual missing-model ownership
-        shell: python
+        shell: bash
         run: python .github/scripts/temp_fix_manual_model_flow.py
       - name: Commit refactor
         shell: bash
