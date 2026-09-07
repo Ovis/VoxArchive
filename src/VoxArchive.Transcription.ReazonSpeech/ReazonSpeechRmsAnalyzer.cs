@@ -132,7 +132,7 @@ internal static class ReazonSpeechRmsAnalyzer
         while (total < count)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var read = provider.Read(buffer, offset + total, count - total);
+            var read = provider.Read(buffer.AsSpan(offset + total, count - total));
             if (read <= 0)
             {
                 return false;
