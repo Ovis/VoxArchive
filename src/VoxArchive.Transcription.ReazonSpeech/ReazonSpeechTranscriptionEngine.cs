@@ -31,7 +31,7 @@ public sealed class ReazonSpeechTranscriptionEngine(
             throw new ArgumentException("ReazonSpeech Engineへ異なるoptions型が渡されました。", nameof(request));
         }
 
-        var chunks = recognitionChunker.CreateChunks(request.Audio, request.SpeechRegions);
+        var chunks = await recognitionChunker.CreateChunksAsync(request.Audio, request.SpeechRegions, cancellationToken);
         if (chunks.Count == 0)
         {
             return new TranscriptionEngineResult([]);
