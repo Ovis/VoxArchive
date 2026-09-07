@@ -25,7 +25,11 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
     {
         ArgumentNullException.ThrowIfNull(audio);
         await using var stream = await audio.OpenReadAsync(cancellationToken);
-        return await Task.Run(() => Detect(stream, cancellationToken), cancellationToken);
+        var detected = await Task.Run(() => Detect(stream, cancellationToken), cancellationToken);
+
+        // resamplingやPCM量子化によって生成WAVのTotalTimeが元録音基準のDurationをわずかに超える場合がある。
+        // Engineへ渡すSpeechRegionはabsolute timeline契約に従う必要があるため、公開境界では正本のDurationへ収める。
+        return ClampToDuration(detected, audio.Duration);
     }
 
     private static IReadOnlyList<SpeechRegion> Detect(Stream stream, CancellationToken cancellationToken)
@@ -154,6 +158,32 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
             }
         }
 
+        return result;
+    }
+
+    private static IReadOnlyList<SpeechRegion> ClampToDuration(
+        IReadOnlyList<SpeechRegion> regions,
+        TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero || regions.Count == 0)
+        {
+            return Array.Empty<SpeechRegion>();
+        }
+
+        var result = new List<SpeechRegion>(regions.Count);
+        foreach (var region in regions)
+        {
+            var start = region.Start < TimeSpan.Zero
+                ? TimeSpan.Zero
+                : region.Start > duration
+                    ? duration
+                    : region.Start;
+            var end = region.End > duration ? duration : region.End;
+            if (end > start)
+            {
+                result.Add(new SpeechRegion(start, end));
+            }
+        }
         return result;
     }
 
