@@ -11,7 +11,7 @@ namespace VoxArchive.Application;
 /// </summary>
 /// <remarks>
 /// Engine選択、settings deserialize、言語解決、validation、execution validation、model readinessを
-enqueue前に完了させる。Queue workerはこの処理を再実行せず、投入時点で確定したsnapshotだけを使用する。
+/// enqueue前に完了させる。Queue workerはこの処理を再実行せず、投入時点で確定したsnapshotだけを使用する。
 /// </remarks>
 public sealed class TranscriptionJobAdmissionService(
     TranscriptionEngineRegistry engineRegistry,
