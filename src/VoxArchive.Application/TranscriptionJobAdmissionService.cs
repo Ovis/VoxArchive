@@ -11,7 +11,7 @@ namespace VoxArchive.Application;
 /// </summary>
 /// <remarks>
 /// Engine選択、settings deserialize、言語解決、validation、execution validation、model readinessを
-/// enqueue前に完了させる。Queue workerはこの処理を再実行せず、投入時点で確定したsnapshotだけを使用する。
+enqueue前に完了させる。Queue workerはこの処理を再実行せず、投入時点で確定したsnapshotだけを使用する。
 /// </remarks>
 public sealed class TranscriptionJobAdmissionService(
     TranscriptionEngineRegistry engineRegistry,
@@ -197,17 +197,49 @@ public sealed record AdmittedTranscriptionJob(
 }
 
 /// <summary>
-/// Admissionの成否、skip、手動モデル取得要求を表す
+/// Queue投入前のAdmission判定種別を表す
 /// </summary>
+public enum TranscriptionAdmissionOutcome
+{
+    Accepted = 0,
+    Rejected = 1,
+    Skipped = 2,
+    RequiresModel = 3,
+}
+
+/// <summary>
+/// Admissionの判定種別、説明、確定済みJob、手動モデル取得要求を表す
+/// </summary>
+/// <remarks>
+/// SkippedはQueueへ投入されるJobのterminal outcomeではなく、Auto実行などを投入前に正常に見送った結果として扱う。
+/// 文字列メッセージの解析に依存せず、呼び出し側がexpected skipとvalidation rejectionを区別できるようにする。
+/// </remarks>
 public sealed record TranscriptionAdmissionResult(
-    bool Succeeded,
+    TranscriptionAdmissionOutcome Outcome,
     string Message,
     AdmittedTranscriptionJob? Job,
     TranscriptionMissingModelInfo? MissingModel)
 {
-    public static TranscriptionAdmissionResult Accepted(AdmittedTranscriptionJob job) => new(true, string.Empty, job, null);
-    public static TranscriptionAdmissionResult Rejected(string message) => new(false, message, null, null);
-    public static TranscriptionAdmissionResult Skipped(string message) => new(false, message, null, null);
+    /// <summary>Queueへ投入可能なAdmission結果かどうかを返す</summary>
+    public bool Succeeded => Outcome == TranscriptionAdmissionOutcome.Accepted;
+
+    /// <summary>Admission済みJobを返す</summary>
+    public static TranscriptionAdmissionResult Accepted(AdmittedTranscriptionJob job)
+        => new(TranscriptionAdmissionOutcome.Accepted, string.Empty, job, null);
+
+    /// <summary>設定不正などにより実行不能な結果を返す</summary>
+    public static TranscriptionAdmissionResult Rejected(string message)
+        => new(TranscriptionAdmissionOutcome.Rejected, message, null, null);
+
+    /// <summary>Auto policyなどによりQueue投入を正常に見送った結果を返す</summary>
+    public static TranscriptionAdmissionResult Skipped(string message)
+        => new(TranscriptionAdmissionOutcome.Skipped, message, null, null);
+
+    /// <summary>手動実行を続行するためモデル取得が必要な結果を返す</summary>
     public static TranscriptionAdmissionResult RequiresModel(TranscriptionMissingModelInfo model)
-        => new(false, $"文字起こしモデル '{model.DisplayName}' の取得が必要です。", null, model);
+        => new(
+            TranscriptionAdmissionOutcome.RequiresModel,
+            $"文字起こしモデル '{model.DisplayName}' の取得が必要です。",
+            null,
+            model);
 }
