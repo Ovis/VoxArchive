@@ -7,7 +7,6 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// ReazonSpeech固有のrecognitionだけをEngine契約へ接続する
 /// </summary>
 public sealed class ReazonSpeechTranscriptionEngine(
-    ISpeechRegionDetector speechRegionDetector,
     ReazonSpeechRecognitionChunker recognitionChunker,
     ReazonSpeechRecognizer recognizer,
     ILogger<ReazonSpeechTranscriptionEngine> logger) : ITranscriptionEngine
@@ -32,13 +31,7 @@ public sealed class ReazonSpeechTranscriptionEngine(
             throw new ArgumentException("ReazonSpeech Engineへ異なるoptions型が渡されました。", nameof(request));
         }
 
-        var regions = await speechRegionDetector.DetectAsync(request.Audio, cancellationToken);
-        if (regions.Count == 0)
-        {
-            return new TranscriptionEngineResult([]);
-        }
-
-        var chunks = recognitionChunker.CreateChunks(request.Audio, regions);
+        var chunks = recognitionChunker.CreateChunks(request.Audio, request.SpeechRegions);
         if (chunks.Count == 0)
         {
             return new TranscriptionEngineResult([]);
@@ -53,7 +46,7 @@ public sealed class ReazonSpeechTranscriptionEngine(
                 provider,
                 options.ModelId,
                 decodingMethod,
-                regions.Count,
+                request.SpeechRegions.Count,
                 chunks.Count);
         }
 
