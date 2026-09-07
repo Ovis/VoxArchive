@@ -1,0 +1,74 @@
+name: Temporary refine settings accent button
+
+on:
+  push:
+    branches:
+      - feature/transcription-foundation-refactoring
+    paths:
+      - .github/workflows/temp-refine-settings-accent-button.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/transcription-foundation-refactoring
+      - name: Refine accent button hover and pressed states
+        shell: pwsh
+        run: |
+          $path = 'src/VoxArchive.Wpf/SettingsWindow.xaml'
+          $content = Get-Content -Raw -Encoding UTF8 $path
+          $old = @'
+        <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+'@
+          $new = @'
+        <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonRoot"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonRoot" Property="Background" Value="#C7473D" />
+                                <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="#C7473D" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonRoot" Property="Background" Value="#A93A32" />
+                                <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="#A93A32" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonRoot" Property="Opacity" Value="0.55" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+'@
+          if (-not $content.Contains($old)) { throw 'AccentButtonStyle block not found.' }
+          $content = $content.Replace($old, $new)
+          Set-Content -Path $path -Value $content -Encoding UTF8 -NoNewline
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/VoxArchive.Wpf/SettingsWindow.xaml
+          git diff --cached --quiet && exit 0
+          git commit -m "Refine settings save button hover state"
+          git push origin HEAD:feature/transcription-foundation-refactoring
