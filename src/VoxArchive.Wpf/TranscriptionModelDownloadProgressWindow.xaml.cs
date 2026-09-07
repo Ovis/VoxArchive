@@ -8,14 +8,12 @@ namespace VoxArchive.Wpf;
 /// 進行中の文字起こしモデル取得を表示し、ユーザーからの取得キャンセル操作を受け付ける
 /// </summary>
 /// <remarks>
-/// Window自身はモデル取得を所有しない。
-/// Applicationから渡された進捗DTOを表示し、明示的なキャンセル操作だけをApplicationへ返す。
-/// Windowを閉じても取得は継続する。
+/// Window自身はモデル取得を所有せず、WPFが呼び出すApplication Use Caseの進捗だけを表示する。
+/// Windowを閉じても取得は継続し、明示的なキャンセル操作だけをApplication Facadeへ委譲する。
 /// </remarks>
-public partial class TranscriptionModelDownloadProgressWindow : Window, ITranscriptionModelDownloadProgressSession
+public partial class TranscriptionModelDownloadProgressWindow : Window
 {
     private readonly Action _cancelAction;
-    private bool _isDisposed;
 
     /// <summary>モデル取得進捗Windowを初期化する</summary>
     public TranscriptionModelDownloadProgressWindow(
@@ -32,7 +30,7 @@ public partial class TranscriptionModelDownloadProgressWindow : Window, ITranscr
         ProgressTextBlock.Text = "モデル取得を開始しています...";
     }
 
-    /// <inheritdoc />
+    /// <summary>取得進捗を表示へ反映する</summary>
     public void Report(TranscriptionModelTransferInfo progress)
     {
         if (!Dispatcher.CheckAccess())
@@ -41,7 +39,7 @@ public partial class TranscriptionModelDownloadProgressWindow : Window, ITranscr
             return;
         }
 
-        if (_isDisposed || !IsLoaded)
+        if (!IsLoaded)
         {
             return;
         }
@@ -52,7 +50,7 @@ public partial class TranscriptionModelDownloadProgressWindow : Window, ITranscr
         DownloadProgressBar.Value = progress.Percent;
     }
 
-    /// <inheritdoc />
+    /// <summary>モデル取得完了後にWindowを閉じる</summary>
     public void CloseAfterCompletion()
     {
         if (!Dispatcher.CheckAccess())
@@ -63,19 +61,12 @@ public partial class TranscriptionModelDownloadProgressWindow : Window, ITranscr
             return;
         }
 
-        if (_isDisposed || !IsVisible)
+        if (!IsVisible)
         {
             return;
         }
 
         Close();
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _isDisposed = true;
-        GC.SuppressFinalize(this);
     }
 
     private void OnCancelDownloadClick(object sender, RoutedEventArgs e)

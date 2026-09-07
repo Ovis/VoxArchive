@@ -46,14 +46,12 @@ public interface ITranscriptionApplicationService
 }
 
 /// <summary>
-/// 手動文字起こしで必要なモデルが未配置だった場合に、利用者へ取得確認を求めるUI portを定義する
+/// Queue投入結果と、利用者操作が必要な場合の不足モデル情報を表す
 /// </summary>
-public interface ITranscriptionModelDownloadConfirmation
-{
-    Task<bool> ConfirmAsync(TranscriptionMissingModelInfo model, CancellationToken cancellationToken = default);
-}
-
-public sealed record TranscriptionEnqueueResult(bool Enqueued, string Message);
+public sealed record TranscriptionEnqueueResult(
+    bool Enqueued,
+    string Message,
+    TranscriptionMissingModelInfo? MissingModel = null);
 public sealed record TranscriptionMissingModelInfo(string EngineId, string ModelId, string DisplayName);
 public sealed record TranscriptionJobStateInfo(string AudioFilePath, TranscriptionJobState State);
 public sealed record TranscriptionModelInfo(string Id, string DisplayName);
