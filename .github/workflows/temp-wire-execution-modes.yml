@@ -1,0 +1,67 @@
+name: Temporary Wire Execution Modes
+
+on:
+  push:
+    branches:
+      - feature/transcription-foundation-refactoring
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    if: github.event.head_commit.message != 'Bind execution mode descriptors in settings UI'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/transcription-foundation-refactoring
+
+      - name: Wire execution mode descriptors
+        shell: python
+        run: |
+          from pathlib import Path
+
+          xaml = Path('src/VoxArchive.Wpf/SettingsWindow.xaml')
+          text = xaml.read_text(encoding='utf-8')
+          old = '''                                                <ComboBox x:Name="ExecutionModeComboBox" SelectedValuePath="Tag" SelectionChanged="OnTranscriptionEnvironmentSelectionChanged">\n                                                    <ComboBoxItem Content="自動" Tag="auto" />\n                                                    <ComboBoxItem Content="CPUのみ" Tag="cpu" />\n                                                </ComboBox>'''
+          new = '''                                                <ComboBox x:Name="ExecutionModeComboBox" SelectedValuePath="Tag" SelectionChanged="OnTranscriptionEnvironmentSelectionChanged" />'''
+          if old not in text:
+              raise SystemExit('xaml execution mode anchor not found')
+          xaml.write_text(text.replace(old, new, 1), encoding='utf-8', newline='')
+
+          code = Path('src/VoxArchive.Wpf/SettingsWindow.xaml.cs')
+          text = code.read_text(encoding='utf-8')
+          text = text.replace('''        InitializeTranscriptionTabs();\n        WhisperExecutionMode = "auto";\n        WhisperModelId = "small";''', '''        InitializeTranscriptionTabs();\n        WhisperModelId = "small";''', 1)
+
+          old_property = '''    /// <summary>\n    /// Whisperへ要求する実行方式を安定文字列IDで取得・設定する\n    /// </summary>\n    public string WhisperExecutionMode\n    {\n        get => NormalizeExecutionMode((ExecutionModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString());\n        set => SelectExecutionMode(value);\n    }\n'''
+          new_property = '''    /// <summary>\n    /// Whisperが公開する実行方式descriptorを設定画面へ投影する\n    /// </summary>\n    public IReadOnlyList<TranscriptionExecutionModeInfo> WhisperExecutionModes\n    {\n        set => PopulateExecutionModes(value);\n    }\n\n    /// <summary>\n    /// Whisperへ要求する実行方式をEngineが公開する安定文字列IDで取得・設定する\n    /// </summary>\n    public string WhisperExecutionMode\n    {\n        get => (ExecutionModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString()?.Trim() ?? string.Empty;\n        set => SelectExecutionMode(value);\n    }\n'''
+          if old_property not in text:
+              raise SystemExit('settings property anchor not found')
+          text = text.replace(old_property, new_property, 1)
+
+          old_helpers = '''    private void SelectExecutionMode(string? value)\n    {\n        var target = NormalizeExecutionMode(value);\n        foreach (var item in ExecutionModeComboBox.Items.OfType<ComboBoxItem>())\n        {\n            if (NormalizeExecutionMode(item.Tag?.ToString()) == target)\n            {\n                ExecutionModeComboBox.SelectedItem = item;\n                return;\n            }\n        }\n\n        ExecutionModeComboBox.SelectedIndex = 0;\n    }\n\n    private static string NormalizeExecutionMode(string? value)\n    {\n        return value?.Trim().ToLowerInvariant() switch\n        {\n            "cpu" or "cpuonly" => "cpu",\n            "cuda" => "cuda",\n            "vulkan" => "vulkan",\n            _ => "auto"\n        };\n    }\n'''
+          new_helpers = '''    private void PopulateExecutionModes(IReadOnlyList<TranscriptionExecutionModeInfo> modes)\n    {\n        ArgumentNullException.ThrowIfNull(modes);\n\n        ExecutionModeComboBox.Items.Clear();\n        foreach (var mode in modes)\n        {\n            ExecutionModeComboBox.Items.Add(new ComboBoxItem\n            {\n                Content = mode.DisplayName,\n                Tag = mode.Id\n            });\n        }\n\n        ExecutionModeComboBox.IsEnabled = ExecutionModeComboBox.Items.Count > 0;\n        if (ExecutionModeComboBox.Items.Count > 0)\n        {\n            ExecutionModeComboBox.SelectedIndex = 0;\n        }\n    }\n\n    private void SelectExecutionMode(string? value)\n    {\n        var target = value?.Trim() ?? string.Empty;\n        foreach (var item in ExecutionModeComboBox.Items.OfType<ComboBoxItem>())\n        {\n            if (string.Equals(item.Tag?.ToString()?.Trim(), target, StringComparison.OrdinalIgnoreCase))\n            {\n                ExecutionModeComboBox.SelectedItem = item;\n                return;\n            }\n        }\n\n        if (ExecutionModeComboBox.Items.Count > 0)\n        {\n            ExecutionModeComboBox.SelectedIndex = 0;\n        }\n    }\n'''
+          if old_helpers not in text:
+              raise SystemExit('settings helper anchor not found')
+          code.write_text(text.replace(old_helpers, new_helpers, 1), encoding='utf-8', newline='')
+
+          vm = Path('src/VoxArchive.Wpf/MainViewModel.cs')
+          text = vm.read_text(encoding='utf-8')
+          old = '''                ReazonSpeechModelId = reazonSpeechConfiguration.ModelId ?? "ja",\n                WhisperExecutionMode = whisperConfiguration.ExecutionModeId ?? "auto",\n                WhisperModelId = whisperConfiguration.ModelId ?? "small",'''
+          new = '''                ReazonSpeechModelId = reazonSpeechConfiguration.ModelId ?? "ja",\n                WhisperExecutionModes = whisperConfiguration.ExecutionModes,\n                WhisperExecutionMode = whisperConfiguration.ExecutionModeId ?? string.Empty,\n                WhisperModelId = whisperConfiguration.ModelId ?? "small",'''
+          if old not in text:
+              raise SystemExit('main view model anchor not found')
+          vm.write_text(text.replace(old, new, 1), encoding='utf-8', newline='')
+
+      - name: Commit wiring
+        shell: bash
+        run: |
+          if git diff --quiet -- src/VoxArchive.Wpf/SettingsWindow.xaml src/VoxArchive.Wpf/SettingsWindow.xaml.cs src/VoxArchive.Wpf/MainViewModel.cs; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/VoxArchive.Wpf/SettingsWindow.xaml src/VoxArchive.Wpf/SettingsWindow.xaml.cs src/VoxArchive.Wpf/MainViewModel.cs
+          git commit -m 'Bind execution mode descriptors in settings UI'
+          git push
