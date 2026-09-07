@@ -60,7 +60,7 @@ public sealed class TranscriptionJobQueue : IDisposable
         {
             if (_jobStates.ContainsKey(key))
             {
-                return new TranscriptionQueueEnqueueResult(false, "この録音は既に文字起こし待機中または実行中です。");
+                return new TranscriptionQueueEnqueueResult(false, "この録音は既に文字起こし待機中または実行中です。", null);
             }
             _jobStates[key] = TranscriptionJobState.Pending;
         }
@@ -79,7 +79,7 @@ public sealed class TranscriptionJobQueue : IDisposable
         if (!admission.Succeeded || admission.Job is null)
         {
             ClearStateOnly(audioFilePath);
-            return new TranscriptionQueueEnqueueResult(false, admission.Message);
+            return new TranscriptionQueueEnqueueResult(false, admission.Message, admission.MissingModel);
         }
 
         var job = admission.Job;
@@ -91,7 +91,7 @@ public sealed class TranscriptionJobQueue : IDisposable
                 _jobs.TryRemove(key, out _);
                 _jobStates.TryRemove(key, out _);
                 job.Dispose();
-                return new TranscriptionQueueEnqueueResult(false, "文字起こしQueueへ追加できませんでした。");
+                return new TranscriptionQueueEnqueueResult(false, "文字起こしQueueへ追加できませんでした。", null);
             }
         }
 
@@ -107,7 +107,7 @@ public sealed class TranscriptionJobQueue : IDisposable
         }
 
         JobStateChanged?.Invoke(this, new TranscriptionJobStateChangedEventArgs(audioFilePath, TranscriptionJobState.Pending));
-        return new TranscriptionQueueEnqueueResult(true, "文字起こしをキューへ追加しました。");
+        return new TranscriptionQueueEnqueueResult(true, "文字起こしをキューへ追加しました。", null);
     }
 
     /// <summary>待機中・実行中ジョブの状態一覧を取得する</summary>
@@ -230,4 +230,7 @@ public sealed class TranscriptionJobQueue : IDisposable
 }
 
 /// <summary>Application内部Queueの投入結果を表す</summary>
-public sealed record TranscriptionQueueEnqueueResult(bool Enqueued, string Message);
+public sealed record TranscriptionQueueEnqueueResult(
+    bool Enqueued,
+    string Message,
+    TranscriptionMissingModelInfo? MissingModel);
