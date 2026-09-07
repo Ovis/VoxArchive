@@ -13,6 +13,7 @@
     <ProjectReference Include="..\VoxArchive.Transcription.Abstractions\VoxArchive.Transcription.Abstractions.csproj" />
     <ProjectReference Include="..\VoxArchive.Transcription.Whisper\VoxArchive.Transcription.Whisper.csproj" />
     <ProjectReference Include="..\VoxArchive.Transcription.ReazonSpeech\VoxArchive.Transcription.ReazonSpeech.csproj" />
+    <ProjectReference Include="..\VoxArchive.Transcription.SileroVad\VoxArchive.Transcription.SileroVad.csproj" />
   </ItemGroup>
 
   <ItemGroup>
