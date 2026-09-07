@@ -36,18 +36,20 @@ public interface ITranscriptionModelProvider
 }
 
 /// <summary>
-/// typed Engine optionsから必要モデルを解決し、論理モデル選択と物理配置をoptionsへ反映するoptional capability
+/// typed Engine optionsから実行時に必要な物理モデルを解決し、モデル選択と物理配置をoptionsへ反映するoptional capability
 /// </summary>
 /// <remarks>
 /// Common/ApplicationがWhisperやReazonSpeechのoptions型へdowncastしないための境界である。
 /// managed modelを必要としないEngineはこのcapabilityを登録しない。
+/// ReazonSpeechのように1つの利用者向け論理モデルがprecisionごとに異なる物理packageを要求する場合、
+/// ResolveRequiredModelは実行時package IDを返し、利用者向け選択値はITranscriptionModelSelectionCapabilityで分離する。
 /// </remarks>
 public interface ITranscriptionModelRequirementResolver
 {
-    /// <summary>指定optionsが必要とする論理モデルIDを取得する</summary>
+    /// <summary>指定optionsが実行時に必要とする物理モデルpackage IDを取得する</summary>
     TranscriptionModelId ResolveRequiredModel(ITranscriptionEngineOptions options);
 
-    /// <summary>保存済み結果などで指定された論理モデルIDをoptions snapshotへ反映した新しいoptionsを返す</summary>
+    /// <summary>保存済み結果などで指定された利用者向け論理モデルIDをoptions snapshotへ反映した新しいoptionsを返す</summary>
     ITranscriptionEngineOptions SelectModel(
         ITranscriptionEngineOptions options,
         TranscriptionModelId modelId);
@@ -56,6 +58,19 @@ public interface ITranscriptionModelRequirementResolver
     ITranscriptionEngineOptions BindInstallation(
         ITranscriptionEngineOptions options,
         TranscriptionModelInstallation installation);
+}
+
+/// <summary>
+/// 利用者が設定画面で選択する論理モデルIDを実行時package IDから分離して公開するoptional capability
+/// </summary>
+/// <remarks>
+/// 通常のEngineではModelRequirementResolverのIDと同一なので未登録でよい。
+/// precision等によって物理packageが切り替わるEngineだけが実装し、UIへ内部package IDを露出させない。
+/// </remarks>
+public interface ITranscriptionModelSelectionCapability
+{
+    /// <summary>指定optionsで利用者が選択している論理モデルIDを取得する</summary>
+    TranscriptionModelId GetSelectedModel(ITranscriptionEngineOptions options);
 }
 
 /// <summary>
@@ -122,7 +137,8 @@ public sealed record TranscriptionEngineRegistration(
     ITranscriptionLanguageCapability? LanguageCapability = null,
     ITranscriptionEngineExecutionValidator? ExecutionValidator = null,
     ITranscriptionArtifactNamingCapability? ArtifactNamingCapability = null,
-    ITranscriptionExecutionModeCapability? ExecutionModeCapability = null);
+    ITranscriptionExecutionModeCapability? ExecutionModeCapability = null,
+    ITranscriptionModelSelectionCapability? ModelSelectionCapability = null);
 
 public sealed record TranscriptionValidationError(string Code, string Message);
 public sealed record TranscriptionDiagnosticItem(string Code, string Message, TranscriptionDiagnosticSeverity Severity);
