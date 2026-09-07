@@ -22,8 +22,8 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
     {
         _libraryViewModel = libraryViewModel;
         State = new LibraryTranscriptionResultsState(new TranscriptionResultDiscoveryService(), new TranscriptionDocumentStore(), new TranscriptionExportService());
-        // LibraryWindowは既存構造上MainViewModelから手動生成されるため、アプリ全体で共有しているQueueを
-        // AppのDIコンテナから取得する。Queueを新規生成すると実行状態・重複防止が分断されるため必ずSingletonを再利用する。
+        // LibraryWindowは既存構造上MainViewModelから手動生成されるため、再文字起こしUse Caseも
+        // アプリケーション共有DIコンテナから解決し、Queue/モデル管理の状態を分断しない。
         _retranscriptionService = ActivatorUtilities.CreateInstance<LibraryRetranscriptionService>(((App)System.Windows.Application.Current).Services);
         _wasTranscribing = libraryViewModel.IsTranscribing;
         _libraryViewModel.PropertyChanged += OnLibraryPropertyChanged;
@@ -46,15 +46,23 @@ public sealed class LibraryTranscriptionResultsCoordinator : INotifyPropertyChan
         var document = State.SelectedDocument ?? throw new InvalidOperationException("文字起こし結果を読み込めませんでした。");
         var replaceConfirm = ModernDialog.Show($"{result.DisplayName} を再文字起こしします。\n成功した場合は現在の文字起こし結果を新しい結果で置き換えます。\n失敗またはキャンセルした場合は現在の結果を残します。", "再文字起こし", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.Cancel);
         if (replaceConfirm != System.Windows.MessageBoxResult.OK) return;
+
         var prepared = await _retranscriptionService.PrepareAsync(audioFilePath, document, result.IsLegacy);
         if (prepared.UsedCurrentSettingsFallback)
         {
             var fallbackConfirm = ModernDialog.Show("この文字起こし結果には再実行に必要な設定の一部が保存されていません。\n不足分は現在のWhisper設定で補完して再文字起こしします。", "再文字起こし", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.Cancel);
             if (fallbackConfirm != System.Windows.MessageBoxResult.OK) return;
         }
+
         // 既存のcanonical JSONはジョブ開始時には削除しない。
         // 認識に失敗・キャンセルした場合も以前の正常結果をLibraryで参照し続けられるようにする。
-        if (!_retranscriptionService.TryEnqueue(prepared.Request)) throw new InvalidOperationException("この録音は既に文字起こしキューに投入されています。");
+        var enqueueResult = await _retranscriptionService.EnqueueAsync(audioFilePath, prepared);
+        if (!enqueueResult.Enqueued)
+        {
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(enqueueResult.Message)
+                ? "この録音は既に文字起こしキューに投入されています。"
+                : enqueueResult.Message);
+        }
     }
 
     private void OnLibraryPropertyChanged(object? sender, PropertyChangedEventArgs e)
