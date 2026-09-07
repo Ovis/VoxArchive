@@ -1,0 +1,39 @@
+name: Temporary Library Line Ending Normalization
+
+on:
+  push:
+    branches:
+      - feature/transcription-foundation-refactoring
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    if: github.event.head_commit.message != 'Normalize LibraryViewModel line endings'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/transcription-foundation-refactoring
+
+      - name: Normalize LibraryViewModel to CRLF
+        shell: pwsh
+        run: |
+          $path = 'src/VoxArchive.Wpf/LibraryViewModel.cs'
+          $content = [System.IO.File]::ReadAllText($path)
+          $normalized = $content -replace "`r`n", "`n" -replace "`r", "`n"
+          $normalized = $normalized -replace "`n", "`r`n"
+          [System.IO.File]::WriteAllText($path, $normalized, [System.Text.UTF8Encoding]::new($false))
+
+      - name: Commit normalization
+        shell: bash
+        run: |
+          if git diff --quiet -- src/VoxArchive.Wpf/LibraryViewModel.cs; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/VoxArchive.Wpf/LibraryViewModel.cs
+          git commit -m 'Normalize LibraryViewModel line endings'
+          git push
