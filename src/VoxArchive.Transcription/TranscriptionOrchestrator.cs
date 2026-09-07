@@ -111,11 +111,19 @@ public sealed record TranscriptionOrchestrationRequest(
     string SourceRecordingPath,
     TranscriptionEngineId EngineId,
     ITranscriptionEngineOptions EngineOptions,
-    SpeechRegionDetectorSettingsSnapshot SpeechRegionDetectorSettings,
     double SpeakerGainDb,
     double MicrophoneGainDb,
     TranscriptionArtifactOptions ArtifactOptions,
-    bool DiagnosticsEnabled);
+    bool DiagnosticsEnabled)
+{
+    /// <summary>
+    /// Queue投入時点で固定されたVAD設定を取得する
+    /// </summary>
+    /// <remarks>
+    /// 旧call-siteとの互換性を保つため既定値を持つ。設定UIとの接続時にAdmissionが明示的なsnapshotへ置き換える。
+    /// </remarks>
+    public SpeechRegionDetectorSettingsSnapshot SpeechRegionDetectorSettings { get; init; } = new(1, default);
+}
 
 /// <summary>
 /// Common pipelineの完了結果を表す
