@@ -113,6 +113,25 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private static async Task<RecordingRuntimeContext> EnsureStartupFfmpegPathAsync(RecordingRuntimeContext context, ILogger<App> logger)
+    {
+        if (!string.IsNullOrWhiteSpace(context.DefaultOptions.FfmpegExecutablePath)) return context;
+        if (!FfmpegRuntimeChecker.IsAvailable(string.Empty, out _, out var resolvedPath)) return context;
+        if (string.IsNullOrWhiteSpace(resolvedPath) || !Path.IsPathFullyQualified(resolvedPath)) return context;
+        var updatedOptions = context.DefaultOptions with { FfmpegExecutablePath = resolvedPath };
+        try
+        {
+            await context.SettingsService.SaveRecordingOptionsAsync(updatedOptions);
+            logger.LogInformation("起動時に ffmpeg パスを自動保存しました: {Path}", resolvedPath);
+            return context with { DefaultOptions = updatedOptions };
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "起動時の ffmpeg パス自動保存に失敗しました。検出値={Path}", resolvedPath);
+            return context;
+        }
+    }
+
     private static string BuildFfmpegMissingMessage(string detail)
     {
         var baseMessage = "ffmpeg が見つかりません。録音機能は利用できません。" + Environment.NewLine
