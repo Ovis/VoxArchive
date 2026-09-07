@@ -6,7 +6,7 @@ using VoxArchive.Transcription.Abstractions;
 namespace VoxArchive.IntegrationTests;
 
 /// <summary>
-/// 文字起こしQueueの逐次実行、重複排除、terminal outcome、model reservation解放を確認する
+/// 文字起こしQueueの逐次実行、優先度、重複排除、terminal outcome、model reservation解放を確認する
 /// </summary>
 public sealed class TranscriptionJobQueueTests
 {
@@ -77,6 +77,67 @@ public sealed class TranscriptionJobQueueTests
                 Assert.That(context.Queue.GetStateSnapshot(), Is.Empty);
                 Assert.That(context.UsageTracker.IsInUse(modelKey), Is.False);
             });
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task TryEnqueueAsync_NormalRunsBeforeLow_AndSamePriorityUsesFifo()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var blocker = TranscriptionPipelineTestFixture.CreateWaveFile(root, "blocker.wav");
+            var lowFirst = TranscriptionPipelineTestFixture.CreateWaveFile(root, "low-first.wav");
+            var normalFirst = TranscriptionPipelineTestFixture.CreateWaveFile(root, "normal-first.wav");
+            var normalSecond = TranscriptionPipelineTestFixture.CreateWaveFile(root, "normal-second.wav");
+            var blockerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseBlocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var executionOrder = new List<string>();
+            var completionCount = 0;
+
+            using var context = TranscriptionPipelineTestFixture.CreatePipeline(async (request, cancellationToken) =>
+            {
+                var fileName = Path.GetFileName(request.Audio.SourcePath);
+                lock (executionOrder)
+                {
+                    executionOrder.Add(fileName);
+                }
+
+                if (string.Equals(fileName, "blocker.wav", StringComparison.OrdinalIgnoreCase))
+                {
+                    blockerStarted.TrySetResult();
+                    await releaseBlocker.Task.WaitAsync(cancellationToken);
+                }
+
+                return new TranscriptionEngineResult([]);
+            });
+            context.Queue.JobCompleted += (_, _) =>
+            {
+                if (Interlocked.Increment(ref completionCount) == 4)
+                {
+                    completed.TrySetResult();
+                }
+            };
+
+            var options = TranscriptionPipelineTestFixture.CreateOptions();
+            await context.Queue.TryEnqueueAsync(blocker, options, TranscriptionTrigger.Manual);
+            await blockerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            // blocker実行中にLow→Normal→Normalの順で積み、PriorityQueueがNormalを先にしつつFIFOを維持することを固定する。
+            await context.Queue.TryEnqueueAsync(lowFirst, options, TranscriptionTrigger.AutoAfterRecord);
+            await context.Queue.TryEnqueueAsync(normalFirst, options, TranscriptionTrigger.Manual);
+            await context.Queue.TryEnqueueAsync(normalSecond, options, TranscriptionTrigger.Manual);
+            releaseBlocker.TrySetResult();
+            await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.That(
+                executionOrder,
+                Is.EqualTo(new[] { "blocker.wav", "normal-first.wav", "normal-second.wav", "low-first.wav" }));
         }
         finally
         {
