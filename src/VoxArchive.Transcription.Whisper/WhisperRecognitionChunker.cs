@@ -12,23 +12,22 @@ namespace VoxArchive.Transcription.Whisper;
 public sealed class WhisperRecognitionChunker : IRecognitionChunker
 {
     /// <inheritdoc />
-    public IReadOnlyList<RecognitionChunk> CreateChunks(
+    public Task<IReadOnlyList<RecognitionChunk>> CreateChunksAsync(
         IPreparedTranscriptionAudio audio,
-        IReadOnlyList<SpeechRegion> speechRegions)
+        IReadOnlyList<SpeechRegion> speechRegions,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audio);
         ArgumentNullException.ThrowIfNull(speechRegions);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        var chunks = new List<RecognitionChunk>(speechRegions.Count);
-        for (var i = 0; i < speechRegions.Count; i++)
-        {
-            var region = speechRegions[i];
-            chunks.Add(new RecognitionChunk(
-                i,
+        IReadOnlyList<RecognitionChunk> chunks = speechRegions
+            .Select((region, index) => new RecognitionChunk(
+                index,
                 region.SpeechRegionId,
                 region.StartSample,
-                region.EndSample));
-        }
-        return chunks;
+                region.EndSample))
+            .ToArray();
+        return Task.FromResult(chunks);
     }
 }
