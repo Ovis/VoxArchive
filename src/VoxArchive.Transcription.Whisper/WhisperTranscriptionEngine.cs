@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Transcription.Abstractions;
 
@@ -34,6 +35,7 @@ public sealed class WhisperTranscriptionEngine(
 
         RecognitionChunkingDiagnosticResult? chunkingDiagnostic = null;
         IReadOnlyList<RecognitionChunk> chunks;
+        var chunkingStopwatch = request.Context.DiagnosticsEnabled ? Stopwatch.StartNew() : null;
         if (request.Context.DiagnosticsEnabled)
         {
             chunkingDiagnostic = await recognitionChunker.CreateChunksWithDiagnosticsAsync(
@@ -46,13 +48,17 @@ public sealed class WhisperTranscriptionEngine(
         {
             chunks = await recognitionChunker.CreateChunksAsync(request.Audio, request.SpeechRegions, cancellationToken);
         }
+        chunkingStopwatch?.Stop();
 
         if (chunks.Count == 0)
         {
             return new TranscriptionEngineResult(
                 [],
                 Diagnostics: request.Context.DiagnosticsEnabled
-                    ? new TranscriptionEngineDiagnosticTrace(chunkingDiagnostic?.Traces ?? [])
+                    ? new TranscriptionEngineDiagnosticTrace(
+                        chunkingDiagnostic?.Traces ?? [],
+                        chunkingStopwatch?.ElapsedMilliseconds ?? 0,
+                        0)
                     : null);
         }
 
@@ -69,7 +75,10 @@ public sealed class WhisperTranscriptionEngine(
 
         try
         {
+            var asrStopwatch = request.Context.DiagnosticsEnabled ? Stopwatch.StartNew() : null;
             var segments = await recognizer.RecognizeAsync(session, request.Audio, chunks, cancellationToken);
+            asrStopwatch?.Stop();
+
             return new TranscriptionEngineResult(
                 segments,
                 new Dictionary<string, object?>
@@ -78,7 +87,10 @@ public sealed class WhisperTranscriptionEngine(
                     ["actualBackend"] = actualBackend
                 },
                 request.Context.DiagnosticsEnabled
-                    ? new TranscriptionEngineDiagnosticTrace(chunkingDiagnostic?.Traces ?? [])
+                    ? new TranscriptionEngineDiagnosticTrace(
+                        chunkingDiagnostic?.Traces ?? [],
+                        chunkingStopwatch?.ElapsedMilliseconds ?? 0,
+                        asrStopwatch?.ElapsedMilliseconds ?? 0)
                     : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
