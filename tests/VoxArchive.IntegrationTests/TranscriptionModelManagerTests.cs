@@ -119,6 +119,33 @@ public sealed class TranscriptionModelManagerTests
         });
     }
 
+    [Test]
+    public async Task ActiveDelete_IsExposedAndShutdownWaitCompletesOnlyAfterDeleteFinishes()
+    {
+        var provider = new ControlledModelProvider(isReady: true, blockDelete: true);
+        var (manager, _) = CreateManager(provider);
+
+        var delete = manager.DeleteAsync(ModelKey);
+        await provider.DeleteStarted;
+
+        var active = manager.GetActiveExclusiveOperation();
+        var shutdownWait = manager.WaitForActiveExclusiveOperationAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(active, Is.Not.Null);
+            Assert.That(active!.Key, Is.EqualTo(ModelKey));
+            Assert.That(active.OperationName, Is.EqualTo("削除"));
+            Assert.That(shutdownWait.IsCompleted, Is.False);
+        });
+
+        provider.CompleteDelete();
+        await delete;
+        await shutdownWait;
+
+        Assert.That(manager.GetActiveExclusiveOperation(), Is.Null);
+    }
+
     private static (TranscriptionModelManager Manager, TranscriptionModelUsageTracker UsageTracker) CreateManager(
         ControlledModelProvider provider)
     {
@@ -159,15 +186,20 @@ public sealed class TranscriptionModelManagerTests
         public ITranscriptionEngineOptions BindInstallation(ITranscriptionEngineOptions options, TranscriptionModelInstallation installation) => options;
     }
 
-    private sealed class ControlledModelProvider(bool isReady = false) : ITranscriptionModelProvider
+    private sealed class ControlledModelProvider(bool isReady = false, bool blockDelete = false) : ITranscriptionModelProvider
     {
         private readonly TaskCompletionSource<TranscriptionModelInstallation> _installation =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _deleteStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _deleteCompletion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int InstallCallCount { get; private set; }
         public int IsReadyCallCount { get; private set; }
         public int HashInspectionCallCount { get; private set; }
         public TranscriptionEngineId EngineId => TranscriptionModelManagerTests.EngineId;
+        public Task DeleteStarted => _deleteStarted.Task;
 
         public IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels()
             => [new(ModelId, "Model A")];
@@ -201,12 +233,22 @@ public sealed class TranscriptionModelManagerTests
             return _installation.Task.WaitAsync(cancellationToken);
         }
 
-        public Task DeleteAsync(TranscriptionModelId modelId, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        public async Task DeleteAsync(TranscriptionModelId modelId, CancellationToken cancellationToken = default)
+        {
+            _deleteStarted.TrySetResult();
+            if (!blockDelete)
+            {
+                return;
+            }
+
+            // 削除途中を終了処理が強制停止しないことを検証するため、テスト側から解放されるまで処理を保持する。
+            await _deleteCompletion.Task.WaitAsync(cancellationToken);
+        }
 
         public TranscriptionModelInstallation GetInstallation(TranscriptionModelId modelId)
             => new(EngineId, modelId, ["model-a.bin"]);
 
         public void CompleteInstall() => _installation.TrySetResult(GetInstallation(ModelId));
+        public void CompleteDelete() => _deleteCompletion.TrySetResult();
     }
 }
