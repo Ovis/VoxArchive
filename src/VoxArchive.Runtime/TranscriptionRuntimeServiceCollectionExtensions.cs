@@ -26,11 +26,21 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<HttpClient>();
         services.AddSingleton(sp =>
         {
+            // Whisperは既存互換のSHA検証Installerを維持する。
             var installer = new TranscriptionModelPackageInstaller(sp.GetRequiredService<HttpClient>());
             var logger = sp.GetRequiredService<ILogger<TranscriptionModelPackageInstaller>>();
             installer.CleanupFailureHandler = (path, ex) =>
                 logger.LogWarning(ex, "Failed to clean transcription model staging directory. Path={Path}", path);
             return installer;
+        });
+        services.AddSingleton(sp =>
+        {
+            // Silero/ReazonSpeechは実native load成功を利用可能条件とするため、SHA検証とは分離したtransactionを使う。
+            var transaction = new ManagedModelFileTransaction(sp.GetRequiredService<HttpClient>());
+            var logger = sp.GetRequiredService<ILogger<ManagedModelFileTransaction>>();
+            transaction.CleanupFailureHandler = (path, ex) =>
+                logger.LogWarning(ex, "Failed to clean managed model operation directory. Path={Path}", path);
+            return transaction;
         });
 
         // Commonは音声準備、VAD、話者判定、結果検証、artifact生成だけを所有する。
