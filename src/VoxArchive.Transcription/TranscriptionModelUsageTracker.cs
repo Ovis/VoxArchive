@@ -32,6 +32,21 @@ public sealed class TranscriptionModelUsageTracker
         }
     }
 
+    /// <summary>
+    /// いずれかの文字起こしJobがモデル利用権を保持しているか確認する
+    /// </summary>
+    /// <remarks>
+    /// モデル管理操作はEngine/モデルを問わず文字起こしと同時実行しない仕様なので、
+    /// 個別keyの保護とは別にglobal排他判定へ利用する。
+    /// </remarks>
+    public bool AnyInUse()
+    {
+        lock (_gate)
+        {
+            return _counts.Values.Any(count => count > 0);
+        }
+    }
+
     internal void Release(TranscriptionModelKey key)
     {
         lock (_gate)
