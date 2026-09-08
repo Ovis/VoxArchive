@@ -923,7 +923,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     return;
                 }
 
-                var title = e.Job.Trigger == ApplicationTranscriptionTrigger.AutoAfterRecord ? "自動文字起こし完了" : "文字起こし完了";
+                var title = e.Result.NoSpeechDetected
+                    ? "音声区間は検出されませんでした"
+                    : e.Job.Trigger == ApplicationTranscriptionTrigger.AutoAfterRecord
+                        ? "自動文字起こし完了"
+                        : "文字起こし完了";
                 AppNotificationHub.Notify("VoxArchive", $"{title}: {Path.GetFileName(e.Job.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
                 return;
             }

@@ -45,6 +45,14 @@ public sealed record TranscriptionJobResult(
     /// </summary>
     public TranscriptionJobOutcome Outcome { get; init; }
         = Succeeded ? TranscriptionJobOutcome.Completed : TranscriptionJobOutcome.Failed;
+
+    /// <summary>
+    /// VADが正常終了したものの発話区間を1件も検出しなかったかを取得する
+    /// </summary>
+    /// <remarks>
+    /// ASRが空結果を返したケースとは区別し、Presentation層が「音声区間なし」を正確に通知できるよう構造化して保持する。
+    /// </remarks>
+    public bool NoSpeechDetected { get; init; }
 }
 
 /// <summary>

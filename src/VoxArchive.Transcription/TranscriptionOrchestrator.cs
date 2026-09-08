@@ -199,7 +199,8 @@ public sealed class TranscriptionOrchestrator(
                 artifact.DocumentPath,
                 artifact.GeneratedFiles,
                 canonicalEngineResult.Metadata,
-                finishedAt);
+                finishedAt,
+                NoSpeechDetected: speechRegions.Count == 0);
         }
         catch (Exception ex)
         {
@@ -487,4 +488,5 @@ public sealed record TranscriptionOrchestrationResult(
     string DocumentPath,
     IReadOnlyList<string> GeneratedFiles,
     IReadOnlyDictionary<string, object?>? EngineMetadata,
-    DateTimeOffset FinishedAt);
+    DateTimeOffset FinishedAt,
+    bool NoSpeechDetected = false);
