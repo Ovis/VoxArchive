@@ -114,7 +114,7 @@ public sealed class SileroPreferredSpeechRegionDetector(
     internal static bool UseVolumeBasedDetector(SpeechRegionDetectorSettingsSnapshot settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        if (settings.Settings.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+        if (settings.Settings.ValueKind != JsonValueKind.Object
             || !settings.Settings.TryGetProperty("Mode", out var mode))
         {
             return false;
