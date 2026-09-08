@@ -36,7 +36,8 @@ public sealed class TranscriptionDiagnosticWriterTests
                 Assert.That(File.Exists(second!), Is.True);
             });
 
-            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(first!));
+            var jsonText = await File.ReadAllTextAsync(first!);
+            using var json = JsonDocument.Parse(jsonText);
             var rootElement = json.RootElement;
             var source = rootElement.GetProperty("source");
 
@@ -46,7 +47,7 @@ public sealed class TranscriptionDiagnosticWriterTests
                 Assert.That(source.GetProperty("fileName").GetString(), Is.EqualTo("meeting.wav"));
                 Assert.That(source.TryGetProperty("path", out _), Is.False);
                 Assert.That(source.TryGetProperty("absolutePath", out _), Is.False);
-                Assert.That(await File.ReadAllTextAsync(first!), Does.Not.Contain(sourcePath));
+                Assert.That(jsonText, Does.Not.Contain(sourcePath));
             });
         }
         finally
