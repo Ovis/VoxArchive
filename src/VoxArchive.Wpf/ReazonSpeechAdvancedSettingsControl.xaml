@@ -9,6 +9,11 @@
                    Foreground="{DynamicResource TextMuted}"
                    TextWrapping="Wrap"
                    Text="ReazonSpeechはCPU実行のみ対応しています。モデル精度とdecoding方式を指定できます。" />
+        <TextBlock x:Name="ValidationMessageTextBlock"
+                   Margin="0,0,0,10"
+                   Foreground="#E7B35A"
+                   TextWrapping="Wrap"
+                   Visibility="Collapsed" />
 
         <TextBlock Text="モデル精度" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4" />
         <ComboBox x:Name="PrecisionComboBox">
@@ -26,7 +31,7 @@
         <StackPanel x:Name="MaxActivePathsPanel" Margin="0,10,0,0">
             <TextBlock Text="Max active paths" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4" />
             <local:NumericUpDownControl x:Name="MaxActivePathsControl"
-                                        Minimum="1"
+                                        Minimum="-2147483648"
                                         Maximum="2147483647"
                                         Increment="1"
                                         DecimalPlaces="0" />
@@ -34,7 +39,8 @@
 
         <TextBlock Text="CPU threads" Foreground="{DynamicResource TextMuted}" Margin="0,10,0,4" />
         <local:NumericUpDownControl x:Name="CpuThreadsControl"
-                                    Minimum="1"
+                                    Minimum="-2147483648"
+                                    Maximum="2147483647"
                                     Increment="1"
                                     DecimalPlaces="0" />
 
