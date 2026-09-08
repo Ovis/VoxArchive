@@ -90,8 +90,8 @@ public sealed class SileroVadDetector(string modelPath) : ISpeechRegionDetector
             DrainSegments(detector, rawRegions);
         }
 
-        var sampleCount = Math.Max(0L, (long)Math.Floor(audio.Duration.TotalSeconds * audio.Format.SampleRate));
-        return SileroVadRegionBuilder.Build(rawRegions, sampleCount, audio.Format.SampleRate, options);
+        // Prepared Audioが保持する実sample数を使い、Durationからの再計算誤差をVAD境界へ持ち込まない。
+        return SileroVadRegionBuilder.Build(rawRegions, audio.SampleCount, audio.Format.SampleRate, options);
     }
 
     /// <summary>
