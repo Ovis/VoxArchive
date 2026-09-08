@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using VoxArchive.Application;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
@@ -25,7 +27,10 @@ public sealed class TranscriptionWiringRegressionTests
     public void RuntimeComposition_ResolvesSelectedVadAndConcreteEngineChunkers()
     {
         var services = new ServiceCollection();
-        services.AddLogging();
+
+        // IntegrationTestsへLogging DI拡張パッケージを追加するだけのテスト依存を増やさない。
+        // Production compositionの解決に必要なILogger<T>だけNullLogger<T>で満たし、実サービス登録自体はAddVoxArchiveTranscriptionをそのまま検証する。
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddVoxArchiveTranscription();
 
         using var provider = services.BuildServiceProvider();
