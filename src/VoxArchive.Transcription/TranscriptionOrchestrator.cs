@@ -16,8 +16,12 @@ public sealed class TranscriptionOrchestrator(
     TranscriptionSpeakerLabelService speakerLabelService,
     TranscriptionArtifactService artifactService,
     TranscriptionDiagnosticWriter diagnosticWriter,
-    ILogger<TranscriptionOrchestrator> logger)
+    ILogger<TranscriptionOrchestrator> logger,
+    TranscriptionEngineResultCanonicalizer? resultCanonicalizer = null)
 {
+    private readonly TranscriptionEngineResultCanonicalizer _resultCanonicalizer =
+        resultCanonicalizer ?? new TranscriptionEngineResultCanonicalizer();
+
     /// <summary>
     /// Audio Preparationからartifact確定までの共通pipelineを実行する
     /// </summary>
@@ -40,6 +44,7 @@ public sealed class TranscriptionOrchestrator(
         IReadOnlyList<SpeechRegion>? speechRegions = null;
         SpeechRegionDetectionDiagnosticTrace? vadTrace = null;
         TranscriptionEngineDiagnosticTrace? engineDiagnostic = null;
+        TranscriptionEngineResult? rawEngineResult = null;
         TranscriptionDiagnosticSource? diagnosticSource = null;
 
         try
@@ -93,20 +98,21 @@ public sealed class TranscriptionOrchestrator(
             failedStage = "asr";
             LogStage(request, "recognition", "started", pipelineStopwatch.ElapsedMilliseconds);
             stageStopwatch.Restart();
-            var engineResult = await engine.TranscribeAsync(
+            rawEngineResult = await engine.TranscribeAsync(
                 new TranscriptionEngineRequest(
                     preparedAudio,
                     speechRegions,
                     request.EngineOptions,
                     new TranscriptionEngineExecutionContext(request.DiagnosticsEnabled)),
                 cancellationToken);
-            engineDiagnostic = engineResult.Diagnostics;
+            engineDiagnostic = rawEngineResult.Diagnostics;
             stageStopwatch.Stop();
             asrMilliseconds = stageStopwatch.ElapsedMilliseconds;
             LogStage(request, "recognition", "completed", pipelineStopwatch.ElapsedMilliseconds);
 
             failedStage = "canonical-output";
             stageStopwatch.Restart();
+            var engineResult = _resultCanonicalizer.Canonicalize(rawEngineResult, preparedAudio);
             LogStage(request, "validation", "started", pipelineStopwatch.ElapsedMilliseconds);
             resultValidator.Validate(engineResult, preparedAudio.Duration);
             LogStage(request, "validation", "completed", pipelineStopwatch.ElapsedMilliseconds);
