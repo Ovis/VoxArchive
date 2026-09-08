@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:VoxArchive.Wpf"
-        Title="発話検出の詳細設定"
+        Title="無音部分の除外 - 詳細設定"
         Width="430"
         Height="480"
         ResizeMode="NoResize"
@@ -84,7 +84,7 @@
                     CornerRadius="10,10,0,0"
                     MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
                 <Grid Margin="10,0,6,0">
-                    <TextBlock Text="発話検出の詳細設定"
+                    <TextBlock Text="無音部分の除外 - 詳細設定"
                                FontSize="12"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource TextMuted}"
