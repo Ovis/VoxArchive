@@ -1,14 +1,16 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.SileroVad;
 
 /// <summary>
-/// Silero VADを優先し、利用できない場合や推論失敗時に音量ベースVADへ切り替える
+/// ユーザーが選択した発話検出方式に従い、Silero選択時だけ必要に応じて音量ベースVADへfallbackする
 /// </summary>
 /// <remarks>
 /// 同一ジョブ内でSileroの途中結果とfallback結果を混在させないため、Silero失敗時は結果をすべて破棄し、
 /// 同じPrepared Audioをfallback detectorで先頭から再解析する。Sileroの正常な0件結果は「無音」としてそのまま返す。
+/// 音量ベースVADを明示選択した場合はSileroのモデル状態に関係なくnative処理を一切試行しない。
 /// </remarks>
 public sealed class SileroPreferredSpeechRegionDetector(
     ISpeechRegionDetector sileroDetector,
@@ -47,6 +49,13 @@ public sealed class SileroPreferredSpeechRegionDetector(
     {
         ArgumentNullException.ThrowIfNull(audio);
         ArgumentNullException.ThrowIfNull(settings);
+
+        if (UseVolumeBasedDetector(settings))
+        {
+            // 明示選択はSilero障害によるfallbackではない。native model loadやsession suppression判定にも触れず、
+            // 診断上も通常のVolumeBasedVadとして記録する。
+            return await RunVolumeBasedAsync(audio, settings, includeDiagnostics, cancellationToken);
+        }
 
         if (IsSileroSuppressed())
         {
@@ -95,6 +104,31 @@ public sealed class SileroPreferredSpeechRegionDetector(
         }
     }
 
+    /// <summary>
+    /// Admissionで固定されたsnapshotから音量ベースVADの明示選択を判定する
+    /// </summary>
+    /// <remarks>
+    /// PR #27以前の設定にはModeが存在しないため、未指定・読取不能な値は従来動作のSileroとして扱う。
+    /// System.Text.Jsonの既定enum表現は数値だが、将来serializer設定が変わっても旧設定を壊さないよう文字列も受け付ける。
+    /// </remarks>
+    internal static bool UseVolumeBasedDetector(SpeechRegionDetectorSettingsSnapshot settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        if (settings.Settings.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+            || !settings.Settings.TryGetProperty("Mode", out var mode))
+        {
+            return false;
+        }
+
+        if (mode.ValueKind == JsonValueKind.Number && mode.TryGetInt32(out var numericMode))
+        {
+            return numericMode == 1;
+        }
+
+        return mode.ValueKind == JsonValueKind.String
+            && string.Equals(mode.GetString(), "VolumeBased", StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task<SpeechRegionDetectionDiagnosticResult> RunSileroAsync(
         IPreparedTranscriptionAudio audio,
         SpeechRegionDetectorSettingsSnapshot settings,
@@ -116,6 +150,27 @@ public sealed class SileroPreferredSpeechRegionDetector(
                 FallbackReason: null));
     }
 
+    private async Task<SpeechRegionDetectionDiagnosticResult> RunVolumeBasedAsync(
+        IPreparedTranscriptionAudio audio,
+        SpeechRegionDetectorSettingsSnapshot settings,
+        bool includeDiagnostics,
+        CancellationToken cancellationToken)
+    {
+        if (includeDiagnostics && _fallbackDetector is IDiagnosticSpeechRegionDetector diagnosticDetector)
+        {
+            return await diagnosticDetector.DetectWithDiagnosticsAsync(audio, settings, cancellationToken);
+        }
+
+        var regions = await _fallbackDetector.DetectAsync(audio, settings, cancellationToken);
+        return new SpeechRegionDetectionDiagnosticResult(
+            regions,
+            new SpeechRegionDetectionDiagnosticTrace(
+                "VolumeBasedVad",
+                [],
+                FallbackUsed: false,
+                FallbackReason: null));
+    }
+
     private async Task<SpeechRegionDetectionDiagnosticResult> RunFallbackAsync(
         IPreparedTranscriptionAudio audio,
         SpeechRegionDetectorSettingsSnapshot settings,
@@ -123,22 +178,7 @@ public sealed class SileroPreferredSpeechRegionDetector(
         bool includeDiagnostics,
         CancellationToken cancellationToken)
     {
-        SpeechRegionDetectionDiagnosticResult fallbackResult;
-        if (includeDiagnostics && _fallbackDetector is IDiagnosticSpeechRegionDetector diagnosticDetector)
-        {
-            fallbackResult = await diagnosticDetector.DetectWithDiagnosticsAsync(audio, settings, cancellationToken);
-        }
-        else
-        {
-            var regions = await _fallbackDetector.DetectAsync(audio, settings, cancellationToken);
-            fallbackResult = new SpeechRegionDetectionDiagnosticResult(
-                regions,
-                new SpeechRegionDetectionDiagnosticTrace(
-                    "VolumeBasedVad",
-                    [],
-                    FallbackUsed: false,
-                    FallbackReason: null));
-        }
+        var fallbackResult = await RunVolumeBasedAsync(audio, settings, includeDiagnostics, cancellationToken);
 
         // fallback detector自身のtraceを尊重しつつ、今回Sileroから切り替わった事実と理由を上書きする。
         // これにより将来volume VAD側がraw region診断へ対応しても、その情報を失わない。
