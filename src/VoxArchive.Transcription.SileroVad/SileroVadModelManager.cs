@@ -7,7 +7,8 @@ namespace VoxArchive.Transcription.SileroVad;
 /// </summary>
 /// <remarks>
 /// SileroはASR EngineではないためTranscriptionEngineRegistryへ登録せず、VAD project内の専用managerとして扱う。
-/// モデル取得・削除・再確認時はTranscriptionModelUsageTrackerのglobal blockを利用し、ASRモデル管理や文字起こしと同時実行しない。
+/// モデル取得・削除・native loadを伴う状態確認時はTranscriptionModelUsageTrackerのglobal blockを利用し、
+/// ASRモデル管理や文字起こしと同時実行しない。
 /// </remarks>
 public sealed class SileroVadModelManager : ISpeechRegionDetectorModelManager
 {
@@ -63,6 +64,9 @@ public sealed class SileroVadModelManager : ISpeechRegionDetectorModelManager
             }
         }
 
+        // cacheがない初回状態確認だけnative model loadが発生する。
+        // 単なるFile.Exists確認とは異なり文字起こし中のnative利用と競合し得るため、明示再確認と同じglobal blockを通す。
+        using var usageBlock = _usageTracker.BlockNewReservations("Silero VADモデル状態確認");
         return ValidateCurrentModel(force: false);
     }
 
@@ -84,7 +88,10 @@ public sealed class SileroVadModelManager : ISpeechRegionDetectorModelManager
         CancellationToken cancellationToken = default)
     {
         using var usageBlock = _usageTracker.BlockNewReservations(force ? "Silero VADモデル再取得" : "Silero VADモデル取得");
-        if (!force && GetState() == SileroVadModelState.Available)
+
+        // Install自身がglobal blockを保持しているため、GetStateを経由すると同じUsageTrackerへ二重blockしてしまう。
+        // ここでは同じnative validation本体を直接呼び、取得不要かだけを判定する。
+        if (!force && ValidateCurrentModel(force: false) == SileroVadModelState.Available)
         {
             return;
         }
