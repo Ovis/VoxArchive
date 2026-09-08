@@ -43,14 +43,17 @@ public sealed record TranscriptionModelInspection(
 /// </summary>
 public sealed record TranscriptionModelTransferProgress(
     long BytesReceived,
-    long? TotalBytes,
+    long TotalBytes,
     string? CurrentFileName = null,
     bool IsValidating = false)
 {
-    /// <summary>総容量が既知の場合だけ0～100の進捗率を返す</summary>
-    public double? Percent => TotalBytes is > 0
-        ? Math.Clamp(BytesReceived * 100d / TotalBytes.Value, 0d, 100d)
-        : null;
+    /// <summary>総容量が取得できない場合にtrueを返す</summary>
+    public bool IsIndeterminate => TotalBytes <= 0;
+
+    /// <summary>0～100の進捗率を取得する。総容量不明時は0を返し、UIはIsIndeterminateを利用する</summary>
+    public double Percent => TotalBytes <= 0
+        ? 0d
+        : Math.Clamp(BytesReceived * 100d / TotalBytes, 0d, 100d);
 }
 
 /// <summary>
