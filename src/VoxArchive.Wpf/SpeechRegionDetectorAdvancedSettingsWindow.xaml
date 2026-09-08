@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:VoxArchive.Wpf"
         Title="発話検出の詳細設定"
         Width="430"
-        Height="410"
+        Height="480"
         ResizeMode="NoResize"
         WindowStyle="None"
         WindowStartupLocation="CenterOwner"
@@ -34,6 +34,28 @@
         </Style>
 
         <Style TargetType="Button" BasedOn="{StaticResource CommonButtonStyle}" />
+
+        <Style TargetType="ToolTip">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Background" Value="#182231" />
+            <Setter Property="BorderBrush" Value="#3A4E69" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="MaxWidth" Value="340" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style x:Key="TitleBarCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CommonButtonStyle}">
             <Setter Property="Width" Value="30" />
@@ -111,7 +133,15 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                            <StackPanel Grid.Row="0"
+                                        VerticalAlignment="Center"
+                                        ToolTipService.InitialShowDelay="300">
+                                <StackPanel.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock TextWrapping="Wrap"
+                                                   Text="Silero VADが音声を発話として判定する確信度の基準です。値を高くすると誤検出は減りますが、小さい声や不明瞭な発話を見逃しやすくなります。" />
+                                    </ToolTip>
+                                </StackPanel.ToolTip>
                                 <TextBlock Text="発話判定しきい値" />
                                 <TextBlock Margin="0,2,0,0"
                                            Foreground="{StaticResource TextMuted}"
@@ -122,25 +152,65 @@
                                                         Grid.Column="1"
                                                         Margin="0,0,0,8" />
 
-                            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="最小発話時間" />
+                            <TextBlock Grid.Row="1"
+                                       VerticalAlignment="Center"
+                                       Text="最小発話時間"
+                                       ToolTipService.InitialShowDelay="300">
+                                <TextBlock.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock TextWrapping="Wrap"
+                                                   Text="発話として確定するために必要な最小継続時間です。値を大きくすると短いノイズを除外しやすくなりますが、短い相づちなども除外されやすくなります。" />
+                                    </ToolTip>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
                             <local:NumericUpDownControl x:Name="MinimumSpeechNumericUpDown"
                                                         Grid.Row="1"
                                                         Grid.Column="1"
                                                         Margin="0,0,0,8" />
 
-                            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="最小無音時間" />
+                            <TextBlock Grid.Row="2"
+                                       VerticalAlignment="Center"
+                                       Text="最小無音時間"
+                                       ToolTipService.InitialShowDelay="300">
+                                <TextBlock.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock TextWrapping="Wrap"
+                                                   Text="発話の終了と判定するために必要な連続無音時間です。値を大きくすると短い間を挟んだ音声を同じ発話としてまとめやすくなります。" />
+                                    </ToolTip>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
                             <local:NumericUpDownControl x:Name="MinimumSilenceNumericUpDown"
                                                         Grid.Row="2"
                                                         Grid.Column="1"
                                                         Margin="0,0,0,8" />
 
-                            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="前方パディング" />
+                            <TextBlock Grid.Row="3"
+                                       VerticalAlignment="Center"
+                                       Text="前方パディング"
+                                       ToolTipService.InitialShowDelay="300">
+                                <TextBlock.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock TextWrapping="Wrap"
+                                                   Text="検出した発話区間の開始位置を前方へ広げる時間です。語頭が切れるのを防ぐための余白として使用します。" />
+                                    </ToolTip>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
                             <local:NumericUpDownControl x:Name="PrePaddingNumericUpDown"
                                                         Grid.Row="3"
                                                         Grid.Column="1"
                                                         Margin="0,0,0,8" />
 
-                            <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="後方パディング" />
+                            <TextBlock Grid.Row="4"
+                                       VerticalAlignment="Center"
+                                       Text="後方パディング"
+                                       ToolTipService.InitialShowDelay="300">
+                                <TextBlock.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock TextWrapping="Wrap"
+                                                   Text="検出した発話区間の終了位置を後方へ広げる時間です。語尾が切れるのを防ぐための余白として使用します。" />
+                                    </ToolTip>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
                             <local:NumericUpDownControl x:Name="PostPaddingNumericUpDown"
                                                         Grid.Row="4"
                                                         Grid.Column="1" />
