@@ -60,7 +60,10 @@ public sealed class TranscriptionDiagnosticWriter
 
             var baseName = SanitizeFileName(Path.GetFileNameWithoutExtension(sourceRecordingPath));
             if (string.IsNullOrWhiteSpace(baseName)) baseName = "transcription";
-            var timestampText = timestamp.ToLocalTime().ToString("yyyyMMdd-HHmmss");
+
+            // 呼び出し側がJob完了時刻として確定したDateTimeOffsetのoffsetをそのまま使う。
+            // OSのローカルタイムゾーンへ変換すると、同じJobでも実行環境によって診断ファイル名が変わるため避ける。
+            var timestampText = timestamp.ToString("yyyyMMdd-HHmmss");
             var path = ResolveCollisionFreePath(baseName, timestampText);
 
             await using var stream = new FileStream(
