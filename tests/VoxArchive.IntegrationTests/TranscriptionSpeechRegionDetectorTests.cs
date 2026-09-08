@@ -18,7 +18,7 @@ public sealed class TranscriptionSpeechRegionDetectorTests
 
         var regions = await sut.DetectAsync(audio, Settings);
 
-        var maximumSample = (long)Math.Floor(audio.Duration.TotalSeconds * SampleRate);
+        var maximumSample = audio.SampleCount;
         Assert.That(regions, Is.Not.Empty);
         Assert.That(regions[^1].EndSample, Is.EqualTo(maximumSample));
         Assert.That(regions.All(x => x.EndSample <= maximumSample), Is.True);
@@ -41,6 +41,31 @@ public sealed class TranscriptionSpeechRegionDetectorTests
             Assert.That(regions[0].SourceRawSpeechRegionIds, Is.EqualTo(new[] { 0 }));
             Assert.That(regions[0].CoreRanges.All(x => x.StartSample >= regions[0].StartSample), Is.True);
             Assert.That(regions[0].CoreRanges.All(x => x.EndSample <= regions[0].EndSample), Is.True);
+        });
+    }
+
+    [Test]
+    public async Task DetectWithDiagnosticsAsync_ReturnsRawRegionMatchingFinalLineage()
+    {
+        var waveBytes = BuildWaveWithSpeechAtEnd();
+        await using var audio = new TestPreparedAudio(waveBytes, TimeSpan.FromSeconds(1));
+        var sut = new TranscriptionSpeechRegionDetector();
+
+        var result = await sut.DetectWithDiagnosticsAsync(audio, Settings);
+
+        Assert.That(result.SpeechRegions, Has.Count.EqualTo(1));
+        Assert.That(result.Trace.RawRegions, Has.Count.EqualTo(1));
+        var region = result.SpeechRegions[0];
+        var raw = result.Trace.RawRegions[0];
+        var core = region.CoreRanges.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Trace.Detector, Is.EqualTo("VolumeBasedVad"));
+            Assert.That(result.Trace.FallbackUsed, Is.False);
+            Assert.That(result.Trace.FallbackReason, Is.Null);
+            Assert.That(raw.RawSpeechRegionId, Is.EqualTo(region.SourceRawSpeechRegionIds.Single()));
+            Assert.That(raw.StartSample, Is.EqualTo(core.StartSample));
+            Assert.That(raw.EndSample, Is.EqualTo(core.EndSample));
         });
     }
 
