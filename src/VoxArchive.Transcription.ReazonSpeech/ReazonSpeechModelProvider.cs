@@ -41,15 +41,9 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
     public IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels()
         =>
         [
-            // 現行WPFは論理モデルIDを直接モデル管理APIへ渡すため、Phase 7でUIをprecision対応するまで
-            // jaを既定hybrid packageへの互換aliasとして残す。Admissionはprecision別package IDを利用する。
-            new(ReazonSpeechModelCatalog.JapaneseModelId, "日本語（k2-v2）", "k2-v2", ReazonSpeechModelCatalog.Revision, "Apache-2.0"),
-            .. ReazonSpeechModelCatalog.Packages.Select(x => new TranscriptionModelDescriptor(
-                x.PackageId,
-                $"日本語（k2-v2 / {ToPrecisionLabel(x.Precision)}）",
-                "k2-v2",
-                ReazonSpeechModelCatalog.Revision,
-                "Apache-2.0"))
+            // precision別package IDは実装詳細なので利用者向けcatalogへ公開しない。
+            // モデル管理操作ではApplicationのmodel-operation resolverが現在のprecisionから物理packageを解決する。
+            new(ReazonSpeechModelCatalog.JapaneseModelId, "日本語（k2-v2）", "k2-v2", ReazonSpeechModelCatalog.Revision, "Apache-2.0")
         ];
 
     /// <inheritdoc />
@@ -84,7 +78,7 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
         };
 
         // ReazonSpeechではSHA-256を利用可能判定に使わない。既存APIの明示再確認経路だけは
-        // Hash levelを「強制load validation」のトリガーとして扱い、Phase 7で表示文言も合わせて変更する。
+        // Hash levelを「強制load validation」のトリガーとして扱い、UIでは完全性確認ではなく利用可能性確認として表示する。
         if (state == TranscriptionModelPackageState.Installed && level == TranscriptionModelInspectionLevel.Hash)
         {
             InvalidateValidation(package.PackageId);
@@ -160,7 +154,8 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
 
     private ReazonSpeechManagedModelPackage ResolvePackage(TranscriptionModelId modelId)
     {
-        // 旧UI/APIから渡る論理ID ja は既定profileのhybrid packageへ互換解決する。
+        // 既存API互換のため論理ID ja は既定hybrid packageへ解決できる状態を残す。
+        // 新しい設定UIのモデル管理操作は必ずmodel-operation resolverでprecision別の物理IDへ変換してから到達する。
         var physicalId = modelId == ReazonSpeechModelCatalog.JapaneseModelId
             ? ReazonSpeechModelCatalog.JapaneseInt8Fp32PackageId
             : modelId;
@@ -222,13 +217,4 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
             ReazonSpeechEngineIdentity.EngineId,
             package.PackageId,
             package.Files.Select(x => Path.Combine(directory, x.DestinationName)).ToArray());
-
-    private static string ToPrecisionLabel(ReazonSpeechPrecision precision)
-        => precision switch
-        {
-            ReazonSpeechPrecision.Fp32 => "FP32",
-            ReazonSpeechPrecision.Int8 => "INT8",
-            ReazonSpeechPrecision.Int8Fp32 => "INT8-FP32",
-            _ => precision.ToString()
-        };
 }
