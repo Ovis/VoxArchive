@@ -77,20 +77,21 @@ public sealed class TranscriptionModelManagerTests
     }
 
     [Test]
-    public async Task ActiveDownload_BlocksNewTranscriptionReservation()
+    public async Task ActiveDownload_BlocksAdmissionStyleDirectReservation()
     {
         var provider = new ControlledModelProvider();
-        var (manager, _) = CreateManager(provider);
+        var (manager, usageTracker) = CreateManager(provider);
         var download = manager.InstallAsync(ModelKey, force: false);
 
+        // 現行AdmissionはUsageTrackerを直接利用するため、その経路でもblockされることを確認する。
         Assert.That(
-            () => manager.ReserveForTranscription(ModelKey),
+            () => usageTracker.Acquire(ModelKey),
             Throws.TypeOf<InvalidOperationException>());
 
         provider.CompleteInstall();
         await download;
 
-        using var reservation = manager.ReserveForTranscription(ModelKey);
+        using var reservation = usageTracker.Acquire(ModelKey);
         Assert.That(manager.IsInUse(ModelKey), Is.True);
     }
 
