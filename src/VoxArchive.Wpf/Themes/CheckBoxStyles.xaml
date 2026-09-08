@@ -100,4 +100,56 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <Style x:Key="CommonLabeledRadioButtonStyle" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="#EFF4FC" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Ellipse x:Name="Ring"
+                                 Grid.Column="0"
+                                 Width="18"
+                                 Height="18"
+                                 Fill="#0F1A29"
+                                 Stroke="#35506E"
+                                 StrokeThickness="1"
+                                 VerticalAlignment="Center" />
+                        <Ellipse x:Name="Dot"
+                                 Grid.Column="0"
+                                 Width="8"
+                                 Height="8"
+                                 Fill="#4B86E6"
+                                 VerticalAlignment="Center"
+                                 Visibility="Collapsed" />
+                        <ContentPresenter Grid.Column="2"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="Stroke" Value="#4B86E6" />
+                            <Setter TargetName="Dot" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ring" Property="Stroke" Value="#4B86E6" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#7F8CA3" />
+                            <Setter TargetName="Ring" Property="Fill" Value="#162131" />
+                            <Setter TargetName="Ring" Property="Stroke" Value="#25364C" />
+                            <Setter TargetName="Ring" Property="Opacity" Value="0.8" />
+                            <Setter TargetName="Dot" Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>
