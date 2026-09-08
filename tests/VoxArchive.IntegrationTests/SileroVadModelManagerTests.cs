@@ -17,7 +17,7 @@ public sealed class SileroVadModelManagerTests
         {
             var modelPath = Path.Combine(root, "silero-vad", "silero_vad.onnx");
             var validationCount = 0;
-            using var client = CreateClient([]);
+            using var client = CreateClient(new Dictionary<string, byte[]>());
             var manager = CreateManager(client, modelPath, _ => validationCount++);
 
             var state = manager.GetState();
@@ -42,7 +42,7 @@ public sealed class SileroVadModelManagerTests
         {
             var modelPath = CreateModelFile(root);
             var validationCount = 0;
-            using var client = CreateClient([]);
+            using var client = CreateClient(new Dictionary<string, byte[]>());
             var manager = CreateManager(client, modelPath, _ => validationCount++);
 
             var first = manager.GetState();
@@ -69,7 +69,7 @@ public sealed class SileroVadModelManagerTests
         {
             var modelPath = CreateModelFile(root);
             var validationCount = 0;
-            using var client = CreateClient([]);
+            using var client = CreateClient(new Dictionary<string, byte[]>());
             var manager = CreateManager(client, modelPath, _ =>
             {
                 validationCount++;
@@ -101,7 +101,7 @@ public sealed class SileroVadModelManagerTests
             var modelPath = CreateModelFile(root);
             var shouldFail = true;
             var validationCount = 0;
-            using var client = CreateClient([]);
+            using var client = CreateClient(new Dictionary<string, byte[]>());
             var manager = CreateManager(client, modelPath, _ =>
             {
                 validationCount++;
@@ -138,7 +138,7 @@ public sealed class SileroVadModelManagerTests
             using var reservation = usageTracker.Acquire(new(
                 new("test-engine"),
                 new("model-a")));
-            using var client = CreateClient([]);
+            using var client = CreateClient(new Dictionary<string, byte[]>());
             var transaction = new ManagedModelFileTransaction(client);
             var manager = new SileroVadModelManager(transaction, usageTracker, modelPath, _ => { });
 
