@@ -46,10 +46,12 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         // Commonは音声準備、VAD、話者判定、結果検証、artifact生成だけを所有する。
         services.AddSingleton<TranscriptionAudioPreparationService>();
         services.AddSingleton<TranscriptionSpeechRegionDetector>();
+        services.AddSingleton<TranscriptionModelUsageTracker>();
 
         // Sileroが実行可能なら優先し、未配置・初期化失敗・推論失敗時のみ既存の音量ベースVADへ戻す。
-        // モデルパスは設定値にせず、後続のモデル管理機能と共有するLocalApplicationData配下の固定規則を使用する。
+        // モデル管理はASR Engineへ偽装せず専用managerで扱い、同じUsageTrackerでASRモデル操作・文字起こしと排他する。
         services.AddSingleton(sp => new SileroVadDetector(SileroVadModelPath.GetDefault()));
+        services.AddSingleton<SileroVadModelManager>();
         services.AddSingleton<SileroPreferredSpeechRegionDetector>(sp => new(
             sp.GetRequiredService<SileroVadDetector>(),
             sp.GetRequiredService<TranscriptionSpeechRegionDetector>(),
@@ -61,7 +63,6 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<TranscriptionDocumentStore>();
         services.AddSingleton<TranscriptionExportService>();
         services.AddSingleton<TranscriptionArtifactService>();
-        services.AddSingleton<TranscriptionModelUsageTracker>();
 
         // Whisper固有の実装・capabilityはWhisper project内に閉じ込める。
         services.AddSingleton<WhisperRecognitionChunker>();
