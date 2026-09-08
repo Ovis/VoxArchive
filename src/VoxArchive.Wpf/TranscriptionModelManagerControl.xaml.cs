@@ -38,7 +38,7 @@ public partial class TranscriptionModelManagerControl : UserControl
     /// <summary>取得ボタンに表示する文言</summary>
     public string InstallButtonText { get => (string)GetValue(InstallButtonTextProperty); set => SetValue(InstallButtonTextProperty, value); }
 
-    /// <summary>完全性確認を実行できるか</summary>
+    /// <summary>状態再確認を実行できるか</summary>
     public bool CanVerify { get => (bool)GetValue(CanVerifyProperty); set => SetValue(CanVerifyProperty, value); }
 
     /// <summary>取得・再取得を実行できるか</summary>
@@ -49,6 +49,9 @@ public partial class TranscriptionModelManagerControl : UserControl
 
     /// <summary>取得進捗率</summary>
     public double ProgressPercent { get => (double)GetValue(ProgressPercentProperty); set => SetValue(ProgressPercentProperty, value); }
+
+    /// <summary>総容量不明またはnative検証中で不定進捗表示にするか</summary>
+    public bool ProgressIsIndeterminate { get => (bool)GetValue(ProgressIsIndeterminateProperty); set => SetValue(ProgressIsIndeterminateProperty, value); }
 
     /// <summary>転送量を含む進捗表示</summary>
     public string ProgressText { get => (string)GetValue(ProgressTextProperty); set => SetValue(ProgressTextProperty, value); }
@@ -68,13 +71,14 @@ public partial class TranscriptionModelManagerControl : UserControl
     public static readonly DependencyProperty CanInstallProperty = DependencyProperty.Register(nameof(CanInstall), typeof(bool), typeof(TranscriptionModelManagerControl), new PropertyMetadata(true));
     public static readonly DependencyProperty CanDeleteProperty = DependencyProperty.Register(nameof(CanDelete), typeof(bool), typeof(TranscriptionModelManagerControl), new PropertyMetadata(false));
     public static readonly DependencyProperty ProgressPercentProperty = DependencyProperty.Register(nameof(ProgressPercent), typeof(double), typeof(TranscriptionModelManagerControl), new PropertyMetadata(0d));
+    public static readonly DependencyProperty ProgressIsIndeterminateProperty = DependencyProperty.Register(nameof(ProgressIsIndeterminate), typeof(bool), typeof(TranscriptionModelManagerControl), new PropertyMetadata(false));
     public static readonly DependencyProperty ProgressTextProperty = DependencyProperty.Register(nameof(ProgressText), typeof(string), typeof(TranscriptionModelManagerControl), new PropertyMetadata(string.Empty));
     public static readonly DependencyProperty ProgressVisibilityProperty = DependencyProperty.Register(nameof(ProgressVisibility), typeof(Visibility), typeof(TranscriptionModelManagerControl), new PropertyMetadata(Visibility.Collapsed));
 
     /// <summary>選択モデルが変化したときに通知する</summary>
     public event EventHandler? SelectedModelChanged;
 
-    /// <summary>完全性確認が要求されたときに通知する</summary>
+    /// <summary>状態再確認が要求されたときに通知する</summary>
     public event EventHandler? VerifyRequested;
 
     /// <summary>取得・再取得・取得キャンセルが要求されたときに通知する</summary>
