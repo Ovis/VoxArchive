@@ -215,6 +215,13 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
         _settings = dialog.ResultSettings with { Threshold = current.Threshold };
     }
 
+    private void OnResetDefaultsClick(object sender, RoutedEventArgs e)
+    {
+        // Thresholdを含む5項目を一つの標準profileとして戻す。
+        // 詳細ダイアログだけで4項目を初期化するとThresholdだけ旧値が残るため、共通Controlで全項目を同時に更新する。
+        ApplySettings(new SileroVadSettings());
+    }
+
     private void ApplyStatus(SpeechRegionDetectorModelStatusInfo status)
     {
         ModelStatusTextBlock.Text = status.State.ToLowerInvariant() switch
