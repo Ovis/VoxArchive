@@ -2,17 +2,19 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using VoxArchive.Application.Abstractions;
+using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// 共通発話検出で利用するSilero VADモデルの状態確認・取得・削除UIを提供する
+/// 共通発話検出で利用するSilero VADモデル管理と設定編集UIを提供する
 /// </summary>
 public partial class SpeechRegionDetectorSettingsControl : UserControl
 {
     private readonly ISpeechRegionDetectorModelApplicationService _modelService;
     private CancellationTokenSource? _installCancellation;
     private bool _isBusy;
+    private SileroVadSettings _settings = new();
 
     /// <summary>
     /// 発話検出モデル管理Facadeを利用してControlを初期化する
@@ -21,7 +23,37 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
     {
         _modelService = modelService ?? throw new ArgumentNullException(nameof(modelService));
         InitializeComponent();
+        ConfigureThresholdControl();
+        ApplySettings(_settings);
         Loaded += OnLoaded;
+    }
+
+    /// <summary>
+    /// 親設定画面が保持するSilero VAD編集値を取得・設定する
+    /// </summary>
+    public SileroVadSettings Settings
+    {
+        get => _settings with { Threshold = ThresholdNumericUpDown.Value };
+        set
+        {
+            _settings = value ?? throw new ArgumentNullException(nameof(value));
+            ApplySettings(_settings);
+        }
+    }
+
+    private void ConfigureThresholdControl()
+    {
+        ThresholdNumericUpDown.Minimum = 0.01d;
+        ThresholdNumericUpDown.Maximum = 0.99d;
+        ThresholdNumericUpDown.Increment = 0.01d;
+        ThresholdNumericUpDown.DecimalPlaces = 2;
+        ThresholdNumericUpDown.Value = 0.50d;
+    }
+
+    private void ApplySettings(SileroVadSettings settings)
+    {
+        ThresholdNumericUpDown.Value = settings.Threshold;
+        _settings = settings;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -165,6 +197,22 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
             SetBusyState(isBusy: false, allowCancel: false);
             await RefreshStateAsync(preserveMessage: true);
         }
+    }
+
+    private void OnAdvancedSettingsClick(object sender, RoutedEventArgs e)
+    {
+        var current = Settings;
+        var dialog = new SpeechRegionDetectorAdvancedSettingsWindow(current)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        // 詳細ダイアログではThresholdを編集しないため、親Controlの現在値を維持して4項目だけ反映する。
+        _settings = dialog.ResultSettings with { Threshold = current.Threshold };
     }
 
     private void ApplyStatus(SpeechRegionDetectorModelStatusInfo status)
