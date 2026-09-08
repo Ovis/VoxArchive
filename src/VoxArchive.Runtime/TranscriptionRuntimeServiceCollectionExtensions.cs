@@ -65,6 +65,10 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         // WPFからSilero/ReazonSpeech具象型を直接触らせず、Runtime Composition Root内で起動処理まで閉じる。
         services.AddHostedService<TranscriptionModelStartupCleanupService>();
 
+        // 詳細診断JSONも通常appログと同じ保持期間で削除する。診断だけが無期限に蓄積しないよう、
+        // 同じlogsディレクトリを対象にするcleanupをComposition Rootから起動する。
+        services.AddHostedService<LogRetentionCleanupService>();
+
         services.AddSingleton<TranscriptionEngineResultCanonicalizer>();
         services.AddSingleton<TranscriptionSpeakerLabelService>();
         services.AddSingleton<TranscriptionEngineResultValidator>();
