@@ -15,7 +15,7 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
     private const double MergeGapMilliseconds = 300d;
     private const int AnalysisFrameCapacity = 4096;
     private const double NoiseFloorPercentile = 0.2d;
-    private const double MinimumThresholdDb = -50dB;
+    private const double MinimumThresholdDb = -50d;
     private const double ThresholdOffsetDb = 12d;
 
     /// <inheritdoc />
