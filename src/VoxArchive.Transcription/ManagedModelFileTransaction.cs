@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace VoxArchive.Transcription;
 
 /// <summary>
@@ -10,7 +12,10 @@ namespace VoxArchive.Transcription;
 public sealed class ManagedModelFileTransaction(HttpClient httpClient)
 {
     private const int CopyBufferSize = 81920;
-    private static readonly string[] OwnedTemporaryPrefixes = ["download-", "backup-", "delete-"];
+    private const string BackupPrefix = "backup-";
+    private const string BackupRecoveryManifestSuffix = ".recovery.json";
+    private const string BackupCommittedMarkerSuffix = ".committed";
+    private static readonly string[] DisposableTemporaryPrefixes = ["download-", "delete-"];
 
     /// <summary>一時領域のbest effort削除に失敗した場合の通知先</summary>
     public Action<string, Exception>? CleanupFailureHandler { get; set; }
@@ -43,7 +48,9 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
 
         Directory.CreateDirectory(temporaryRootDirectory);
         var stagingDirectory = Path.Combine(temporaryRootDirectory, $"download-{Guid.NewGuid():N}");
-        var backupDirectory = Path.Combine(temporaryRootDirectory, $"backup-{Guid.NewGuid():N}");
+        var backupDirectory = Path.Combine(temporaryRootDirectory, $"{BackupPrefix}{Guid.NewGuid():N}");
+        var recoveryManifestPath = GetRecoveryManifestPath(backupDirectory);
+        var committedMarkerPath = GetCommittedMarkerPath(backupDirectory);
         Directory.CreateDirectory(stagingDirectory);
 
         long transferred = 0;
@@ -119,9 +126,15 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
             var destinationParent = Path.GetDirectoryName(destinationDirectory);
             if (!string.IsNullOrWhiteSpace(destinationParent)) Directory.CreateDirectory(destinationParent);
 
-            // staging上で利用可能でも、正式パス固有の問題でloadできない可能性がある。
-            // その場合に既存正常モデルを失わないようbackupは正式配置側の最終validation成功まで保持する。
-            if (Directory.Exists(destinationDirectory)) Directory.Move(destinationDirectory, backupDirectory);
+            // 旧モデルを退避する前に復旧先を記録する。Directory.Move直後にprocessが終了しても、
+            // 次回起動時にbackupを単なる残骸として削除せず正式位置へ戻せる状態を先に作る。
+            var hadExistingModel = Directory.Exists(destinationDirectory);
+            if (hadExistingModel)
+            {
+                WriteRecoveryManifest(recoveryManifestPath, destinationDirectory);
+                Directory.Move(destinationDirectory, backupDirectory);
+            }
+
             try
             {
                 Directory.Move(stagingDirectory, destinationDirectory);
@@ -130,14 +143,28 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
                     await validateCommittedAsync(destinationDirectory);
                 }
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (hadExistingModel)
+                {
+                    // marker作成後は新モデルを正式commit済みとみなす。ここからprocessが終了した場合は
+                    // 次回起動で旧backupを削除し、新モデルを維持する。
+                    File.WriteAllText(committedMarkerPath, string.Empty);
+                }
             }
             catch
             {
-                RollbackCommittedDirectory(destinationDirectory, backupDirectory, temporaryRootDirectory);
+                RollbackCommittedDirectory(
+                    destinationDirectory,
+                    backupDirectory,
+                    temporaryRootDirectory,
+                    recoveryManifestPath,
+                    committedMarkerPath);
                 throw;
             }
 
             TryDeleteDirectory(backupDirectory);
+            TryDeleteFile(recoveryManifestPath);
+            TryDeleteFile(committedMarkerPath);
             return destinationDirectory;
         }
         catch
@@ -170,18 +197,41 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
     }
 
     /// <summary>
-    /// 前回異常終了などで残ったVoxArchive管理の一時ディレクトリだけをbest effortで掃除する
+    /// 前回異常終了などで残ったVoxArchive管理のモデルtransactionを復旧し、安全に削除できる一時領域だけを掃除する
     /// </summary>
+    /// <remarks>
+    /// backupはdownload/delete残骸と異なり、異常終了時には最後の正常モデルそのものである可能性がある。
+    /// recovery manifestとcommit markerを確認し、未commitなら旧モデルを正式位置へ戻し、commit済みならbackupだけを削除する。
+    /// </remarks>
     public void CleanupOwnedTemporaryDirectories(string temporaryRootDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(temporaryRootDirectory);
         if (!Directory.Exists(temporaryRootDirectory)) return;
 
+        foreach (var backupDirectory in Directory.EnumerateDirectories(temporaryRootDirectory, $"{BackupPrefix}*"))
+        {
+            var name = Path.GetFileName(backupDirectory);
+            if (!IsOwnedBackupDirectoryName(name)) continue;
+            RecoverOrCleanupBackup(backupDirectory, temporaryRootDirectory);
+        }
+
         foreach (var directory in Directory.EnumerateDirectories(temporaryRootDirectory))
         {
             var name = Path.GetFileName(directory);
-            if (!IsOwnedTemporaryDirectoryName(name)) continue;
+            if (!IsDisposableTemporaryDirectoryName(name)) continue;
             TryDeleteDirectory(directory);
+        }
+
+        // backup本体が残っていないmanifest/markerは、backup移動前またはcleanup途中の異常終了で残った補助ファイルなので削除してよい。
+        foreach (var manifestPath in Directory.EnumerateFiles(temporaryRootDirectory, $"{BackupPrefix}*{BackupRecoveryManifestSuffix}"))
+        {
+            var backupDirectory = manifestPath[..^BackupRecoveryManifestSuffix.Length];
+            if (!Directory.Exists(backupDirectory)) TryDeleteFile(manifestPath);
+        }
+        foreach (var markerPath in Directory.EnumerateFiles(temporaryRootDirectory, $"{BackupPrefix}*{BackupCommittedMarkerSuffix}"))
+        {
+            var backupDirectory = markerPath[..^BackupCommittedMarkerSuffix.Length];
+            if (!Directory.Exists(backupDirectory)) TryDeleteFile(markerPath);
         }
     }
 
@@ -226,10 +276,81 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
         return total;
     }
 
+    private void RecoverOrCleanupBackup(string backupDirectory, string temporaryRootDirectory)
+    {
+        var recoveryManifestPath = GetRecoveryManifestPath(backupDirectory);
+        var committedMarkerPath = GetCommittedMarkerPath(backupDirectory);
+
+        if (!File.Exists(recoveryManifestPath))
+        {
+            // 復旧先が分からないbackupを推測で削除すると、旧正常モデルを失う可能性がある。
+            // 旧バージョン由来などの不明なbackupは保全し、cleanup失敗としてログへ残す。
+            CleanupFailureHandler?.Invoke(
+                backupDirectory,
+                new InvalidDataException("モデルbackupのrecovery manifestが見つからないため自動削除しません。"));
+            return;
+        }
+
+        BackupRecoveryManifest manifest;
+        try
+        {
+            manifest = JsonSerializer.Deserialize<BackupRecoveryManifest>(File.ReadAllText(recoveryManifestPath))
+                ?? throw new InvalidDataException("モデルbackupのrecovery manifestを読み込めません。");
+            if (string.IsNullOrWhiteSpace(manifest.DestinationDirectory))
+            {
+                throw new InvalidDataException("モデルbackupの復旧先が空です。");
+            }
+        }
+        catch (Exception ex)
+        {
+            // manifest破損時もbackup自体は削除しない。人手で復旧できる最後の正常モデルである可能性を優先する。
+            CleanupFailureHandler?.Invoke(backupDirectory, ex);
+            return;
+        }
+
+        if (File.Exists(committedMarkerPath))
+        {
+            // 最終validationとcancel確認を通過した後のmarkerなので、新正式モデルを正本としてbackupだけを掃除する。
+            TryDeleteDirectory(backupDirectory);
+            if (!Directory.Exists(backupDirectory))
+            {
+                TryDeleteFile(recoveryManifestPath);
+                TryDeleteFile(committedMarkerPath);
+            }
+            return;
+        }
+
+        try
+        {
+            // markerがないbackupはtransaction未commitである。新正式モデルが存在していても途中配置の可能性があるため
+            // 先にdelete領域へ隔離してから、最後に確認済みだった旧backupを正式位置へ戻す。
+            if (Directory.Exists(manifest.DestinationDirectory))
+            {
+                var failedDirectory = Path.Combine(temporaryRootDirectory, $"delete-{Guid.NewGuid():N}");
+                Directory.Move(manifest.DestinationDirectory, failedDirectory);
+                TryDeleteDirectory(failedDirectory);
+            }
+
+            if (!Directory.Exists(manifest.DestinationDirectory))
+            {
+                Directory.Move(backupDirectory, manifest.DestinationDirectory);
+            }
+
+            TryDeleteFile(recoveryManifestPath);
+            TryDeleteFile(committedMarkerPath);
+        }
+        catch (Exception ex)
+        {
+            CleanupFailureHandler?.Invoke(backupDirectory, ex);
+        }
+    }
+
     private void RollbackCommittedDirectory(
         string destinationDirectory,
         string backupDirectory,
-        string temporaryRootDirectory)
+        string temporaryRootDirectory,
+        string recoveryManifestPath,
+        string committedMarkerPath)
     {
         // 失敗した新モデルを正式パスから先に隔離する。直接recursive deleteして途中失敗すると
         // 旧モデルを正式パスへ戻せないため、safe deleteと同じrename境界を利用する。
@@ -244,11 +365,32 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
         {
             Directory.Move(backupDirectory, destinationDirectory);
         }
+
+        TryDeleteFile(recoveryManifestPath);
+        TryDeleteFile(committedMarkerPath);
     }
 
-    private static bool IsOwnedTemporaryDirectoryName(string name)
+    private static void WriteRecoveryManifest(string path, string destinationDirectory)
     {
-        foreach (var prefix in OwnedTemporaryPrefixes)
+        var manifest = new BackupRecoveryManifest(Path.GetFullPath(destinationDirectory));
+        File.WriteAllText(path, JsonSerializer.Serialize(manifest));
+    }
+
+    private static string GetRecoveryManifestPath(string backupDirectory)
+        => backupDirectory + BackupRecoveryManifestSuffix;
+
+    private static string GetCommittedMarkerPath(string backupDirectory)
+        => backupDirectory + BackupCommittedMarkerSuffix;
+
+    private static bool IsOwnedBackupDirectoryName(string name)
+    {
+        if (!name.StartsWith(BackupPrefix, StringComparison.Ordinal)) return false;
+        return Guid.TryParseExact(name[BackupPrefix.Length..], "N", out _);
+    }
+
+    private static bool IsDisposableTemporaryDirectoryName(string name)
+    {
+        foreach (var prefix in DisposableTemporaryPrefixes)
         {
             if (!name.StartsWith(prefix, StringComparison.Ordinal)) continue;
             var suffix = name[prefix.Length..];
@@ -285,6 +427,21 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
             CleanupFailureHandler?.Invoke(path, ex);
         }
     }
+
+    private void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            CleanupFailureHandler?.Invoke(path, ex);
+        }
+    }
+
+    /// <summary>異常終了後に旧モデルを戻すため、backupと正式配置先の対応を保持する</summary>
+    private sealed record BackupRecoveryManifest(string DestinationDirectory);
 }
 
 /// <summary>
