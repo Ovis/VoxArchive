@@ -8,6 +8,7 @@ using VoxArchive.Audio;
 using VoxArchive.Audio.Abstractions;
 using VoxArchive.Infrastructure;
 using VoxArchive.Runtime;
+using VoxArchive.Transcription.Abstractions;
 using ZLogger;
 
 namespace VoxArchive.Wpf;
@@ -64,6 +65,10 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<IRecordingServiceFactory, RecordingServiceFactory>();
                     services.AddSingleton<LocalRecordingBootstrapper>();
                     services.AddSingleton<RecordingRuntimeContextHolder>();
+
+                    // fallback警告の表示手段はPresentation責務なので、Runtime構成を登録する前にWPF実装だけを提供する。
+                    // Runtime側は抽象sinkを任意解決するため、CLI/テストなどPresentationを持たないホストでは未登録のまま動作できる。
+                    services.AddSingleton<ITranscriptionWarningSink, TranscriptionWarningNotificationSink>();
 
                     // 文字起こしのCommon/Engine/Application構成はRuntimeだけが所有する。
                     // WPFからWhisper/ReazonSpeech具象型を登録するとComposition Rootが分散するため、ここでは拡張1本だけを呼ぶ。
