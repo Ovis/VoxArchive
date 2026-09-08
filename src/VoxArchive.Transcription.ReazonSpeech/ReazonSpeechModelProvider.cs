@@ -7,7 +7,10 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// <summary>
 /// ReazonSpeechモデルのprecision別物理配置、load validation、取得・削除を担当する
 /// </summary>
-public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider, ITranscriptionInternalModelDescriptorCapability
+public sealed class ReazonSpeechModelProvider :
+    ITranscriptionModelProvider,
+    ITranscriptionInternalModelDescriptorCapability,
+    ITranscriptionModelReadinessCache
 {
     private const int ValidationSampleRate = 16_000;
     private const int ValidationFeatureDimension = 80;
@@ -63,12 +66,22 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider, ITr
     }
 
     /// <inheritdoc />
-    public bool IsReady(TranscriptionModelId modelId)
+    public bool TryGetCachedReadiness(TranscriptionModelId modelId, out bool isReady)
     {
         var package = ResolvePackage(modelId);
         lock (_validationGate)
         {
-            if (_validationCache.TryGetValue(package.PackageId.Value, out var cached)) return cached;
+            return _validationCache.TryGetValue(package.PackageId.Value, out isReady);
+        }
+    }
+
+    /// <inheritdoc />
+    public bool IsReady(TranscriptionModelId modelId)
+    {
+        var package = ResolvePackage(modelId);
+        if (TryGetCachedReadiness(package.PackageId, out var cached))
+        {
+            return cached;
         }
 
         var directory = GetInstallationDirectory(package);
@@ -95,19 +108,23 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider, ITr
 
         if (state == TranscriptionModelPackageState.Installed)
         {
-            // ReazonSpeechの「利用可能」は必要ファイルが存在するだけでは成立せず、native OfflineRecognizerを
-            // 実際に初期化できることまで含む。UIの通常状態確認でもこの結果をpackage stateへ反映し、
-            // load不能なモデルを「取得済み」と誤表示しないようにする。
             if (level == TranscriptionModelInspectionLevel.Hash)
             {
                 // ReazonSpeechではSHA-256を利用可能判定に使わない。Hash levelは明示的な再確認として
-                // cached validationを破棄し、native load validationを必ず再実行するためのトリガーとして扱う。
+                // cached validationを破棄し、ModelManagerがglobal blockを保持した状態でnative loadを必ず再実行する。
                 InvalidateValidation(package.PackageId);
+                state = IsReady(package.PackageId)
+                    ? TranscriptionModelPackageState.Installed
+                    : TranscriptionModelPackageState.Corrupt;
             }
-
-            state = IsReady(package.PackageId)
-                ? TranscriptionModelPackageState.Installed
-                : TranscriptionModelPackageState.Corrupt;
+            else if (TryGetCachedReadiness(package.PackageId, out var cachedReady))
+            {
+                // 通常の配置確認ではcache済みnative validation結果だけを反映する。
+                // cache miss時にここでnative loadすると、Applicationの状態確認がModelManagerの排他経路を迂回してしまう。
+                state = cachedReady
+                    ? TranscriptionModelPackageState.Installed
+                    : TranscriptionModelPackageState.Corrupt;
+            }
         }
 
         return new TranscriptionModelInspection(state, level);
