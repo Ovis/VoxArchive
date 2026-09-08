@@ -80,8 +80,22 @@ public sealed class TranscriptionModelManager(
             }
         }
 
-        if (provider is not ITranscriptionModelReadinessCache readinessCache
-            || readinessCache.TryGetCachedReadiness(key.ModelId, out _))
+        if (provider is not ITranscriptionModelReadinessCache readinessCache)
+        {
+            return provider.Inspect(key.ModelId, level);
+        }
+
+        lock (_gate)
+        {
+            if (_activeDownload?.Key == key)
+            {
+                // Settings UIはこの直後にactive download snapshotを優先して進捗表示する。
+                // transaction中の物理ファイルへnative Inspectを再入させる必要はなく、暫定的な非ready状態だけ返す。
+                return new TranscriptionModelInspection(TranscriptionModelPackageState.Incomplete, level);
+            }
+        }
+
+        if (readinessCache.TryGetCachedReadiness(key.ModelId, out _))
         {
             return provider.Inspect(key.ModelId, level);
         }
