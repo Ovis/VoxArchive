@@ -5,12 +5,12 @@ using VoxArchive.Transcription.Abstractions;
 namespace VoxArchive.IntegrationTests;
 
 /// <summary>
-/// 詳細診断JSONにCommon VADが確定したSpeechRegionのsample座標とlineageが保存されることを確認する
+/// 詳細診断JSONにCommon VADが確定したSpeechRegionのsample座標、lineage、実効設定が保存されることを確認する
 /// </summary>
 public sealed class TranscriptionVadDiagnosticTests
 {
     [Test]
-    public async Task TranscribeAsync_DiagnosticsEnabled_WritesFinalSpeechRegionAndLineage()
+    public async Task TranscribeAsync_DiagnosticsEnabled_WritesFinalSpeechRegionLineageAndEffectiveSettings()
     {
         var root = CreateTempDirectory();
         try
@@ -25,7 +25,10 @@ public sealed class TranscriptionVadDiagnosticTests
 
             var path = Directory.EnumerateFiles(diagnosticDirectory, "*.transcription-diagnostic*.json").Single();
             using var json = JsonDocument.Parse(await File.ReadAllTextAsync(path));
-            var vad = json.RootElement.GetProperty("vad");
+            var rootElement = json.RootElement;
+            var requestedVadSettings = rootElement.GetProperty("settings").GetProperty("vadSettings");
+            var vad = rootElement.GetProperty("vad");
+            var effectiveVadSettings = vad.GetProperty("settings");
             var regions = vad.GetProperty("speechRegions");
             var region = regions[0];
             var core = region.GetProperty("coreRanges")[0];
@@ -33,6 +36,9 @@ public sealed class TranscriptionVadDiagnosticTests
 
             Assert.Multiple(() =>
             {
+                // Jobに要求された設定と、実際に選択されたdetectorの設定を別々に保持する。
+                Assert.That(requestedVadSettings.GetProperty("threshold").GetDouble(), Is.EqualTo(0.5d));
+                Assert.That(effectiveVadSettings.GetProperty("mode").GetString(), Is.EqualTo("full-audio-test"));
                 Assert.That(vad.GetProperty("detector").GetString(), Does.Contain("FullAudioSpeechRegionDetector"));
                 Assert.That(vad.GetProperty("fallbackUsed").GetBoolean(), Is.False);
                 Assert.That(vad.GetProperty("fallbackReason").ValueKind, Is.EqualTo(JsonValueKind.Null));
