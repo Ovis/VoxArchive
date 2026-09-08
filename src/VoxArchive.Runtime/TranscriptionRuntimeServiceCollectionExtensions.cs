@@ -43,7 +43,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
             return transaction;
         });
 
-        // Commonは音声準備、VAD、話者判定、結果検証、artifact生成だけを所有する。
+        // Commonは音声準備、VAD、canonical化、話者判定、結果検証、artifact生成だけを所有する。
         services.AddSingleton<TranscriptionAudioPreparationService>();
         services.AddSingleton<TranscriptionSpeechRegionDetector>();
         services.AddSingleton<TranscriptionModelUsageTracker>();
@@ -62,6 +62,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         // WPFからSilero/ReazonSpeech具象型を直接触らせず、Runtime Composition Root内で起動処理まで閉じる。
         services.AddHostedService<TranscriptionModelStartupCleanupService>();
 
+        services.AddSingleton<TranscriptionEngineResultCanonicalizer>();
         services.AddSingleton<TranscriptionSpeakerLabelService>();
         services.AddSingleton<TranscriptionEngineResultValidator>();
         services.AddSingleton<TranscriptionDocumentStore>();
