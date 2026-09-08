@@ -56,6 +56,22 @@ public interface ITranscriptionApplicationService
     TranscriptionModelDownloadInfo? GetActiveModelDownload();
     bool CancelModelDownload(string engineId, string modelId);
     Task CancelActiveModelDownloadAndWaitAsync();
+
+    /// <summary>共通VADで利用する発話検出モデルの現在状態を取得する</summary>
+    SpeechRegionDetectorModelStatusInfo InspectSpeechRegionDetectorModel();
+
+    /// <summary>配置済み発話検出モデルを実ロードして状態を再確認する</summary>
+    Task<SpeechRegionDetectorModelStatusInfo> ReverifySpeechRegionDetectorModelAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>発話検出モデルを安全なtransactionで取得・検証する</summary>
+    Task InstallSpeechRegionDetectorModelAsync(
+        bool force,
+        IProgress<SpeechRegionDetectorModelTransferInfo>? progress = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>発話検出モデルを安全に削除する</summary>
+    Task DeleteSpeechRegionDetectorModelAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<TranscriptionDiagnosticInfo>> DiagnoseEngineAsync(string engineId, CancellationToken cancellationToken = default);
 }
 
@@ -78,6 +94,28 @@ public sealed record TranscriptionModelInfo(string Id, string DisplayName);
 
 /// <summary>モデルpackageの検査状態と実行可能性を表す</summary>
 public sealed record TranscriptionModelStatusInfo(string State, bool IsReady);
+
+/// <summary>発話検出モデルの検査状態と実行可能性をUIへ公開する</summary>
+public sealed record SpeechRegionDetectorModelStatusInfo(string State, bool IsReady);
+
+/// <summary>
+/// 発話検出モデル取得の進捗をUIへ公開する
+/// </summary>
+/// <remarks>
+/// 配布元が総容量を提供しない場合はTotalBytes/Percentをnullのまま返し、UIが不定進捗として表示できるようにする。
+/// native load validation中はCurrentFileNameをnull、IsValidatingをtrueとして通知する。
+/// </remarks>
+public sealed record SpeechRegionDetectorModelTransferInfo(
+    long BytesReceived,
+    long? TotalBytes,
+    string? CurrentFileName,
+    bool IsValidating)
+{
+    /// <summary>総容量が既知の場合だけ0～100の進捗率を返す</summary>
+    public double? Percent => TotalBytes is > 0
+        ? Math.Clamp(BytesReceived * 100d / TotalBytes.Value, 0d, 100d)
+        : null;
+}
 
 /// <summary>録音ファイルに紐づくcanonical文字起こし結果の概要を表す</summary>
 public sealed record TranscriptionResultInfo(
