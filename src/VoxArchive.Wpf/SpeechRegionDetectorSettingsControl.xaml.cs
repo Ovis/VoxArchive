@@ -14,6 +14,7 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
     private readonly ISpeechRegionDetectorModelApplicationService _modelService;
     private CancellationTokenSource? _installCancellation;
     private bool _isBusy;
+    private SpeechRegionDetectorModelStatusInfo? _modelStatus;
     private SileroVadSettings _settings = new();
 
     /// <summary>
@@ -105,6 +106,7 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
         try
         {
             // 初回GetStateはnative loadを伴う場合があるためUI threadで同期実行しない。
+            // native load側はglobal model-operation blockを取得し、文字起こしとの競合を避ける。
             var status = await Task.Run(_modelService.Inspect);
             ApplyStatus(status);
             if (preserveMessage)
@@ -114,6 +116,7 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
         }
         catch (Exception ex)
         {
+            _modelStatus = null;
             ModelStatusTextBlock.Text = "確認失敗";
             MessageTextBlock.Text = BuildOperationErrorMessage("モデル状態確認", ex);
         }
@@ -166,15 +169,17 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
             return;
         }
 
-        var status = await Task.Run(_modelService.Inspect);
-        var force = !string.Equals(status.State, "Missing", StringComparison.OrdinalIgnoreCase);
-        _installCancellation = new CancellationTokenSource();
-        SetBusyState(isBusy: true, allowCancel: true);
-        ShowProgress(new SpeechRegionDetectorModelTransferInfo(0, null, null, IsValidating: false));
-        MessageTextBlock.Text = string.Empty;
-
         try
         {
+            // 取得済みモデルではtransactionを再取得モードで動かす必要があるため、開始直前の状態を確認する。
+            // 状態確認自体がnative loadを伴う可能性があるので、取得処理と同じ例外分類へ含めてUIへ伝える。
+            var status = await Task.Run(_modelService.Inspect);
+            var force = !string.Equals(status.State, "Missing", StringComparison.OrdinalIgnoreCase);
+            _installCancellation = new CancellationTokenSource();
+            SetBusyState(isBusy: true, allowCancel: true);
+            ShowProgress(new SpeechRegionDetectorModelTransferInfo(0, null, null, IsValidating: false));
+            MessageTextBlock.Text = string.Empty;
+
             var progress = new Progress<SpeechRegionDetectorModelTransferInfo>(ShowProgress);
             await _modelService.InstallAsync(force, progress, _installCancellation.Token);
             MessageTextBlock.Text = "Silero VADモデルの取得が完了しました。";
@@ -189,7 +194,7 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
         }
         finally
         {
-            _installCancellation.Dispose();
+            _installCancellation?.Dispose();
             _installCancellation = null;
             HideProgress();
             SetBusyState(isBusy: false, allowCancel: false);
@@ -263,6 +268,7 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
 
     private void ApplyStatus(SpeechRegionDetectorModelStatusInfo status)
     {
+        _modelStatus = status;
         ModelStatusTextBlock.Text = status.State.ToLowerInvariant() switch
         {
             "missing" => "未取得",
@@ -272,10 +278,10 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
             _ => "未確認"
         };
 
-        DeleteButton.IsEnabled = !string.Equals(status.State, "Missing", StringComparison.OrdinalIgnoreCase);
         InstallButton.Content = string.Equals(status.State, "Missing", StringComparison.OrdinalIgnoreCase)
             ? "モデル取得"
             : "モデル再取得";
+        UpdateActionState(allowCancel: false);
     }
 
     private void ShowProgress(SpeechRegionDetectorModelTransferInfo progress)
@@ -316,13 +322,23 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
     private void SetBusyState(bool isBusy, bool allowCancel)
     {
         _isBusy = isBusy;
-        ReverifyButton.IsEnabled = !isBusy;
-        DeleteButton.IsEnabled = !isBusy;
-        InstallButton.IsEnabled = !isBusy || allowCancel;
+        UpdateActionState(allowCancel);
         if (allowCancel)
         {
             InstallButton.Content = "取得をキャンセル";
         }
+    }
+
+    private void UpdateActionState(bool allowCancel)
+    {
+        ReverifyButton.IsEnabled = !_isBusy;
+        InstallButton.IsEnabled = !_isBusy || allowCancel;
+
+        // busy状態だけで削除可否を決めると、Missing判定後のfinallyで削除ボタンが再度有効になる。
+        // モデル状態と操作中状態を一箇所で合成し、状態更新順序に依存しないようにする。
+        var modelExists = _modelStatus is not null
+            && !string.Equals(_modelStatus.State, "Missing", StringComparison.OrdinalIgnoreCase);
+        DeleteButton.IsEnabled = !_isBusy && modelExists;
     }
 
     private static string FormatBytes(long value)
