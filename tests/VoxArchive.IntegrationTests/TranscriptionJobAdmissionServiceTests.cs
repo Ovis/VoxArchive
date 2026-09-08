@@ -135,6 +135,7 @@ public sealed class TranscriptionJobAdmissionServiceTests
 
         var key = new TranscriptionModelKey(EngineId, ModelId);
         var executionSnapshot = job.Request.ArtifactOptions.ExecutionSnapshot;
+        var vadSnapshot = job.Request.SpeechRegionDetectorSettings;
         Assert.Multiple(() =>
         {
             Assert.That(job.Descriptor.EngineId, Is.EqualTo(EngineId));
@@ -146,6 +147,12 @@ public sealed class TranscriptionJobAdmissionServiceTests
             Assert.That(executionSnapshot!.EngineSettingsSchemaVersion, Is.EqualTo(1));
             Assert.That(executionSnapshot.PreferredLanguage, Is.EqualTo("ja"));
             Assert.That(executionSnapshot.EngineSettings.GetProperty("value").GetString(), Is.EqualTo("test"));
+            Assert.That(vadSnapshot.SchemaVersion, Is.EqualTo(1));
+            Assert.That(vadSnapshot.Settings.GetProperty(nameof(SileroVadSettings.Threshold)).GetDouble(), Is.EqualTo(0.73d));
+            Assert.That(vadSnapshot.Settings.GetProperty(nameof(SileroVadSettings.MinimumSpeechDurationMilliseconds)).GetInt32(), Is.EqualTo(180));
+            Assert.That(vadSnapshot.Settings.GetProperty(nameof(SileroVadSettings.MinimumSilenceDurationMilliseconds)).GetInt32(), Is.EqualTo(760));
+            Assert.That(vadSnapshot.Settings.GetProperty(nameof(SileroVadSettings.PrePaddingMilliseconds)).GetInt32(), Is.EqualTo(420));
+            Assert.That(vadSnapshot.Settings.GetProperty(nameof(SileroVadSettings.PostPaddingMilliseconds)).GetInt32(), Is.EqualTo(310));
             Assert.That(usageTracker.IsInUse(key), Is.True);
         });
 
@@ -191,6 +198,14 @@ public sealed class TranscriptionJobAdmissionServiceTests
                 DefaultEngine = EngineId.Value,
                 PreferredLanguage = preferredLanguage,
                 DiagnosticsLogEnabled = diagnosticsEnabled,
+                SileroVad = new SileroVadSettings
+                {
+                    Threshold = 0.73d,
+                    MinimumSpeechDurationMilliseconds = 180,
+                    MinimumSilenceDurationMilliseconds = 760,
+                    PrePaddingMilliseconds = 420,
+                    PostPaddingMilliseconds = 310
+                },
                 Engines = new Dictionary<string, TranscriptionEngineSettings>(StringComparer.OrdinalIgnoreCase)
                 {
                     [EngineId.Value] = new()
