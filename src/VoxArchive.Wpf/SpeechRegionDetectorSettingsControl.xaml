@@ -60,9 +60,14 @@
             <local:NumericUpDownControl x:Name="ThresholdNumericUpDown" Grid.Column="1" />
         </Grid>
 
-        <Button Content="発話検出の詳細設定..."
-                Margin="0,8,0,0"
-                HorizontalAlignment="Left"
-                Click="OnAdvancedSettingsClick" />
+        <WrapPanel Margin="0,8,0,0">
+            <Button Content="発話検出の詳細設定..."
+                    Margin="0,0,8,0"
+                    HorizontalAlignment="Left"
+                    Click="OnAdvancedSettingsClick" />
+            <Button Content="既定値に戻す"
+                    HorizontalAlignment="Left"
+                    Click="OnResetDefaultsClick" />
+        </WrapPanel>
     </StackPanel>
 </UserControl>
