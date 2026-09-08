@@ -9,7 +9,7 @@ namespace VoxArchive.Transcription.SileroVad;
 /// SileroはASR EngineではないためTranscriptionEngineRegistryへ登録せず、VAD project内の専用managerとして扱う。
 /// モデル取得・削除・再確認時はTranscriptionModelUsageTrackerのglobal blockを利用し、ASRモデル管理や文字起こしと同時実行しない。
 /// </remarks>
-public sealed class SileroVadModelManager
+public sealed class SileroVadModelManager : ISpeechRegionDetectorModelManager
 {
     private static readonly Uri ModelSource = new(
         "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx");
@@ -135,6 +135,22 @@ public sealed class SileroVadModelManager
     /// </summary>
     public void CleanupTemporaryDirectories()
         => _transaction.CleanupOwnedTemporaryDirectories(GetTemporaryRootDirectory());
+
+    SpeechRegionDetectorModelState ISpeechRegionDetectorModelManager.GetState()
+        => ToCommonState(GetState());
+
+    SpeechRegionDetectorModelState ISpeechRegionDetectorModelManager.Recheck()
+        => ToCommonState(Recheck());
+
+    private static SpeechRegionDetectorModelState ToCommonState(SileroVadModelState state)
+        => state switch
+        {
+            SileroVadModelState.Missing => SpeechRegionDetectorModelState.Missing,
+            SileroVadModelState.Available => SpeechRegionDetectorModelState.Available,
+            SileroVadModelState.Unavailable => SpeechRegionDetectorModelState.Unavailable,
+            SileroVadModelState.Checking => SpeechRegionDetectorModelState.Checking,
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, "未知のSilero VADモデル状態です。")
+        };
 
     private SileroVadModelState ValidateCurrentModel(bool force)
     {
