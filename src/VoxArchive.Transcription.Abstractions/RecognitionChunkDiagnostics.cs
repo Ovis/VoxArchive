@@ -21,20 +21,6 @@ public sealed record RecognitionChunkingDiagnosticResult(
     IReadOnlyList<RecognitionChunkDiagnosticTrace> Traces);
 
 /// <summary>
-/// 詳細診断が有効なJobでRecognitionChunkの生成根拠を取得できるChunker契約
-/// </summary>
-public interface IDiagnosticRecognitionChunker : IRecognitionChunker
-{
-    /// <summary>
-    /// RecognitionChunkと分割理由を同時に生成する
-    /// </summary>
-    Task<RecognitionChunkingDiagnosticResult> CreateChunksWithDiagnosticsAsync(
-        IPreparedTranscriptionAudio audio,
-        IReadOnlyList<SpeechRegion> speechRegions,
-        CancellationToken cancellationToken = default);
-}
-
-/// <summary>
 /// Engine内部で得た1件のASR raw結果を詳細診断用に保持する
 /// </summary>
 /// <remarks>
