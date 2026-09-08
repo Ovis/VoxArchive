@@ -58,6 +58,10 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
             sp.GetRequiredService<ILogger<SileroPreferredSpeechRegionDetector>>()));
         services.AddSingleton<ISpeechRegionDetector>(sp => sp.GetRequiredService<SileroPreferredSpeechRegionDetector>());
 
+        // Host起動時にVoxArchive所有のmodel transaction一時領域を1回だけ掃除する。
+        // WPFからSilero/ReazonSpeech具象型を直接触らせず、Runtime Composition Root内で起動処理まで閉じる。
+        services.AddHostedService<TranscriptionModelStartupCleanupService>();
+
         services.AddSingleton<TranscriptionSpeakerLabelService>();
         services.AddSingleton<TranscriptionEngineResultValidator>();
         services.AddSingleton<TranscriptionDocumentStore>();
