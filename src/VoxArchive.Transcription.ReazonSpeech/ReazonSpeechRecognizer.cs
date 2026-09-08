@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using NAudio.Wave;
 using SherpaOnnx;
@@ -48,7 +49,8 @@ public sealed class ReazonSpeechRecognizer
                     RawText: null,
                     TimestampTrace: null,
                     Discarded: true,
-                    DiscardReason: "empty-chunk-audio"));
+                    DiscardReason: "empty-chunk-audio",
+                    ElapsedMilliseconds: 0));
                 continue;
             }
 
@@ -56,11 +58,16 @@ public sealed class ReazonSpeechRecognizer
             // VAD paddingやRecognitionChunkのoriginal timelineは変更せず、K2へ渡す一時入力だけを拡張する。
             var k2InputSamples = ReazonSpeechK2InputPadding.Apply(samples);
 
+            // per-chunk時間は音声切り出しや0.9秒paddingではなく、実際のnative recognizer呼び出しだけを計測する。
+            // 全体ASR時間との比較で、特定chunkだけ処理が重いケースを診断できるようにする。
+            var recognitionStopwatch = diagnosticsEnabled ? Stopwatch.StartNew() : null;
+
             // Decodeはnative同期APIであり呼び出し途中を安全に強制停止できない。
             // safe boundaryであるchunk間ではCancellationTokenを必ず確認し、UIスレッド自体はTask.Runで塞がない。
             var recognition = await Task.Run(
                 () => Recognize(recognizer, k2InputSamples),
                 CancellationToken.None);
+            recognitionStopwatch?.Stop();
             cancellationToken.ThrowIfCancellationRequested();
 
             JsonElement? timestampTrace = null;
@@ -81,7 +88,8 @@ public sealed class ReazonSpeechRecognizer
                 recognition.Text,
                 timestampTrace,
                 discarded,
-                discarded ? "whitespace-only" : null));
+                discarded ? "whitespace-only" : null,
+                recognitionStopwatch?.ElapsedMilliseconds ?? 0));
 
             if (discarded)
             {
