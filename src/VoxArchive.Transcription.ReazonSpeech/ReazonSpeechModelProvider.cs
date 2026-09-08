@@ -7,7 +7,7 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// <summary>
 /// ReazonSpeechモデルのprecision別物理配置、load validation、取得・削除を担当する
 /// </summary>
-public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
+public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider, ITranscriptionInternalModelDescriptorCapability
 {
     private const int ValidationSampleRate = 16_000;
     private const int ValidationFeatureDimension = 80;
@@ -45,6 +45,22 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
             // モデル管理操作ではApplicationのmodel-operation resolverが現在のprecisionから物理packageを解決する。
             new(ReazonSpeechModelCatalog.JapaneseModelId, "日本語（k2-v2）", "k2-v2", ReazonSpeechModelCatalog.Revision, "Apache-2.0")
         ];
+
+    /// <inheritdoc />
+    public TranscriptionModelDescriptor? ResolveInternalDescriptor(TranscriptionModelId modelId)
+    {
+        if (!_packages.TryGetValue(modelId.Value, out var package))
+        {
+            return null;
+        }
+
+        return new TranscriptionModelDescriptor(
+            package.PackageId,
+            $"日本語（k2-v2 / {ToPrecisionLabel(package.Precision)}）",
+            "k2-v2",
+            ReazonSpeechModelCatalog.Revision,
+            "Apache-2.0");
+    }
 
     /// <inheritdoc />
     public bool IsReady(TranscriptionModelId modelId)
@@ -217,4 +233,13 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
             ReazonSpeechEngineIdentity.EngineId,
             package.PackageId,
             package.Files.Select(x => Path.Combine(directory, x.DestinationName)).ToArray());
+
+    private static string ToPrecisionLabel(ReazonSpeechPrecision precision)
+        => precision switch
+        {
+            ReazonSpeechPrecision.Fp32 => "FP32",
+            ReazonSpeechPrecision.Int8 => "INT8",
+            ReazonSpeechPrecision.Int8Fp32 => "INT8-FP32",
+            _ => precision.ToString()
+        };
 }
