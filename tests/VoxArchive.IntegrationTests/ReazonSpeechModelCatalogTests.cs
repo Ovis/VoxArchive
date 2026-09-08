@@ -1,4 +1,5 @@
 using VoxArchive.Transcription;
+using VoxArchive.Transcription.Abstractions;
 using VoxArchive.Transcription.ReazonSpeech;
 
 namespace VoxArchive.IntegrationTests;
@@ -48,6 +49,24 @@ public sealed class ReazonSpeechModelCatalogTests
             Assert.That(models.Select(x => x.ModelId.Value), Does.Not.Contain(ReazonSpeechModelCatalog.JapaneseFp32PackageId.Value));
             Assert.That(models.Select(x => x.ModelId.Value), Does.Not.Contain(ReazonSpeechModelCatalog.JapaneseInt8PackageId.Value));
             Assert.That(models.Select(x => x.ModelId.Value), Does.Not.Contain(ReazonSpeechModelCatalog.JapaneseInt8Fp32PackageId.Value));
+        });
+    }
+
+    [Test]
+    public void InternalDescriptor_ResolvesPhysicalPackageWithoutPublishingIt()
+    {
+        var provider = new ReazonSpeechModelProvider(
+            new ManagedModelFileTransaction(new HttpClient()));
+        var capability = (ITranscriptionInternalModelDescriptorCapability)provider;
+
+        var descriptor = capability.ResolveInternalDescriptor(ReazonSpeechModelCatalog.JapaneseFp32PackageId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(descriptor, Is.Not.Null);
+            Assert.That(descriptor!.ModelId, Is.EqualTo(ReazonSpeechModelCatalog.JapaneseFp32PackageId));
+            Assert.That(descriptor.DisplayName, Does.Contain("FP32"));
+            Assert.That(provider.GetAvailableModels().Select(x => x.ModelId), Does.Not.Contain(ReazonSpeechModelCatalog.JapaneseFp32PackageId));
         });
     }
 
