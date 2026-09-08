@@ -1,6 +1,7 @@
 <UserControl x:Class="VoxArchive.Wpf.SpeechRegionDetectorSettingsControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:VoxArchive.Wpf"
              MinWidth="280">
     <StackPanel Margin="0,14,0,0">
         <TextBlock Text="発話検出（Silero VAD）" FontWeight="SemiBold" />
@@ -44,5 +45,24 @@
                            TextWrapping="Wrap" />
             </StackPanel>
         </Border>
+
+        <Grid Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="110" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Margin="0,0,8,0">
+                <TextBlock Text="発話判定しきい値" />
+                <TextBlock Margin="0,2,0,0"
+                           Foreground="{DynamicResource TextMuted}"
+                           Text="0.01以上1.00未満" />
+            </StackPanel>
+            <local:NumericUpDownControl x:Name="ThresholdNumericUpDown" Grid.Column="1" />
+        </Grid>
+
+        <Button Content="発話検出の詳細設定..."
+                Margin="0,8,0,0"
+                HorizontalAlignment="Left"
+                Click="OnAdvancedSettingsClick" />
     </StackPanel>
 </UserControl>
