@@ -35,23 +35,23 @@ public sealed class SpeechRegionDetectorModelApplicationService(
         CancellationToken cancellationToken = default)
     {
         var operation = BeginOperation(force ? "モデル再取得" : "モデル取得", canCancel: true, cancellationToken);
-        var adapter = progress is null
-            ? null
-            : new SynchronousProgress<ManagedModelTransactionProgress>(x =>
-            {
-                if (x.IsValidating)
-                {
-                    // validation開始は終了処理の判断にも使うため、SynchronizationContext経由で遅延させず同期反映する。
-                    // native validation自体は安全に中断できないが、終了要求ではTokenをcancelして完了後のcommitを抑止する。
-                    SetCanCancel(operation, false);
-                }
 
-                progress.Report(new SpeechRegionDetectorModelTransferInfo(
-                    x.BytesReceived,
-                    x.TotalBytes,
-                    x.CurrentFileName,
-                    x.IsValidating));
-            });
+        // validation開始はApplicationの終了判断にも必要なので、UI側がprogressを購読していなくても必ず内部adapterを通す。
+        // 外部progressは表示専用の任意購読として扱い、操作状態の正しさをPresentationの有無へ依存させない。
+        var adapter = new SynchronousProgress<ManagedModelTransactionProgress>(x =>
+        {
+            if (x.IsValidating)
+            {
+                // native validation自体は安全に中断できないが、終了要求ではTokenをcancelして完了後のcommitを抑止する。
+                SetCanCancel(operation, false);
+            }
+
+            progress?.Report(new SpeechRegionDetectorModelTransferInfo(
+                x.BytesReceived,
+                x.TotalBytes,
+                x.CurrentFileName,
+                x.IsValidating));
+        });
 
         return RunInstallAsync(operation, force, adapter);
     }
@@ -118,7 +118,7 @@ public sealed class SpeechRegionDetectorModelApplicationService(
     private async Task RunInstallAsync(
         ActiveOperation operation,
         bool force,
-        IProgress<ManagedModelTransactionProgress>? progress)
+        IProgress<ManagedModelTransactionProgress> progress)
     {
         try
         {
