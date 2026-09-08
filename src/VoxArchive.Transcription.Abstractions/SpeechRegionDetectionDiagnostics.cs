@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace VoxArchive.Transcription.Abstractions;
 
 /// <summary>
@@ -12,17 +14,19 @@ public sealed record SpeechRegionDetectionRawRegion(
     long EndSample);
 
 /// <summary>
-/// 1回のVAD実行で確定したdetector選択とfallback情報を保持する
+/// 1回のVAD実行で確定したdetector選択、実際の実行設定、fallback情報を保持する
 /// </summary>
 /// <remarks>
 /// この型は診断JSONそのものではなく、Commonとdetector実装の間で受け渡す実行traceである。
 /// Silero固有型をCommonへ漏らさず、同じ呼び出しの結果として返すことでsingleton detectorでもJob間のtrace混同を防ぐ。
+/// EffectiveSettingsは要求されたSilero設定ではなく、そのDetectorが実際の判定に使用した値をopaque JSONで保持する。
 /// </remarks>
 public sealed record SpeechRegionDetectionDiagnosticTrace(
     string Detector,
     IReadOnlyList<SpeechRegionDetectionRawRegion> RawRegions,
     bool FallbackUsed,
-    string? FallbackReason);
+    string? FallbackReason,
+    JsonElement? EffectiveSettings = null);
 
 /// <summary>
 /// VADの最終SpeechRegionと、その生成過程を説明する診断traceをまとめて返す
@@ -37,7 +41,7 @@ public sealed record SpeechRegionDetectionDiagnosticResult(
 public interface IDiagnosticSpeechRegionDetector : ISpeechRegionDetector
 {
     /// <summary>
-    /// 通常のSpeechRegionに加えてraw region、detector種別、fallback理由を返す
+    /// 通常のSpeechRegionに加えてraw region、detector種別、実際の実行設定、fallback理由を返す
     /// </summary>
     Task<SpeechRegionDetectionDiagnosticResult> DetectWithDiagnosticsAsync(
         IPreparedTranscriptionAudio audio,
