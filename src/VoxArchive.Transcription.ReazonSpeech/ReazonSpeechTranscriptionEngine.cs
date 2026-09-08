@@ -57,12 +57,18 @@ public sealed class ReazonSpeechTranscriptionEngine(
                     ? new TranscriptionEngineDiagnosticTrace(
                         chunkingDiagnostic?.Traces ?? [],
                         chunkingStopwatch?.ElapsedMilliseconds ?? 0,
-                        0)
+                        0,
+                        [])
                     : null);
         }
 
         const string provider = "cpu";
-        const string decodingMethod = "greedy_search";
+        var decodingMethod = options.DecodingMethod switch
+        {
+            ReazonSpeechDecodingMethod.GreedySearch => "greedy_search",
+            ReazonSpeechDecodingMethod.ModifiedBeamSearch => "modified_beam_search",
+            _ => options.DecodingMethod.ToString()
+        };
         if (request.Context.DiagnosticsEnabled)
         {
             logger.LogInformation(
@@ -77,7 +83,7 @@ public sealed class ReazonSpeechTranscriptionEngine(
         try
         {
             var asrStopwatch = request.Context.DiagnosticsEnabled ? Stopwatch.StartNew() : null;
-            var segments = await recognizer.RecognizeAsync(
+            var recognition = await recognizer.RecognizeAsync(
                 request.Audio,
                 chunks,
                 options,
@@ -92,11 +98,11 @@ public sealed class ReazonSpeechTranscriptionEngine(
                     provider,
                     options.ModelId,
                     decodingMethod,
-                    segments.Count);
+                    recognition.Segments.Count);
             }
 
             return new TranscriptionEngineResult(
-                segments,
+                recognition.Segments,
                 new Dictionary<string, object?>
                 {
                     ["provider"] = provider,
@@ -106,7 +112,8 @@ public sealed class ReazonSpeechTranscriptionEngine(
                     ? new TranscriptionEngineDiagnosticTrace(
                         chunkingDiagnostic?.Traces ?? [],
                         chunkingStopwatch?.ElapsedMilliseconds ?? 0,
-                        asrStopwatch?.ElapsedMilliseconds ?? 0)
+                        asrStopwatch?.ElapsedMilliseconds ?? 0,
+                        recognition.Diagnostics)
                     : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
