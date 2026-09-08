@@ -15,12 +15,17 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
     private const string DefaultPrecision = "int8-fp32";
     private const string DefaultDecodingMethod = "greedy_search";
     private const int DefaultMaxActivePaths = 4;
+    private bool _isApplyingValues;
+
+    /// <summary>モデル管理対象packageが変わるprecision変更を通知する</summary>
+    public event EventHandler? PrecisionChanged;
 
     /// <summary>Controlを初期化する</summary>
     public ReazonSpeechAdvancedSettingsControl()
     {
         InitializeComponent();
         CpuThreadsControl.Maximum = Environment.ProcessorCount;
+        PrecisionComboBox.SelectionChanged += OnPrecisionSelectionChanged;
         ApplyValues(new Dictionary<string, string>
         {
             ["precision"] = DefaultPrecision,
@@ -46,16 +51,32 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
     {
         ArgumentNullException.ThrowIfNull(values);
 
-        SelectByTag(PrecisionComboBox, GetValue(values, "precision", DefaultPrecision));
-        SelectByTag(DecodingMethodComboBox, GetValue(values, "decodingMethod", DefaultDecodingMethod));
-        MaxActivePathsControl.Value = ParseRequiredInt(values, "maxActivePaths", DefaultMaxActivePaths, 1, int.MaxValue);
-        CpuThreadsControl.Value = ParseRequiredInt(
-            values,
-            "cpuThreads",
-            Math.Min(4, Environment.ProcessorCount),
-            1,
-            Environment.ProcessorCount);
-        UpdateDecodingDependentState();
+        _isApplyingValues = true;
+        try
+        {
+            SelectByTag(PrecisionComboBox, GetValue(values, "precision", DefaultPrecision));
+            SelectByTag(DecodingMethodComboBox, GetValue(values, "decodingMethod", DefaultDecodingMethod));
+            MaxActivePathsControl.Value = ParseRequiredInt(values, "maxActivePaths", DefaultMaxActivePaths, 1, int.MaxValue);
+            CpuThreadsControl.Value = ParseRequiredInt(
+                values,
+                "cpuThreads",
+                Math.Min(4, Environment.ProcessorCount),
+                1,
+                Environment.ProcessorCount);
+            UpdateDecodingDependentState();
+        }
+        finally
+        {
+            _isApplyingValues = false;
+        }
+    }
+
+    private void OnPrecisionSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isApplyingValues)
+        {
+            PrecisionChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void OnDecodingMethodSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -63,6 +84,7 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
 
     private void OnResetDefaultsClick(object sender, RoutedEventArgs e)
     {
+        var previousPrecision = GetSelectedTag(PrecisionComboBox, DefaultPrecision);
         ApplyValues(new Dictionary<string, string>
         {
             ["precision"] = DefaultPrecision,
@@ -70,6 +92,11 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
             ["maxActivePaths"] = DefaultMaxActivePaths.ToString(),
             ["cpuThreads"] = Math.Min(4, Environment.ProcessorCount).ToString()
         });
+
+        if (!string.Equals(previousPrecision, DefaultPrecision, StringComparison.Ordinal))
+        {
+            PrecisionChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void UpdateDecodingDependentState()
