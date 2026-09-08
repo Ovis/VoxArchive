@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NAudio.Wave;
 using SherpaOnnx;
 using VoxArchive.Transcription.Abstractions;
@@ -108,7 +109,15 @@ public sealed class SileroVadDetector(string modelPath) : IDiagnosticSpeechRegio
                 "SileroVad",
                 diagnosticRawRegions,
                 FallbackUsed: false,
-                FallbackReason: null));
+                FallbackReason: null,
+                EffectiveSettings: JsonSerializer.SerializeToElement(new
+                {
+                    threshold = options.Threshold,
+                    minimumSpeechDurationMilliseconds = options.MinimumSpeechDurationMilliseconds,
+                    minimumSilenceDurationMilliseconds = options.MinimumSilenceDurationMilliseconds,
+                    prePaddingMilliseconds = options.PrePaddingMilliseconds,
+                    postPaddingMilliseconds = options.PostPaddingMilliseconds
+                })));
     }
 
     /// <summary>
