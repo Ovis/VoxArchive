@@ -344,7 +344,10 @@ public sealed class TranscriptionOrchestrator(
                 : new TranscriptionDiagnosticVad
                 {
                     Detector = vadTrace?.Detector ?? speechRegionDetector.GetType().Name,
-                    Settings = CloneIfDefined(request.SpeechRegionDetectorSettings.Settings),
+                    // Settings側には利用者が要求したSilero snapshotを保持し、Vad.Settingsには実際に選択されたdetectorの実効値を記録する。
+                    // fallback時にSilero値をVolumeBasedVadの実行条件と誤認しないよう、traceの値を優先する。
+                    Settings = CloneIfDefined(vadTrace?.EffectiveSettings)
+                        ?? CloneIfDefined(request.SpeechRegionDetectorSettings.Settings),
                     RawRegions = vadTrace?.RawRegions
                         .Select(range => new TranscriptionDiagnosticSpeechRange(
                             range.RawSpeechRegionId,
