@@ -18,7 +18,7 @@ public sealed class TranscriptionSpeechRegionDetectorTests
 
         var regions = await sut.DetectAsync(audio, Settings);
 
-        var maximumSample = audio.SampleCount;
+        var maximumSample = ((IPreparedTranscriptionAudio)audio).SampleCount;
         Assert.That(regions, Is.Not.Empty);
         Assert.That(regions[^1].EndSample, Is.EqualTo(maximumSample));
         Assert.That(regions.All(x => x.EndSample <= maximumSample), Is.True);
