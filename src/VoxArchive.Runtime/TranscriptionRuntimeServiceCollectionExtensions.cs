@@ -138,6 +138,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<ITranscriptionEngineAdvancedSettingsService, TranscriptionEngineAdvancedSettingsService>();
         services.AddSingleton<ITranscriptionModelOperationResolverService, TranscriptionModelOperationResolverService>();
         services.AddSingleton<ITranscriptionApplicationService, TranscriptionApplicationService>();
+        services.AddSingleton<ITranscriptionModelManagementApplicationService, TranscriptionModelManagementApplicationService>();
         services.AddSingleton<ISpeechRegionDetectorModelApplicationService, SpeechRegionDetectorModelApplicationService>();
         return services;
     }
