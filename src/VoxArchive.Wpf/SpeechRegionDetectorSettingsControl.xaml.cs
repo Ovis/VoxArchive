@@ -24,7 +24,6 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
     {
         _modelService = modelService ?? throw new ArgumentNullException(nameof(modelService));
         InitializeComponent();
-        ConfigureThresholdControl();
         ApplySettings(_settings);
         Loaded += OnLoaded;
     }
@@ -38,8 +37,7 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
         {
             Mode = VolumeBasedModeRadioButton.IsChecked == true
                 ? SpeechRegionDetectorMode.VolumeBased
-                : SpeechRegionDetectorMode.Silero,
-            Threshold = ThresholdNumericUpDown.Value
+                : SpeechRegionDetectorMode.Silero
         };
         set
         {
@@ -48,18 +46,8 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
         }
     }
 
-    private void ConfigureThresholdControl()
-    {
-        ThresholdNumericUpDown.Minimum = 0.01d;
-        ThresholdNumericUpDown.Maximum = 0.99d;
-        ThresholdNumericUpDown.Increment = 0.01d;
-        ThresholdNumericUpDown.DecimalPlaces = 2;
-        ThresholdNumericUpDown.Value = 0.50d;
-    }
-
     private void ApplySettings(SileroVadSettings settings)
     {
-        ThresholdNumericUpDown.Value = settings.Threshold;
         _settings = settings;
 
         if (settings.Mode == SpeechRegionDetectorMode.VolumeBased)
@@ -251,11 +239,10 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
             return;
         }
 
-        // 詳細ダイアログではThresholdと方式を編集しないため、親Controlの現在値を維持して4項目だけ反映する。
+        // 発話検出方式は共通画面で選択する責務のため、詳細設定の結果へ現在の方式だけを戻して保持する。
         _settings = dialog.ResultSettings with
         {
-            Mode = current.Mode,
-            Threshold = current.Threshold
+            Mode = current.Mode
         };
     }
 
