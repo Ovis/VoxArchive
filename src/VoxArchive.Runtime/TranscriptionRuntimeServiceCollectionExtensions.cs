@@ -50,13 +50,15 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
 
         // Sileroが実行可能なら優先し、未配置・初期化失敗・推論失敗時のみ既存の音量ベースVADへ戻す。
         // モデル管理はASR Engineへ偽装せず専用managerで扱い、同じUsageTrackerでASRモデル操作・文字起こしと排他する。
+        // 非ブロッキング警告sinkはPresentationが登録した場合だけ利用し、未登録環境やテストでは通知なしで同じfallback動作を維持する。
         services.AddSingleton(sp => new SileroVadDetector(SileroVadModelPath.GetDefault()));
         services.AddSingleton<SileroVadModelManager>();
         services.AddSingleton<ISpeechRegionDetectorModelManager>(sp => sp.GetRequiredService<SileroVadModelManager>());
         services.AddSingleton<SileroPreferredSpeechRegionDetector>(sp => new(
             sp.GetRequiredService<SileroVadDetector>(),
             sp.GetRequiredService<TranscriptionSpeechRegionDetector>(),
-            sp.GetRequiredService<ILogger<SileroPreferredSpeechRegionDetector>>()));
+            sp.GetRequiredService<ILogger<SileroPreferredSpeechRegionDetector>>(),
+            sp.GetService<ITranscriptionWarningSink>()));
         services.AddSingleton<ISpeechRegionDetector>(sp => sp.GetRequiredService<SileroPreferredSpeechRegionDetector>());
 
         // Host起動時にVoxArchive所有のmodel transaction一時領域を1回だけ掃除する。
