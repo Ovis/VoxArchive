@@ -52,6 +52,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         // モデル管理はASR Engineへ偽装せず専用managerで扱い、同じUsageTrackerでASRモデル操作・文字起こしと排他する。
         services.AddSingleton(sp => new SileroVadDetector(SileroVadModelPath.GetDefault()));
         services.AddSingleton<SileroVadModelManager>();
+        services.AddSingleton<ISpeechRegionDetectorModelManager>(sp => sp.GetRequiredService<SileroVadModelManager>());
         services.AddSingleton<SileroPreferredSpeechRegionDetector>(sp => new(
             sp.GetRequiredService<SileroVadDetector>(),
             sp.GetRequiredService<TranscriptionSpeechRegionDetector>(),
@@ -127,6 +128,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<TranscriptionJobQueue>();
         services.AddSingleton<ITranscriptionEngineSettingsService, TranscriptionEngineSettingsService>();
         services.AddSingleton<ITranscriptionApplicationService, TranscriptionApplicationService>();
+        services.AddSingleton<ISpeechRegionDetectorModelApplicationService, SpeechRegionDetectorModelApplicationService>();
         return services;
     }
 }
