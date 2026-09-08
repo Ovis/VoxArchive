@@ -95,7 +95,7 @@ public sealed record TranscriptionResultDocumentInfo(
     DateTimeOffset CreatedAt,
     IReadOnlyList<TranscriptionResultSegmentInfo> Segments);
 
-/// <summary>UIへ公開する文字起こしsegmentを表す</summary>
+/// <summary>canonical文字起こし結果の1segmentをUI表示用に投影する</summary>
 public sealed record TranscriptionResultSegmentInfo(
     double StartSeconds,
     double EndSeconds,
@@ -107,16 +107,35 @@ public sealed record TranscriptionRetranscriptionPreparation(
     RecordingOptions Options,
     bool UsedCurrentSettingsFallback);
 
-/// <summary>モデル取得の転送量と進捗率を表す</summary>
-public sealed record TranscriptionModelTransferInfo(long BytesReceived, long TotalBytes)
+/// <summary>モデル取得の転送・検証状態を表す</summary>
+public sealed record TranscriptionModelTransferInfo(
+    long BytesReceived,
+    long TotalBytes,
+    string? CurrentFileName = null,
+    bool IsValidating = false)
 {
+    /// <summary>総容量不明時にtrueを返す</summary>
+    public bool IsIndeterminate => TotalBytes <= 0;
+
     /// <summary>0から100の範囲へ正規化した取得進捗率を返す</summary>
     public double Percent => TotalBytes <= 0 ? 0d : Math.Clamp(BytesReceived * 100d / TotalBytes, 0d, 100d);
 }
 
 /// <summary>現在進行中のモデル取得状態をUIへ公開する</summary>
-public sealed record TranscriptionModelDownloadInfo(string EngineId, string ModelId, string ModelDisplayName, long BytesReceived, long TotalBytes, int WaiterCount, bool IsCancelling)
+public sealed record TranscriptionModelDownloadInfo(
+    string EngineId,
+    string ModelId,
+    string ModelDisplayName,
+    long BytesReceived,
+    long TotalBytes,
+    int WaiterCount,
+    bool IsCancelling,
+    string? CurrentFileName = null,
+    bool IsValidating = false)
 {
+    /// <summary>総容量不明時にtrueを返す</summary>
+    public bool IsIndeterminate => TotalBytes <= 0;
+
     /// <summary>0から100の範囲へ正規化した取得進捗率を返す</summary>
     public double Percent => TotalBytes <= 0 ? 0d : Math.Clamp(BytesReceived * 100d / TotalBytes, 0d, 100d);
 }
