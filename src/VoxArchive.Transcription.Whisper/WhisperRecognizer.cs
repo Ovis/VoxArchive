@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
@@ -46,6 +47,9 @@ public sealed class WhisperRecognizer
                     64 * 1024,
                     useAsync: true);
 
+                var diagnosticStartIndex = diagnosticResults?.Count ?? 0;
+                var chunkStopwatch = diagnosticsEnabled ? Stopwatch.StartNew() : null;
+
                 // Whisper.net 1.9.1はProcessAsync(Stream, CancellationToken)を公開しているため、
                 // 旧実装のreflectionは不要である。native処理中のCancellationToken処理もSDKへそのまま委譲する。
                 await foreach (var result in session.Processor.ProcessAsync(segmentStream, cancellationToken))
@@ -93,6 +97,35 @@ public sealed class WhisperRecognizer
                         end,
                         text,
                         chunk.RecognitionChunkId));
+                }
+
+                chunkStopwatch?.Stop();
+                if (diagnosticResults is not null)
+                {
+                    var elapsedMilliseconds = chunkStopwatch?.ElapsedMilliseconds ?? 0;
+                    if (diagnosticResults.Count == diagnosticStartIndex)
+                    {
+                        // Whisperがsegmentを1件も返さないchunkも診断上は欠落させない。
+                        diagnosticResults.Add(new AsrResultDiagnosticTrace(
+                            chunk.RecognitionChunkId,
+                            RawText: null,
+                            TimestampTrace: null,
+                            Discarded: true,
+                            DiscardReason: "no-result",
+                            ElapsedMilliseconds: elapsedMilliseconds));
+                    }
+                    else
+                    {
+                        // 1chunkから複数segmentが返る場合も、同じProcessAsync呼び出し全体の時間を各raw traceへ付ける。
+                        // segmentごとの時間を推測して分割すると実測値でなくなるため、chunk単位の同一値として保持する。
+                        for (var i = diagnosticStartIndex; i < diagnosticResults.Count; i++)
+                        {
+                            diagnosticResults[i] = diagnosticResults[i] with
+                            {
+                                ElapsedMilliseconds = elapsedMilliseconds
+                            };
+                        }
+                    }
                 }
             }
             finally
