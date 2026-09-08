@@ -48,7 +48,7 @@ public sealed class TranscriptionOrchestratorTests
     }
 
     [Test]
-    public void TranscribeAsync_InvalidAbsoluteTimeline_FailsBeforePublishingArtifact()
+    public async Task TranscribeAsync_OutOfRangeTimeline_ClampsToPreparedAudioBeforePublishingArtifact()
     {
         var root = CreateTempDirectory();
         try
@@ -56,18 +56,18 @@ public sealed class TranscriptionOrchestratorTests
             var source = TranscriptionPipelineTestFixture.CreateWaveFile(root, "recording.wav");
             using var context = TranscriptionPipelineTestFixture.CreatePipeline((_, _) =>
                 Task.FromResult(new TranscriptionEngineResult(
-                    [new RecognizedTranscriptionSegment(TimeSpan.Zero, TimeSpan.FromSeconds(1), "invalid")])));
-            var request = CreateRequest(source);
-            var expectedPath = TranscriptionArtifactService.BuildDocumentPath(
-                source,
-                request.EngineId,
-                request.ArtifactOptions.ModelId,
-                request.ArtifactOptions.FileNameSuffix);
+                    [new RecognizedTranscriptionSegment(TimeSpan.Zero, TimeSpan.FromSeconds(1), " clamped ")])));
 
-            Assert.That(
-                async () => await context.Orchestrator.TranscribeAsync(request),
-                Throws.TypeOf<InvalidDataException>());
-            Assert.That(File.Exists(expectedPath), Is.False);
+            var result = await context.Orchestrator.TranscribeAsync(CreateRequest(source));
+            var document = await new TranscriptionDocumentStore().LoadAsync(result.DocumentPath);
+
+            Assert.That(document.Segments, Has.Count.EqualTo(1));
+            Assert.Multiple(() =>
+            {
+                Assert.That(document.Segments[0].Start, Is.EqualTo(0d));
+                Assert.That(document.Segments[0].End, Is.EqualTo(0.25d).Within(0.000001d));
+                Assert.That(document.Segments[0].Text, Is.EqualTo("clamped"));
+            });
         }
         finally
         {
