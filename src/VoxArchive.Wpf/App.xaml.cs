@@ -145,12 +145,23 @@ public partial class App : System.Windows.Application
         {
             try
             {
-                // モデル取得のownerはWindowではなくApplication facadeなので、終了時も同じFacadeを通してキャンセル・完了待機する。
+                // ASRモデル取得のownerはWindowではなくApplication facadeなので、終了時も同じFacadeを通してキャンセル・完了待機する。
                 _host.Services.GetService<ITranscriptionApplicationService>()?.CancelActiveModelDownloadAndWaitAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
                 _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Model download cancellation threw during shutdown.");
+            }
+
+            try
+            {
+                // 明示終了ではMainWindow側で利用者確認を行うが、OS shutdownや起動失敗など別経路でもモデル操作を放置しない。
+                // native validationはApplication facade内で安全に完了待機し、cancel済みTokenによってcommitだけを抑止する。
+                _host.Services.GetService<ISpeechRegionDetectorModelApplicationService>()?.CancelActiveOperationAndWaitAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Speech region detector model operation shutdown threw during shutdown.");
             }
 
             try { _host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult(); }
