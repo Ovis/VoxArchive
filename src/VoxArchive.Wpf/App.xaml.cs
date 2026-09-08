@@ -160,6 +160,17 @@ public partial class App : System.Windows.Application
 
             try
             {
+                // 再確認・削除はnative処理やatomic renameの途中を安全に強制停止できないため、
+                // OS shutdownなどMainWindowの確認経路を通らない終了でも現在の操作が完了するまで待つ。
+                _host.Services.GetService<ITranscriptionModelManagementApplicationService>()?.WaitForActiveOperationAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "ASR model management operation wait threw during shutdown.");
+            }
+
+            try
+            {
                 // 明示終了ではMainWindow側で利用者確認を行うが、OS shutdownや起動失敗など別経路でもモデル操作を放置しない。
                 // native validationはApplication facade内で安全に完了待機し、cancel済みTokenによってcommitだけを抑止する。
                 _host.Services.GetService<ISpeechRegionDetectorModelApplicationService>()?.CancelActiveOperationAndWaitAsync().GetAwaiter().GetResult();
