@@ -38,6 +38,7 @@ public sealed class TranscriptionOrchestrator(
         var canonicalAndOutputMilliseconds = 0L;
         IPreparedTranscriptionAudio? preparedAudio = null;
         IReadOnlyList<SpeechRegion>? speechRegions = null;
+        SpeechRegionDetectionDiagnosticTrace? vadTrace = null;
         TranscriptionDiagnosticSource? diagnosticSource = null;
 
         try
@@ -66,10 +67,24 @@ public sealed class TranscriptionOrchestrator(
             failedStage = "vad";
             LogStage(request, "vad", "started", pipelineStopwatch.ElapsedMilliseconds);
             stageStopwatch.Restart();
-            speechRegions = await speechRegionDetector.DetectAsync(
-                preparedAudio,
-                request.SpeechRegionDetectorSettings,
-                cancellationToken);
+            if (request.DiagnosticsEnabled && speechRegionDetector is IDiagnosticSpeechRegionDetector diagnosticDetector)
+            {
+                // traceをdetectorの可変状態へ保存して後から読むと、並列Jobで別Jobの情報を拾う可能性がある。
+                // SpeechRegionと同じ呼び出し結果として受け取り、Job単位で対応関係を固定する。
+                var detection = await diagnosticDetector.DetectWithDiagnosticsAsync(
+                    preparedAudio,
+                    request.SpeechRegionDetectorSettings,
+                    cancellationToken);
+                speechRegions = detection.SpeechRegions;
+                vadTrace = detection.Trace;
+            }
+            else
+            {
+                speechRegions = await speechRegionDetector.DetectAsync(
+                    preparedAudio,
+                    request.SpeechRegionDetectorSettings,
+                    cancellationToken);
+            }
             stageStopwatch.Stop();
             vadMilliseconds = stageStopwatch.ElapsedMilliseconds;
             LogStage(request, "vad", "completed", pipelineStopwatch.ElapsedMilliseconds);
@@ -127,6 +142,7 @@ public sealed class TranscriptionOrchestrator(
                     request,
                     diagnosticSource ?? BuildFallbackDiagnosticSource(request.SourceRecordingPath, preparedAudio),
                     speechRegions,
+                    vadTrace,
                     finishedAt,
                     status: "success",
                     failedStage: null,
@@ -163,6 +179,7 @@ public sealed class TranscriptionOrchestrator(
                         request,
                         diagnosticSource ?? BuildFallbackDiagnosticSource(request.SourceRecordingPath, preparedAudio, engine.AudioRequirements),
                         speechRegions,
+                        vadTrace,
                         DateTimeOffset.Now,
                         status: "failed",
                         failedStage,
@@ -249,6 +266,7 @@ public sealed class TranscriptionOrchestrator(
         TranscriptionOrchestrationRequest request,
         TranscriptionDiagnosticSource source,
         IReadOnlyList<SpeechRegion>? speechRegions,
+        SpeechRegionDetectionDiagnosticTrace? vadTrace,
         DateTimeOffset timestamp,
         string status,
         string? failedStage,
@@ -283,11 +301,17 @@ public sealed class TranscriptionOrchestrator(
                 ? null
                 : new TranscriptionDiagnosticVad
                 {
-                    Detector = speechRegionDetector.GetType().Name,
+                    Detector = vadTrace?.Detector ?? speechRegionDetector.GetType().Name,
                     Settings = CloneIfDefined(request.SpeechRegionDetectorSettings.Settings),
+                    RawRegions = vadTrace?.RawRegions
+                        .Select(range => new TranscriptionDiagnosticSpeechRange(
+                            range.RawSpeechRegionId,
+                            range.StartSample,
+                            range.EndSample))
+                        .ToArray() ?? [],
                     SpeechRegions = speechRegions.Select(ToDiagnosticSpeechRegion).ToArray(),
-                    FallbackUsed = false,
-                    FallbackReason = null,
+                    FallbackUsed = vadTrace?.FallbackUsed ?? false,
+                    FallbackReason = vadTrace?.FallbackReason,
                     ElapsedMilliseconds = vadMilliseconds
                 },
             Timings = new TranscriptionDiagnosticTimings
