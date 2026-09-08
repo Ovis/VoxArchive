@@ -37,5 +37,10 @@ public interface IDiagnosticRecognitionChunker : IRecognitionChunker
 /// <summary>
 /// ASR EngineがCommonへ返すEngine非依存の詳細診断traceを保持する
 /// </summary>
+/// <param name="RecognitionChunks">生成したRecognitionChunkと分割根拠</param>
+/// <param name="ChunkGenerationMilliseconds">RecognitionChunk生成に要した時間</param>
+/// <param name="AsrMilliseconds">実Recognizer呼び出しに要した時間。chunk生成時間を含まない</param>
 public sealed record TranscriptionEngineDiagnosticTrace(
-    IReadOnlyList<RecognitionChunkDiagnosticTrace> RecognitionChunks);
+    IReadOnlyList<RecognitionChunkDiagnosticTrace> RecognitionChunks,
+    long ChunkGenerationMilliseconds = 0,
+    long AsrMilliseconds = 0);
