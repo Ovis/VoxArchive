@@ -37,12 +37,12 @@ public sealed class SpeechRegionDetectorModelApplicationService(
         var operation = BeginOperation(force ? "モデル再取得" : "モデル取得", canCancel: true, cancellationToken);
         var adapter = progress is null
             ? null
-            : new Progress<ManagedModelTransactionProgress>(x =>
+            : new SynchronousProgress<ManagedModelTransactionProgress>(x =>
             {
                 if (x.IsValidating)
                 {
-                    // native validation自体は安全に中断できない。CanCancelはUI表示用にfalseへ切り替えるが、
-                    // 終了要求ではTokenをcancelしてvalidation完了後のcommitを抑止する。
+                    // validation開始は終了処理の判断にも使うため、SynchronizationContext経由で遅延させず同期反映する。
+                    // native validation自体は安全に中断できないが、終了要求ではTokenをcancelして完了後のcommitを抑止する。
                     operation.CanCancel = false;
                 }
 
@@ -185,6 +185,14 @@ public sealed class SpeechRegionDetectorModelApplicationService(
         => new(
             state.ToString(),
             state == SpeechRegionDetectorModelState.Available);
+
+    /// <summary>
+    /// Application内部の状態遷移をProgress&lt;T&gt;のSynchronizationContext dispatchから分離する同期adapter
+    /// </summary>
+    private sealed class SynchronousProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
+    }
 
     private sealed class ActiveOperation(
         string operationName,
