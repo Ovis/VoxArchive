@@ -23,8 +23,10 @@ public sealed class ReazonSpeechRecognitionChunkerTests
 
         var diagnostic = await sut.CreateChunksWithDiagnosticsAsync(audio, [region]);
         var chunks = diagnostic.Chunks;
+        var details = diagnostic.Traces[0].SplitDetails;
 
         Assert.That(chunks, Has.Count.EqualTo(2));
+        Assert.That(details.HasValue, Is.True);
         Assert.Multiple(() =>
         {
             Assert.That(chunks[0].EndSample, Is.InRange(Samples(24.55d), Samples(24.65d)));
@@ -32,6 +34,12 @@ public sealed class ReazonSpeechRecognitionChunkerTests
             Assert.That(chunks[0].Length, Is.LessThanOrEqualTo(Samples(25d)));
             Assert.That(chunks[1].Length, Is.LessThanOrEqualTo(Samples(25d)));
             Assert.That(diagnostic.Traces.Select(x => x.SplitReason), Is.EqualTo(new[] { "silence", "region-end" }));
+            Assert.That(details!.Value.GetProperty("p20Rms").GetDouble(), Is.GreaterThanOrEqualTo(0d));
+            Assert.That(details.Value.GetProperty("targetSample").GetInt64(), Is.EqualTo(Samples(25d)));
+            Assert.That(details.Value.GetProperty("searchStartSample").GetInt64(), Is.EqualTo(Samples(15d)));
+            Assert.That(details.Value.GetProperty("searchEndSample").GetInt64(), Is.EqualTo(Samples(25d)));
+            Assert.That(details.Value.GetProperty("selectedSample").GetInt64(), Is.EqualTo(chunks[0].EndSample));
+            Assert.That(details.Value.GetProperty("silenceEndSample").GetInt64(), Is.GreaterThan(details.Value.GetProperty("silenceStartSample").GetInt64()));
         });
     }
 
@@ -47,14 +55,21 @@ public sealed class ReazonSpeechRecognitionChunkerTests
 
         var diagnostic = await sut.CreateChunksWithDiagnosticsAsync(audio, [region]);
         var chunks = diagnostic.Chunks;
+        var details = diagnostic.Traces[0].SplitDetails;
 
         Assert.That(chunks, Has.Count.EqualTo(2));
+        Assert.That(details.HasValue, Is.True);
         Assert.Multiple(() =>
         {
             Assert.That(chunks[0].EndSample, Is.InRange(Samples(24.35d), Samples(24.48d)));
             Assert.That(chunks[1].StartSample, Is.EqualTo(chunks[0].EndSample));
             Assert.That(chunks.All(x => x.Length <= Samples(25d)), Is.True);
             Assert.That(diagnostic.Traces.Select(x => x.SplitReason), Is.EqualTo(new[] { "forced-rms", "region-end" }));
+            Assert.That(details!.Value.GetProperty("selectedSample").GetInt64(), Is.EqualTo(chunks[0].EndSample));
+            Assert.That(details.Value.GetProperty("searchStartSample").GetInt64(), Is.EqualTo(Samples(24d)));
+            Assert.That(details.Value.GetProperty("searchEndSample").GetInt64(), Is.EqualTo(Samples(25d)));
+            Assert.That(details.Value.GetProperty("frameEndSample").GetInt64(), Is.GreaterThan(details.Value.GetProperty("frameStartSample").GetInt64()));
+            Assert.That(details.Value.GetProperty("rms").GetDouble(), Is.GreaterThanOrEqualTo(0d));
         });
     }
 
@@ -70,8 +85,10 @@ public sealed class ReazonSpeechRecognitionChunkerTests
 
         var diagnostic = await sut.CreateChunksWithDiagnosticsAsync(audio, [region]);
         var chunks = diagnostic.Chunks;
+        var details = diagnostic.Traces[0].SplitDetails;
 
         Assert.That(chunks, Has.Count.EqualTo(2));
+        Assert.That(details.HasValue, Is.True);
         Assert.Multiple(() =>
         {
             Assert.That(chunks[0].EndSample, Is.InRange(Samples(12.8d), Samples(13.8d)));
@@ -79,6 +96,12 @@ public sealed class ReazonSpeechRecognitionChunkerTests
             Assert.That(chunks.All(x => x.Length >= Samples(3d)), Is.True);
             Assert.That(chunks.All(x => x.Length <= Samples(25d)), Is.True);
             Assert.That(diagnostic.Traces.Select(x => x.SplitReason), Is.EqualTo(new[] { "tail-redistribution", "region-end" }));
+            Assert.That(details!.Value.GetProperty("selectedSample").GetInt64(), Is.EqualTo(chunks[0].EndSample));
+            Assert.That(details.Value.GetProperty("targetSample").GetInt64(), Is.EqualTo(Samples(13d)));
+            Assert.That(details.Value.GetProperty("searchStartSample").GetInt64(), Is.EqualTo(Samples(11d)));
+            Assert.That(details.Value.GetProperty("searchEndSample").GetInt64(), Is.EqualTo(Samples(15d)));
+            Assert.That(details.Value.GetProperty("usedSilence").ValueKind, Is.EqualTo(System.Text.Json.JsonValueKind.False));
+            Assert.That(details.Value.GetProperty("rms").GetDouble(), Is.GreaterThanOrEqualTo(0d));
         });
     }
 
