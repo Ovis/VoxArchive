@@ -123,7 +123,11 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider, ITr
         var adapter = progress is null
             ? null
             : new Progress<ManagedModelTransactionProgress>(x =>
-                progress.Report(new TranscriptionModelTransferProgress(x.BytesReceived, x.TotalBytes ?? 0)));
+                progress.Report(new TranscriptionModelTransferProgress(
+                    x.BytesReceived,
+                    x.TotalBytes ?? 0,
+                    x.CurrentFileName,
+                    x.IsValidating)));
         var directory = await _transaction.DownloadValidateCommitAsync(
             package.Files,
             GetInstallationDirectory(package),
