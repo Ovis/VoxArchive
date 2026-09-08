@@ -18,8 +18,11 @@ internal static class TranscriptionPipelineTestFixture
     /// <summary>
     /// Engineの実行動作を差し替えられるテスト用pipelineを生成する
     /// </summary>
+    /// <param name="transcribeAsync">Engineの認識動作</param>
+    /// <param name="diagnosticDirectory">詳細診断JSONの保存先。未指定時はテスト専用一時ディレクトリを使用する</param>
     internal static PipelineContext CreatePipeline(
-        Func<TranscriptionEngineRequest, CancellationToken, Task<TranscriptionEngineResult>> transcribeAsync)
+        Func<TranscriptionEngineRequest, CancellationToken, Task<TranscriptionEngineResult>> transcribeAsync,
+        string? diagnosticDirectory = null)
     {
         var engine = new ControllableEngine(transcribeAsync);
         var settingsProvider = new TestSettingsProvider();
@@ -37,6 +40,7 @@ internal static class TranscriptionPipelineTestFixture
         var registry = new TranscriptionEngineRegistry([registration]);
         var usageTracker = new TranscriptionModelUsageTracker();
         var modelManager = new TranscriptionModelManager(registry, usageTracker);
+        diagnosticDirectory ??= Path.Combine(Path.GetTempPath(), "VoxArchive.Tests", "diagnostics", Guid.NewGuid().ToString("N"));
         var orchestrator = new TranscriptionOrchestrator(
             registry,
             new TranscriptionAudioPreparationService(),
@@ -44,6 +48,9 @@ internal static class TranscriptionPipelineTestFixture
             new TranscriptionEngineResultValidator(),
             new TranscriptionSpeakerLabelService(),
             new TranscriptionArtifactService(new TranscriptionDocumentStore(), new TranscriptionExportService()),
+            new TranscriptionDiagnosticWriter(
+                NullLogger<TranscriptionDiagnosticWriter>.Instance,
+                diagnosticDirectory),
             NullLogger<TranscriptionOrchestrator>.Instance);
         var admission = new TranscriptionJobAdmissionService(registry, modelManager, usageTracker);
         var queue = new TranscriptionJobQueue(admission, orchestrator, NullLogger<TranscriptionJobQueue>.Instance);
@@ -149,7 +156,7 @@ internal static class TranscriptionPipelineTestFixture
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var endSample = Math.Max(0L, (long)Math.Floor(audio.Duration.TotalSeconds * audio.Format.SampleRate));
+            var endSample = audio.SampleCount;
             IReadOnlyList<SpeechRegion> result = endSample == 0
                 ? []
                 : [new SpeechRegion(0, 0, endSample, [new AudioSampleRange(0, endSample)], [0])];
