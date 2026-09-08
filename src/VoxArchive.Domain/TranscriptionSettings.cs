@@ -29,7 +29,7 @@ public sealed record TranscriptionSettings
     public IReadOnlyDictionary<string, TranscriptionEngineSettings> Engines { get; init; }
         = new Dictionary<string, TranscriptionEngineSettings>(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Silero VADへ適用する共通発話検出設定</summary>
+    /// <summary>共通発話検出方式とSilero VADの詳細設定を保持する</summary>
     public SileroVadSettings SileroVad { get; init; } = new();
 
     /// <summary>canonical JSONから自動生成する派生出力形式</summary>
@@ -49,7 +49,19 @@ public sealed record TranscriptionSettings
 }
 
 /// <summary>
-/// Silero VADのVoxArchive標準プロファイルとユーザー編集値を保持する
+/// 発話検出で使用するdetector方式を表す
+/// </summary>
+public enum SpeechRegionDetectorMode
+{
+    /// <summary>Silero VADを優先し、利用不能時だけ音量ベースVADへfallbackする</summary>
+    Silero = 0,
+
+    /// <summary>Sileroを使用せず、最初から音量ベースVADを使用する</summary>
+    VolumeBased = 1,
+}
+
+/// <summary>
+/// 発話検出方式とSilero VADのVoxArchive標準プロファイル、ユーザー編集値を保持する
 /// </summary>
 /// <remarks>
 /// モデルの配置状態や実行中の一時状態は設定ではないため保持しない。
@@ -57,6 +69,9 @@ public sealed record TranscriptionSettings
 /// </remarks>
 public sealed record SileroVadSettings
 {
+    /// <summary>発話検出で使用する方式。旧設定に値がない場合もSileroを既定とする</summary>
+    public SpeechRegionDetectorMode Mode { get; init; } = SpeechRegionDetectorMode.Silero;
+
     /// <summary>発話と判定する確率閾値</summary>
     public double Threshold { get; init; } = 0.50d;
 
