@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Extensions.DependencyInjection;
 using VoxArchive.Application.Abstractions;
 
 namespace VoxArchive.Wpf;
@@ -15,6 +16,7 @@ public partial class SettingsWindow
 
     private bool _whisperTabVisited;
     private bool _reazonSpeechTabVisited;
+    private SpeechRegionDetectorSettingsControl? _speechRegionDetectorSettingsControl;
 
     /// <summary>新規文字起こしで既定として使用するEngineの安定IDを取得・設定する</summary>
     public string DefaultTranscriptionEngine
@@ -50,6 +52,7 @@ public partial class SettingsWindow
     {
         PopulateModelChoices(WhisperEngineId, WhisperModelManagerControl);
         PopulateModelChoices(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+        InitializeSpeechRegionDetectorSettingsControl();
 
         WhisperModelManagerControl.SelectedModelChanged += OnWhisperModelSelectionChanged;
         WhisperModelManagerControl.VerifyRequested += OnWhisperModelVerifyRequested;
@@ -63,6 +66,32 @@ public partial class SettingsWindow
 
         _transcriptionService.ModelStateChanged += OnModelManagerStateChanged;
         TranscriptionTabControl.SelectedIndex = 0;
+    }
+
+    private void InitializeSpeechRegionDetectorSettingsControl()
+    {
+        // テスト用constructorではApplication DIが存在しない場合があるため、Facadeを解決できる実アプリだけControlを追加する。
+        // PresentationからSilero具象型へは依存せず、専用Application Facadeだけを利用する。
+        var app = System.Windows.Application.Current as App;
+        var modelService = app?.Services.GetService<ISpeechRegionDetectorModelApplicationService>();
+        if (modelService is null
+            || TranscriptionTabControl.Items.Count == 0
+            || TranscriptionTabControl.Items[0] is not TabItem commonTab
+            || commonTab.Content is not Grid commonGrid)
+        {
+            return;
+        }
+
+        var leftColumn = commonGrid.Children
+            .OfType<StackPanel>()
+            .FirstOrDefault(x => Grid.GetColumn(x) == 0);
+        if (leftColumn is null)
+        {
+            return;
+        }
+
+        _speechRegionDetectorSettingsControl = new SpeechRegionDetectorSettingsControl(modelService);
+        leftColumn.Children.Add(_speechRegionDetectorSettingsControl);
     }
 
     private void PopulateModelChoices(string engineId, TranscriptionModelManagerControl control)
