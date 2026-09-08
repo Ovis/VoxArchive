@@ -23,10 +23,23 @@ public interface ISpeechRegionDetectorModelApplicationService
 
     /// <summary>発話検出モデルを安全に削除する</summary>
     Task DeleteAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>現在進行中の発話検出モデル操作を取得する</summary>
+    SpeechRegionDetectorModelOperationInfo? GetActiveOperation();
+
+    /// <summary>
+    /// 終了時に現在の取得をキャンセルし、native validationや削除・再確認を含む処理終了まで待つ
+    /// </summary>
+    Task CancelActiveOperationAndWaitAsync();
 }
 
 /// <summary>発話検出モデルの検査状態と実行可能性をUIへ公開する</summary>
 public sealed record SpeechRegionDetectorModelStatusInfo(string State, bool IsReady);
+
+/// <summary>現在進行中の発話検出モデル操作をUIへ公開する</summary>
+/// <param name="OperationName">利用者へ表示できる操作名</param>
+/// <param name="CanCancel">download段階などキャンセル要求を受け付けられる操作か</param>
+public sealed record SpeechRegionDetectorModelOperationInfo(string OperationName, bool CanCancel);
 
 /// <summary>
 /// 発話検出モデル取得の進捗をUIへ公開する
