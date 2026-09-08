@@ -58,7 +58,8 @@ public sealed class WhisperTranscriptionEngine(
                     ? new TranscriptionEngineDiagnosticTrace(
                         chunkingDiagnostic?.Traces ?? [],
                         chunkingStopwatch?.ElapsedMilliseconds ?? 0,
-                        0)
+                        0,
+                        [])
                     : null);
         }
 
@@ -76,11 +77,16 @@ public sealed class WhisperTranscriptionEngine(
         try
         {
             var asrStopwatch = request.Context.DiagnosticsEnabled ? Stopwatch.StartNew() : null;
-            var segments = await recognizer.RecognizeAsync(session, request.Audio, chunks, cancellationToken);
+            var recognition = await recognizer.RecognizeAsync(
+                session,
+                request.Audio,
+                chunks,
+                request.Context.DiagnosticsEnabled,
+                cancellationToken);
             asrStopwatch?.Stop();
 
             return new TranscriptionEngineResult(
-                segments,
+                recognition.Segments,
                 new Dictionary<string, object?>
                 {
                     ["requestedBackend"] = requestedBackend,
@@ -90,7 +96,8 @@ public sealed class WhisperTranscriptionEngine(
                     ? new TranscriptionEngineDiagnosticTrace(
                         chunkingDiagnostic?.Traces ?? [],
                         chunkingStopwatch?.ElapsedMilliseconds ?? 0,
-                        asrStopwatch?.ElapsedMilliseconds ?? 0)
+                        asrStopwatch?.ElapsedMilliseconds ?? 0,
+                        recognition.Diagnostics)
                     : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
