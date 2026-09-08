@@ -29,6 +29,17 @@ public interface IPreparedTranscriptionAudio : IAsyncDisposable
 {
     TranscriptionAudioRequirements Format { get; }
     TimeSpan Duration { get; }
+
+    /// <summary>
+    /// Prepared Audio上の1chあたりの正確なsample数を取得する
+    /// </summary>
+    /// <remarks>
+    /// production実装は生成済み音声の実データ長から値を保持する。
+    /// default実装は既存のテストdoubleや外部実装との互換性のためのfallbackであり、
+    /// sample座標を正本として扱う実処理ではoverrideされた正確な値を使用する。
+    /// </remarks>
+    long SampleCount => Math.Max(0L, (long)Math.Round(Duration.TotalSeconds * Format.SampleRate));
+
     ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken = default);
 }
 
