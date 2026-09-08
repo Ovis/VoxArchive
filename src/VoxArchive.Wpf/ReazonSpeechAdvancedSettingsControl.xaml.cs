@@ -9,12 +9,15 @@ namespace VoxArchive.Wpf;
 /// <remarks>
 /// このControlは保存処理を持たず、親設定Windowの編集バッファだけを操作する。
 /// 「既定値に戻す」も即時永続化せず、設定Windowの保存時にのみ反映される。
+/// 保存済み値が現在の環境で無効でも読み込み自体は失敗させず、その値を表示したまま利用者が修正できる状態を維持する。
 /// </remarks>
 public partial class ReazonSpeechAdvancedSettingsControl : UserControl
 {
     private const string DefaultPrecision = "int8-fp32";
     private const string DefaultDecodingMethod = "greedy_search";
     private const int DefaultMaxActivePaths = 4;
+    private static readonly string[] SupportedPrecisions = ["fp32", "int8", "int8-fp32"];
+    private static readonly string[] SupportedDecodingMethods = ["greedy_search", "modified_beam_search"];
     private bool _isApplyingValues;
 
     /// <summary>モデル管理対象packageが変わるprecision変更を通知する</summary>
@@ -24,7 +27,6 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
     public ReazonSpeechAdvancedSettingsControl()
     {
         InitializeComponent();
-        CpuThreadsControl.Maximum = Environment.ProcessorCount;
         PrecisionComboBox.SelectionChanged += OnPrecisionSelectionChanged;
         ApplyValues(new Dictionary<string, string>
         {
@@ -54,16 +56,17 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
         _isApplyingValues = true;
         try
         {
-            SelectByTag(PrecisionComboBox, GetValue(values, "precision", DefaultPrecision));
-            SelectByTag(DecodingMethodComboBox, GetValue(values, "decodingMethod", DefaultDecodingMethod));
-            MaxActivePathsControl.Value = ParseRequiredInt(values, "maxActivePaths", DefaultMaxActivePaths, 1, int.MaxValue);
-            CpuThreadsControl.Value = ParseRequiredInt(
-                values,
-                "cpuThreads",
-                Math.Min(4, Environment.ProcessorCount),
-                1,
-                Environment.ProcessorCount);
+            var precision = GetValue(values, "precision", DefaultPrecision);
+            var decodingMethod = GetValue(values, "decodingMethod", DefaultDecodingMethod);
+            var maxActivePaths = ParseInt(values, "maxActivePaths", DefaultMaxActivePaths);
+            var cpuThreads = ParseInt(values, "cpuThreads", Math.Min(4, Environment.ProcessorCount));
+
+            SelectByTagAllowingUnsupported(PrecisionComboBox, precision, SupportedPrecisions);
+            SelectByTagAllowingUnsupported(DecodingMethodComboBox, decodingMethod, SupportedDecodingMethods);
+            MaxActivePathsControl.Value = maxActivePaths;
+            CpuThreadsControl.Value = cpuThreads;
             UpdateDecodingDependentState();
+            UpdateValidationMessage(precision, decodingMethod, maxActivePaths, cpuThreads);
         }
         finally
         {
@@ -75,12 +78,21 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
     {
         if (!_isApplyingValues)
         {
+            RemoveUnsupportedPlaceholder(PrecisionComboBox, SupportedPrecisions);
+            UpdateValidationMessageFromControls();
             PrecisionChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
     private void OnDecodingMethodSelectionChanged(object sender, SelectionChangedEventArgs e)
-        => UpdateDecodingDependentState();
+    {
+        UpdateDecodingDependentState();
+        if (!_isApplyingValues)
+        {
+            RemoveUnsupportedPlaceholder(DecodingMethodComboBox, SupportedDecodingMethods);
+            UpdateValidationMessageFromControls();
+        }
+    }
 
     private void OnResetDefaultsClick(object sender, RoutedEventArgs e)
     {
@@ -102,28 +114,54 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
     private void UpdateDecodingDependentState()
     {
         // max_active_pathsはmodified beam searchでのみ意味を持つため、greedy時は編集不可にする。
-        // 値自体は保持しておき、decoding方式を往復しても利用者の編集値を失わない。
+        // 未知のdecoding値は現在バージョンで解釈できないため、値を保持したまま編集不可として利用者に修正を促す。
         MaxActivePathsPanel.IsEnabled = string.Equals(
             GetSelectedTag(DecodingMethodComboBox, DefaultDecodingMethod),
             "modified_beam_search",
             StringComparison.Ordinal);
     }
 
-    private static int ParseRequiredInt(
-        IReadOnlyDictionary<string, string> values,
-        string key,
-        int fallback,
-        int minimum,
-        int maximum)
+    private void UpdateValidationMessageFromControls()
     {
-        var raw = GetValue(values, key, fallback.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        if (!int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
-            || parsed < minimum
-            || parsed > maximum)
+        UpdateValidationMessage(
+            GetSelectedTag(PrecisionComboBox, DefaultPrecision),
+            GetSelectedTag(DecodingMethodComboBox, DefaultDecodingMethod),
+            checked((int)MaxActivePathsControl.Value),
+            checked((int)CpuThreadsControl.Value));
+    }
+
+    private void UpdateValidationMessage(string precision, string decodingMethod, int maxActivePaths, int cpuThreads)
+    {
+        var messages = new List<string>();
+        if (!SupportedPrecisions.Contains(precision, StringComparer.OrdinalIgnoreCase))
         {
-            throw new ArgumentOutOfRangeException(key, raw, $"{key}は{minimum}～{maximum}の範囲である必要があります。");
+            messages.Add($"保存済みモデル精度 '{precision}' は現在のバージョンでは無効です。対応値を選び直してください。");
+        }
+        if (!SupportedDecodingMethods.Contains(decodingMethod, StringComparer.OrdinalIgnoreCase))
+        {
+            messages.Add($"保存済みDecoding method '{decodingMethod}' は現在のバージョンでは無効です。対応値を選び直してください。");
+        }
+        if (cpuThreads < 1 || cpuThreads > Environment.ProcessorCount)
+        {
+            messages.Add($"保存済みCPU threads={cpuThreads} は現在の環境では無効です。1～{Environment.ProcessorCount}へ修正してください。");
+        }
+        if (string.Equals(decodingMethod, "modified_beam_search", StringComparison.OrdinalIgnoreCase)
+            && maxActivePaths < 1)
+        {
+            messages.Add($"保存済みMax active paths={maxActivePaths} は現在の設定では無効です。1以上へ修正してください。");
         }
 
+        ValidationMessageTextBlock.Text = string.Join(Environment.NewLine, messages);
+        ValidationMessageTextBlock.Visibility = messages.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private static int ParseInt(IReadOnlyDictionary<string, string> values, string key, int fallback)
+    {
+        var raw = GetValue(values, key, fallback.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (!int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new ArgumentException($"{key}を整数として読み込めません: {raw}", key);
+        }
         return parsed;
     }
 
@@ -135,7 +173,7 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
     private static string GetSelectedTag(ComboBox comboBox, string fallback)
         => (comboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? fallback;
 
-    private static void SelectByTag(ComboBox comboBox, string value)
+    private static void SelectByTagAllowingUnsupported(ComboBox comboBox, string value, IReadOnlyCollection<string> supportedValues)
     {
         foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
         {
@@ -146,6 +184,28 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
             }
         }
 
-        throw new ArgumentException($"未対応の設定値です: {value}", nameof(value));
+        // 未知値を既定値へ置換すると保存値が失われるため、現在未対応であることを明示する一時項目として表示する。
+        // 利用者が対応値を選択した時点でplaceholderは除去し、以後は新しい値を編集バッファの正本とする。
+        var placeholder = new ComboBoxItem
+        {
+            Content = $"{value}（現在未対応）",
+            Tag = value
+        };
+        comboBox.Items.Add(placeholder);
+        comboBox.SelectedItem = placeholder;
+    }
+
+    private static void RemoveUnsupportedPlaceholder(ComboBox comboBox, IReadOnlyCollection<string> supportedValues)
+    {
+        var removable = comboBox.Items
+            .OfType<ComboBoxItem>()
+            .Where(item => item.Tag is string tag
+                           && !supportedValues.Contains(tag, StringComparer.OrdinalIgnoreCase)
+                           && !ReferenceEquals(item, comboBox.SelectedItem))
+            .ToArray();
+        foreach (var item in removable)
+        {
+            comboBox.Items.Remove(item);
+        }
     }
 }
