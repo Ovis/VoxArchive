@@ -348,7 +348,9 @@ public sealed class TranscriptionOrchestrator(
             AsrResults = engineDiagnostic?.AsrResults?
                 .Select(trace =>
                 {
-                    var canonicalText = FindCanonicalText(canonicalEngineResult, trace.RecognitionChunkId);
+                    // canonical text規則はartifactと同じくCommon側で一元化する。
+                    // 1chunkから複数raw segmentが返るWhisperでも、各raw結果を独立して比較できるようchunk単位では集約しない。
+                    var canonicalText = CanonicalizeDiagnosticText(trace.RawText);
                     var discarded = trace.Discarded || canonicalText is null;
                     return new TranscriptionDiagnosticAsrResult
                     {
@@ -382,26 +384,10 @@ public sealed class TranscriptionOrchestrator(
         await diagnosticWriter.TryWriteAsync(request.SourceRecordingPath, timestamp, document, CancellationToken.None);
     }
 
-    private static string? FindCanonicalText(
-        TranscriptionEngineResult? canonicalResult,
-        int recognitionChunkId)
+    private static string? CanonicalizeDiagnosticText(string? rawText)
     {
-        if (canonicalResult is null)
-        {
-            return null;
-        }
-
-        var texts = canonicalResult.Segments
-            .Where(segment => segment.RecognitionChunkId == recognitionChunkId)
-            .Select(segment => segment.Text)
-            .Where(text => !string.IsNullOrWhiteSpace(text))
-            .ToArray();
-        return texts.Length switch
-        {
-            0 => null,
-            1 => texts[0],
-            _ => string.Join(" ", texts)
-        };
+        var text = rawText?.Trim();
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
     private static TranscriptionDiagnosticSpeechRegion ToDiagnosticSpeechRegion(SpeechRegion region)
