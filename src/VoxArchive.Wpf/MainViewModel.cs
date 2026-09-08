@@ -401,7 +401,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            RunOnUi(() => _logger.LogWarning(ex, "デバイス列挙失敗");
+            RunOnUi(() => _logger.LogWarning(ex, "デバイス列挙失敗"));
         }
     }
 
@@ -427,7 +427,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            RunOnUi(() => _logger.LogWarning(ex, "プロセス列挙失敗");
+            RunOnUi(() => _logger.LogWarning(ex, "プロセス列挙失敗"));
         }
     }
 
