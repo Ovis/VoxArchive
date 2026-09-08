@@ -25,6 +25,11 @@ public partial class SpeechRegionDetectorAdvancedSettingsWindow : Window
 
     private void ConfigureNumericControls()
     {
+        ThresholdNumericUpDown.Minimum = 0.01d;
+        ThresholdNumericUpDown.Maximum = 0.99d;
+        ThresholdNumericUpDown.Increment = 0.01d;
+        ThresholdNumericUpDown.DecimalPlaces = 2;
+
         ConfigureMilliseconds(MinimumSpeechNumericUpDown, minimum: 1d);
         ConfigureMilliseconds(MinimumSilenceNumericUpDown, minimum: 1d);
         ConfigureMilliseconds(PrePaddingNumericUpDown, minimum: 0d);
@@ -42,6 +47,7 @@ public partial class SpeechRegionDetectorAdvancedSettingsWindow : Window
 
     private void ApplySettings(SileroVadSettings settings)
     {
+        ThresholdNumericUpDown.Value = settings.Threshold;
         MinimumSpeechNumericUpDown.Value = settings.MinimumSpeechDurationMilliseconds;
         MinimumSilenceNumericUpDown.Value = settings.MinimumSilenceDurationMilliseconds;
         PrePaddingNumericUpDown.Value = settings.PrePaddingMilliseconds;
@@ -58,6 +64,7 @@ public partial class SpeechRegionDetectorAdvancedSettingsWindow : Window
     {
         ResultSettings = new SileroVadSettings
         {
+            Threshold = ThresholdNumericUpDown.Value,
             MinimumSpeechDurationMilliseconds = checked((int)MinimumSpeechNumericUpDown.Value),
             MinimumSilenceDurationMilliseconds = checked((int)MinimumSilenceNumericUpDown.Value),
             PrePaddingMilliseconds = checked((int)PrePaddingNumericUpDown.Value),
