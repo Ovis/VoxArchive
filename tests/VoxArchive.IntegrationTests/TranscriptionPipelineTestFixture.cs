@@ -149,18 +149,39 @@ internal static class TranscriptionPipelineTestFixture
     /// <summary>
     /// Queue/Admissionのテスト目的ではVAD精度を検証しないため、Prepared Audio全体を1発話として返す
     /// </summary>
-    private sealed class FullAudioSpeechRegionDetector : ISpeechRegionDetector
+    private sealed class FullAudioSpeechRegionDetector : IDiagnosticSpeechRegionDetector
     {
         public Task<IReadOnlyList<SpeechRegion>> DetectAsync(
             IPreparedTranscriptionAudio audio,
+            SpeechRegionDetectorSettingsSnapshot settings,
             CancellationToken cancellationToken = default)
+            => Task.FromResult(CreateRegions(audio, cancellationToken));
+
+        public Task<SpeechRegionDetectionDiagnosticResult> DetectWithDiagnosticsAsync(
+            IPreparedTranscriptionAudio audio,
+            SpeechRegionDetectorSettingsSnapshot settings,
+            CancellationToken cancellationToken = default)
+        {
+            var regions = CreateRegions(audio, cancellationToken);
+            return Task.FromResult(new SpeechRegionDetectionDiagnosticResult(
+                regions,
+                new SpeechRegionDetectionDiagnosticTrace(
+                    nameof(FullAudioSpeechRegionDetector),
+                    [],
+                    FallbackUsed: false,
+                    FallbackReason: null,
+                    EffectiveSettings: JsonSerializer.SerializeToElement(new { mode = "full-audio-test" }))));
+        }
+
+        private static IReadOnlyList<SpeechRegion> CreateRegions(
+            IPreparedTranscriptionAudio audio,
+            CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var endSample = audio.SampleCount;
-            IReadOnlyList<SpeechRegion> result = endSample == 0
+            return endSample == 0
                 ? []
                 : [new SpeechRegion(0, 0, endSample, [new AudioSampleRange(0, endSample)], [0])];
-            return Task.FromResult(result);
         }
     }
 
