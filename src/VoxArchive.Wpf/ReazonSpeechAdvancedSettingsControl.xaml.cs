@@ -10,6 +10,7 @@ namespace VoxArchive.Wpf;
 /// このControlは保存処理を持たず、親設定Windowの編集バッファだけを操作する。
 /// 「既定値に戻す」も即時永続化せず、設定Windowの保存時にのみ反映される。
 /// 保存済み値が現在の環境で無効でも読み込み自体は失敗させず、その値を表示したまま利用者が修正できる状態を維持する。
+/// 新たなユーザー入力では実行可能範囲だけを許可し、既存の不正保存値を保持する互換性と入力制約を分離する。
 /// </remarks>
 public partial class ReazonSpeechAdvancedSettingsControl : UserControl
 {
@@ -27,6 +28,7 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
     public ReazonSpeechAdvancedSettingsControl()
     {
         InitializeComponent();
+        ConfigureNumericControls();
         PrecisionComboBox.SelectionChanged += OnPrecisionSelectionChanged;
         ApplyValues(new Dictionary<string, string>
         {
@@ -63,8 +65,12 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
 
             SelectByTagAllowingUnsupported(PrecisionComboBox, precision, SupportedPrecisions);
             SelectByTagAllowingUnsupported(DecodingMethodComboBox, decodingMethod, SupportedDecodingMethods);
-            MaxActivePathsControl.Value = maxActivePaths;
-            CpuThreadsControl.Value = cpuThreads;
+
+            // 旧バージョン等から不正な保存値を読み込んだ場合は、その値を勝手にclampせず表示・保持する。
+            // ただしControlの通常入力範囲は直後に実行可能値へ戻し、新たな不正値をユーザーが入力できないようにする。
+            ApplyPersistedNumericValue(MaxActivePathsControl, maxActivePaths, 1, int.MaxValue);
+            ApplyPersistedNumericValue(CpuThreadsControl, cpuThreads, 1, Math.Max(1, Environment.ProcessorCount));
+
             UpdateDecodingDependentState();
             UpdateValidationMessage(precision, decodingMethod, maxActivePaths, cpuThreads);
         }
@@ -72,6 +78,34 @@ public partial class ReazonSpeechAdvancedSettingsControl : UserControl
         {
             _isApplyingValues = false;
         }
+    }
+
+    private void ConfigureNumericControls()
+    {
+        MaxActivePathsControl.Minimum = 1;
+        MaxActivePathsControl.Maximum = int.MaxValue;
+        MaxActivePathsControl.Increment = 1;
+        MaxActivePathsControl.DecimalPlaces = 0;
+
+        CpuThreadsControl.Minimum = 1;
+        CpuThreadsControl.Maximum = Math.Max(1, Environment.ProcessorCount);
+        CpuThreadsControl.Increment = 1;
+        CpuThreadsControl.DecimalPlaces = 0;
+    }
+
+    private static void ApplyPersistedNumericValue(
+        NumericUpDownControl control,
+        int value,
+        int validMinimum,
+        int validMaximum)
+    {
+        // Value setterは現在の範囲外を拒否するため、保存済み値を復元する瞬間だけ全int範囲を許可する。
+        // 復元後は通常編集範囲へ戻すがValue自体は変更しないため、未知・不正な既存値を暗黙修正しない。
+        control.Minimum = int.MinValue;
+        control.Maximum = int.MaxValue;
+        control.Value = value;
+        control.Minimum = validMinimum;
+        control.Maximum = validMaximum;
     }
 
     private void OnPrecisionSelectionChanged(object sender, SelectionChangedEventArgs e)
