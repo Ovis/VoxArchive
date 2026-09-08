@@ -37,6 +37,7 @@ public sealed class TranscriptionOrchestrator(
         var speakerLabelingMilliseconds = 0L;
         var canonicalAndOutputMilliseconds = 0L;
         IPreparedTranscriptionAudio? preparedAudio = null;
+        IReadOnlyList<SpeechRegion>? speechRegions = null;
         TranscriptionDiagnosticSource? diagnosticSource = null;
 
         try
@@ -65,7 +66,7 @@ public sealed class TranscriptionOrchestrator(
             failedStage = "vad";
             LogStage(request, "vad", "started", pipelineStopwatch.ElapsedMilliseconds);
             stageStopwatch.Restart();
-            var speechRegions = await speechRegionDetector.DetectAsync(
+            speechRegions = await speechRegionDetector.DetectAsync(
                 preparedAudio,
                 request.SpeechRegionDetectorSettings,
                 cancellationToken);
@@ -125,6 +126,7 @@ public sealed class TranscriptionOrchestrator(
                 await WriteDiagnosticAsync(
                     request,
                     diagnosticSource ?? BuildFallbackDiagnosticSource(request.SourceRecordingPath, preparedAudio),
+                    speechRegions,
                     finishedAt,
                     status: "success",
                     failedStage: null,
@@ -160,6 +162,7 @@ public sealed class TranscriptionOrchestrator(
                     await WriteDiagnosticAsync(
                         request,
                         diagnosticSource ?? BuildFallbackDiagnosticSource(request.SourceRecordingPath, preparedAudio, engine.AudioRequirements),
+                        speechRegions,
                         DateTimeOffset.Now,
                         status: "failed",
                         failedStage,
@@ -245,6 +248,7 @@ public sealed class TranscriptionOrchestrator(
     private async Task WriteDiagnosticAsync(
         TranscriptionOrchestrationRequest request,
         TranscriptionDiagnosticSource source,
+        IReadOnlyList<SpeechRegion>? speechRegions,
         DateTimeOffset timestamp,
         string status,
         string? failedStage,
@@ -275,6 +279,17 @@ public sealed class TranscriptionOrchestrator(
                 SpeakerGainDb = request.SpeakerGainDb,
                 MicrophoneGainDb = request.MicrophoneGainDb
             },
+            Vad = speechRegions is null
+                ? null
+                : new TranscriptionDiagnosticVad
+                {
+                    Detector = speechRegionDetector.GetType().Name,
+                    Settings = CloneIfDefined(request.SpeechRegionDetectorSettings.Settings),
+                    SpeechRegions = speechRegions.Select(ToDiagnosticSpeechRegion).ToArray(),
+                    FallbackUsed = false,
+                    FallbackReason = null,
+                    ElapsedMilliseconds = vadMilliseconds
+                },
             Timings = new TranscriptionDiagnosticTimings
             {
                 OverallMilliseconds = overallMilliseconds,
@@ -292,6 +307,16 @@ public sealed class TranscriptionOrchestrator(
         // writer自身が通常ログへwarningを残すため、戻り値は本pipelineでは利用しない。
         await diagnosticWriter.TryWriteAsync(request.SourceRecordingPath, timestamp, document, CancellationToken.None);
     }
+
+    private static TranscriptionDiagnosticSpeechRegion ToDiagnosticSpeechRegion(SpeechRegion region)
+        => new(
+            region.SpeechRegionId,
+            region.StartSample,
+            region.EndSample,
+            region.CoreRanges
+                .Select(range => new TranscriptionDiagnosticSampleRange(range.StartSample, range.EndSample))
+                .ToArray(),
+            region.SourceRawSpeechRegionIds.ToArray());
 
     private static System.Text.Json.JsonElement? CloneIfDefined(System.Text.Json.JsonElement? element)
         => element is { ValueKind: not System.Text.Json.JsonValueKind.Undefined }
