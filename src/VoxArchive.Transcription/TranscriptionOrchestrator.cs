@@ -46,6 +46,7 @@ public sealed class TranscriptionOrchestrator(
         TranscriptionEngineDiagnosticTrace? engineDiagnostic = null;
         TranscriptionEngineResult? rawEngineResult = null;
         TranscriptionEngineResult? canonicalEngineResult = null;
+        IReadOnlyList<SpeakerLabelingDiagnosticTrace>? speakerDiagnostic = null;
         TranscriptionDiagnosticSource? diagnosticSource = null;
 
         try
@@ -123,7 +124,25 @@ public sealed class TranscriptionOrchestrator(
             failedStage = "speaker-labeling";
             LogStage(request, "speaker-labeling", "started", pipelineStopwatch.ElapsedMilliseconds);
             stageStopwatch.Restart();
-            var labeled = speakerLabelService.Apply(request.SourceRecordingPath, canonicalEngineResult.Segments, cancellationToken);
+            IReadOnlyList<LabeledTranscriptionSegment> labeled;
+            if (request.DiagnosticsEnabled)
+            {
+                // 診断値を通常処理とは別に再計算するとラベルと根拠が食い違う可能性があるため、
+                // 実際にラベル判定へ使用した同じCH1/CH2エネルギーを同一呼び出しから受け取る。
+                var speakerResult = speakerLabelService.ApplyWithDiagnostics(
+                    request.SourceRecordingPath,
+                    canonicalEngineResult.Segments,
+                    cancellationToken);
+                labeled = speakerResult.Segments;
+                speakerDiagnostic = speakerResult.Traces;
+            }
+            else
+            {
+                labeled = speakerLabelService.Apply(
+                    request.SourceRecordingPath,
+                    canonicalEngineResult.Segments,
+                    cancellationToken);
+            }
             stageStopwatch.Stop();
             speakerLabelingMilliseconds = stageStopwatch.ElapsedMilliseconds;
             LogStage(request, "speaker-labeling", "completed", pipelineStopwatch.ElapsedMilliseconds);
@@ -154,6 +173,7 @@ public sealed class TranscriptionOrchestrator(
                     vadTrace,
                     engineDiagnostic,
                     canonicalEngineResult,
+                    speakerDiagnostic,
                     finishedAt,
                     status: "success",
                     failedStage: null,
@@ -197,6 +217,7 @@ public sealed class TranscriptionOrchestrator(
                         vadTrace,
                         engineDiagnostic,
                         canonicalEngineResult,
+                        speakerDiagnostic,
                         DateTimeOffset.Now,
                         status: "failed",
                         failedStage,
@@ -286,6 +307,7 @@ public sealed class TranscriptionOrchestrator(
         SpeechRegionDetectionDiagnosticTrace? vadTrace,
         TranscriptionEngineDiagnosticTrace? engineDiagnostic,
         TranscriptionEngineResult? canonicalEngineResult,
+        IReadOnlyList<SpeakerLabelingDiagnosticTrace>? speakerDiagnostic,
         DateTimeOffset timestamp,
         string status,
         string? failedStage,
@@ -362,6 +384,15 @@ public sealed class TranscriptionOrchestrator(
                         DiscardReason = trace.DiscardReason
                             ?? (discarded ? "canonical-discarded" : null)
                     };
+                })
+                .ToArray() ?? [],
+            SpeakerResults = speakerDiagnostic?
+                .Select(trace => new TranscriptionDiagnosticSpeakerResult
+                {
+                    RecognitionChunkId = trace.RecognitionChunkId,
+                    SpeakerLabel = trace.SpeakerLabel,
+                    SpeakerChannelEnergy = trace.SpeakerChannelEnergy,
+                    MicrophoneChannelEnergy = trace.MicrophoneChannelEnergy
                 })
                 .ToArray() ?? [],
             Timings = new TranscriptionDiagnosticTimings
