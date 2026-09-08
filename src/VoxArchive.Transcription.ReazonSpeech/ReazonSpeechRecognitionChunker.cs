@@ -1,3 +1,4 @@
+using System.Text.Json;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.ReazonSpeech;
@@ -49,7 +50,14 @@ public sealed class ReazonSpeechRecognitionChunker : IDiagnosticRecognitionChunk
 
             if (region.Length <= MaximumChunkSamples)
             {
-                AddChunk(chunks, traces, region.SpeechRegionId, region.StartSample, region.EndSample, "speech-region");
+                AddChunk(
+                    chunks,
+                    traces,
+                    region.SpeechRegionId,
+                    region.StartSample,
+                    region.EndSample,
+                    "speech-region",
+                    splitDetails: null);
                 continue;
             }
 
@@ -75,14 +83,28 @@ public sealed class ReazonSpeechRecognitionChunker : IDiagnosticRecognitionChunk
             cancellationToken.ThrowIfCancellationRequested();
 
             var splitReason = string.Empty;
+            JsonElement? splitDetails = null;
             var normalBoundary = ReazonSpeechSilenceBoundarySelector.Select(
                 analysis,
                 chunkStart,
                 region.EndSample);
             var selectedSample = normalBoundary?.SelectedSample;
-            if (selectedSample is not null)
+            if (normalBoundary is not null)
             {
                 splitReason = "silence";
+                if (traces is not null)
+                {
+                    splitDetails = JsonSerializer.SerializeToElement(new
+                    {
+                        p20Rms = analysis.P20Rms,
+                        targetSample = normalBoundary.TargetSample,
+                        searchStartSample = normalBoundary.SearchStartSample,
+                        searchEndSample = normalBoundary.SearchEndSample,
+                        selectedSample = normalBoundary.SelectedSample,
+                        silenceStartSample = normalBoundary.SilenceStartSample,
+                        silenceEndSample = normalBoundary.SilenceEndSample
+                    });
+                }
             }
 
             if (selectedSample is null)
@@ -92,9 +114,23 @@ public sealed class ReazonSpeechRecognitionChunker : IDiagnosticRecognitionChunk
                     chunkStart,
                     region.EndSample);
                 selectedSample = forcedBoundary?.SelectedSample;
-                if (selectedSample is not null)
+                if (forcedBoundary is not null)
                 {
                     splitReason = "forced-rms";
+                    if (traces is not null)
+                    {
+                        splitDetails = JsonSerializer.SerializeToElement(new
+                        {
+                            p20Rms = analysis.P20Rms,
+                            targetSample = forcedBoundary.TargetSample,
+                            searchStartSample = forcedBoundary.SearchStartSample,
+                            searchEndSample = forcedBoundary.SearchEndSample,
+                            selectedSample = forcedBoundary.SelectedSample,
+                            frameStartSample = forcedBoundary.FrameStartSample,
+                            frameEndSample = forcedBoundary.FrameEndSample,
+                            rms = forcedBoundary.Rms
+                        });
+                    }
                 }
             }
 
@@ -107,9 +143,24 @@ public sealed class ReazonSpeechRecognitionChunker : IDiagnosticRecognitionChunk
                     chunkStart,
                     region.EndSample);
                 selectedSample = tailBoundary?.SelectedSample;
-                if (selectedSample is not null)
+                if (tailBoundary is not null)
                 {
                     splitReason = "tail-redistribution";
+                    if (traces is not null)
+                    {
+                        splitDetails = JsonSerializer.SerializeToElement(new
+                        {
+                            p20Rms = analysis.P20Rms,
+                            targetSample = tailBoundary.TargetSample,
+                            searchStartSample = tailBoundary.SearchStartSample,
+                            searchEndSample = tailBoundary.SearchEndSample,
+                            selectedSample = tailBoundary.SelectedSample,
+                            usedSilence = tailBoundary.UsedSilence,
+                            silenceStartSample = tailBoundary.SilenceStartSample,
+                            silenceEndSample = tailBoundary.SilenceEndSample,
+                            rms = tailBoundary.Rms
+                        });
+                    }
                 }
             }
 
@@ -123,13 +174,27 @@ public sealed class ReazonSpeechRecognitionChunker : IDiagnosticRecognitionChunk
                     + $" StartSample={chunkStart}, EndSample={region.EndSample}");
             }
 
-            AddChunk(chunks, traces, region.SpeechRegionId, chunkStart, selectedSample.Value, splitReason);
+            AddChunk(
+                chunks,
+                traces,
+                region.SpeechRegionId,
+                chunkStart,
+                selectedSample.Value,
+                splitReason,
+                splitDetails);
             chunkStart = selectedSample.Value;
         }
 
         if (region.EndSample > chunkStart)
         {
-            AddChunk(chunks, traces, region.SpeechRegionId, chunkStart, region.EndSample, "region-end");
+            AddChunk(
+                chunks,
+                traces,
+                region.SpeechRegionId,
+                chunkStart,
+                region.EndSample,
+                "region-end",
+                splitDetails: null);
         }
     }
 
@@ -139,7 +204,8 @@ public sealed class ReazonSpeechRecognitionChunker : IDiagnosticRecognitionChunk
         int speechRegionId,
         long startSample,
         long endSample,
-        string splitReason)
+        string splitReason,
+        JsonElement? splitDetails)
     {
         var chunk = CreateChunk(chunks.Count, speechRegionId, startSample, endSample);
         chunks.Add(chunk);
@@ -148,7 +214,8 @@ public sealed class ReazonSpeechRecognitionChunker : IDiagnosticRecognitionChunk
             chunk.SpeechRegionId,
             chunk.StartSample,
             chunk.EndSample,
-            splitReason));
+            splitReason,
+            splitDetails));
     }
 
     private static RecognitionChunk CreateChunk(
