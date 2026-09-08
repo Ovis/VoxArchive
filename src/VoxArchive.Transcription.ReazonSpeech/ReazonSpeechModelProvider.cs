@@ -145,12 +145,16 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider, ITr
                 return Task.CompletedTask;
             },
             adapter,
-            cancellationToken);
-        InvalidateValidation(package.PackageId);
-        if (!IsReady(package.PackageId))
-        {
-            throw new InvalidDataException("ReazonSpeechモデルは配置後の再確認に失敗しました。");
-        }
+            cancellationToken,
+            committed =>
+            {
+                // stagingで成功しても正式パス固有の問題でloadできない場合があるため、
+                // transactionが旧モデルのbackupを保持している間に正式配置からもnative loadする。
+                ValidateLoad(package, committed);
+                return Task.CompletedTask;
+            });
+
+        lock (_validationGate) _validationCache[package.PackageId.Value] = true;
         return BuildInstallation(package, directory);
     }
 
