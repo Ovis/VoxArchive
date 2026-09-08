@@ -13,12 +13,14 @@ namespace VoxArchive.Transcription.SileroVad;
 public sealed class SileroPreferredSpeechRegionDetector(
     ISpeechRegionDetector sileroDetector,
     ISpeechRegionDetector fallbackDetector,
-    ILogger<SileroPreferredSpeechRegionDetector> logger) : IDiagnosticSpeechRegionDetector
+    ILogger<SileroPreferredSpeechRegionDetector> logger,
+    ITranscriptionWarningSink? warningSink = null) : IDiagnosticSpeechRegionDetector
 {
     private const int ConsecutiveInferenceFailureLimit = 3;
     private readonly ISpeechRegionDetector _sileroDetector = sileroDetector ?? throw new ArgumentNullException(nameof(sileroDetector));
     private readonly ISpeechRegionDetector _fallbackDetector = fallbackDetector ?? throw new ArgumentNullException(nameof(fallbackDetector));
     private readonly ILogger<SileroPreferredSpeechRegionDetector> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly ITranscriptionWarningSink? _warningSink = warningSink;
     private readonly object _stateLock = new();
     private int _consecutiveInferenceFailures;
     private bool _sileroSuppressedForSession;
@@ -49,6 +51,7 @@ public sealed class SileroPreferredSpeechRegionDetector(
         if (IsSileroSuppressed())
         {
             _logger.LogInformation("Silero VAD is suppressed for this application session. Falling back to volume-based VAD.");
+            ReportWarning("silero-session-suppressed");
             return await RunFallbackAsync(audio, settings, "session-suppressed", includeDiagnostics, cancellationToken);
         }
 
@@ -71,6 +74,7 @@ public sealed class SileroPreferredSpeechRegionDetector(
             // 未配置・破損・初期化失敗はモデル利用不可としてfallbackするが、
             // 「3回連続した推論失敗」によるsession suppressionの対象には含めない。
             _logger.LogWarning(ex, "Silero VAD is unavailable. Falling back to volume-based VAD.");
+            ReportWarning("silero-unavailable");
             return await RunFallbackAsync(audio, settings, "silero-unavailable", includeDiagnostics, cancellationToken);
         }
         catch (Exception ex)
@@ -81,6 +85,9 @@ public sealed class SileroPreferredSpeechRegionDetector(
                 "Silero VAD inference failed. Falling back to volume-based VAD. ConsecutiveFailures={ConsecutiveFailures} SuppressedForSession={SuppressedForSession}",
                 failureCount,
                 failureCount >= ConsecutiveInferenceFailureLimit);
+            ReportWarning(failureCount >= ConsecutiveInferenceFailureLimit
+                ? "silero-inference-failed-session-suppressed"
+                : "silero-inference-failed");
 
             // Silero側で途中までregionを得ていても採用せず、同一Prepared Audioをfallbackで最初から解析する。
             // fallbackまで失敗した場合はその例外を上位へ伝え、VADなしでASRへ進ませない。
@@ -143,6 +150,24 @@ public sealed class SileroPreferredSpeechRegionDetector(
                 FallbackReason = reason
             }
         };
+    }
+
+    private void ReportWarning(string code)
+    {
+        if (_warningSink is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // UI通知失敗で文字起こし本体を失敗させない。通常ログと詳細診断が一次情報として残る。
+            _warningSink.Report(new TranscriptionWarning(code));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to report non-blocking transcription warning. Code={Code}", code);
+        }
     }
 
     private bool IsSileroSuppressed()
