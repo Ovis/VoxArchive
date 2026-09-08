@@ -7,7 +7,7 @@ using VoxArchive.Domain;
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// 共通発話検出で利用するSilero VADモデル管理と設定編集UIを提供する
+/// 共通発話検出方式の選択とSilero VADモデル管理・設定編集UIを提供する
 /// </summary>
 public partial class SpeechRegionDetectorSettingsControl : UserControl
 {
@@ -29,11 +29,17 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
     }
 
     /// <summary>
-    /// 親設定画面が保持するSilero VAD編集値を取得・設定する
+    /// 親設定画面が保持する発話検出方式とSilero VAD編集値を取得・設定する
     /// </summary>
     public SileroVadSettings Settings
     {
-        get => _settings with { Threshold = ThresholdNumericUpDown.Value };
+        get => _settings with
+        {
+            Mode = VolumeBasedModeRadioButton.IsChecked == true
+                ? SpeechRegionDetectorMode.VolumeBased
+                : SpeechRegionDetectorMode.Silero,
+            Threshold = ThresholdNumericUpDown.Value
+        };
         set
         {
             _settings = value ?? throw new ArgumentNullException(nameof(value));
@@ -54,6 +60,35 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
     {
         ThresholdNumericUpDown.Value = settings.Threshold;
         _settings = settings;
+
+        if (settings.Mode == SpeechRegionDetectorMode.VolumeBased)
+        {
+            VolumeBasedModeRadioButton.IsChecked = true;
+        }
+        else
+        {
+            // 旧設定や未知のenum値を読み込んだ場合も、従来動作を維持するためSileroを選択状態にする。
+            SileroModeRadioButton.IsChecked = true;
+        }
+
+        UpdateModeState();
+    }
+
+    private void OnVadModeChanged(object sender, RoutedEventArgs e)
+    {
+        if (SileroSettingsPanel is null)
+        {
+            return;
+        }
+
+        UpdateModeState();
+    }
+
+    private void UpdateModeState()
+    {
+        // 音量ベース選択中もSilero設定値は編集バッファに保持する。
+        // 再びSileroへ戻した際にモデルや調整値をそのまま再利用できるよう、UIは隠さず無効化だけ行う。
+        SileroSettingsPanel.IsEnabled = VolumeBasedModeRadioButton.IsChecked != true;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -172,7 +207,7 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
         var owner = Window.GetWindow(this);
         var result = ModernDialog.Show(
             owner,
-            "Silero VADモデルを削除します。設定値は維持され、モデルがない間は音量ベースVADへ自動的に切り替わります。",
+            "Silero VADモデルを削除します。設定値は維持され、Silero VADを選択した状態でモデルがない場合は音量ベースVADへ自動的に切り替わります。",
             "Silero VADモデル削除",
             MessageBoxButton.OKCancel,
             MessageBoxImage.Warning,
@@ -211,15 +246,19 @@ public partial class SpeechRegionDetectorSettingsControl : UserControl
             return;
         }
 
-        // 詳細ダイアログではThresholdを編集しないため、親Controlの現在値を維持して4項目だけ反映する。
-        _settings = dialog.ResultSettings with { Threshold = current.Threshold };
+        // 詳細ダイアログではThresholdと方式を編集しないため、親Controlの現在値を維持して4項目だけ反映する。
+        _settings = dialog.ResultSettings with
+        {
+            Mode = current.Mode,
+            Threshold = current.Threshold
+        };
     }
 
     private void OnResetDefaultsClick(object sender, RoutedEventArgs e)
     {
-        // Thresholdを含む5項目を一つの標準profileとして戻す。
-        // 詳細ダイアログだけで4項目を初期化するとThresholdだけ旧値が残るため、共通Controlで全項目を同時に更新する。
-        ApplySettings(new SileroVadSettings());
+        // 「既定値に戻す」はSileroの5項目だけを対象とし、利用者が選択したVAD方式は変更しない。
+        // 音量ベースを選んだまま事前にSilero設定だけ標準値へ戻せるよう、Modeを明示的に維持する。
+        ApplySettings(new SileroVadSettings { Mode = Settings.Mode });
     }
 
     private void ApplyStatus(SpeechRegionDetectorModelStatusInfo status)
