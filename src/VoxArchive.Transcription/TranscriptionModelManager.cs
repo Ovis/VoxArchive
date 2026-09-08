@@ -114,8 +114,8 @@ public sealed class TranscriptionModelManager(
                 var usageBlock = usageTracker.BlockNewReservations(force ? "再取得" : "取得");
                 try
                 {
-                    var descriptor = GetProvider(key.EngineId).GetAvailableModels()
-                        .FirstOrDefault(x => x.ModelId == key.ModelId)
+                    var provider = GetProvider(key.EngineId);
+                    var descriptor = ResolveDownloadDescriptor(provider, key.ModelId)
                         ?? throw new NotSupportedException($"未対応のモデルです: {key.EngineId}/{key.ModelId}");
                     active = new ActiveDownload(
                         key,
@@ -333,6 +333,18 @@ public sealed class TranscriptionModelManager(
     private ITranscriptionModelProvider GetProvider(TranscriptionEngineId engineId)
         => engineRegistry.Get(engineId).ModelProvider
            ?? throw new InvalidOperationException($"このEngineはmanaged modelを使用しません: {engineId}");
+
+    private static TranscriptionModelDescriptor? ResolveDownloadDescriptor(
+        ITranscriptionModelProvider provider,
+        TranscriptionModelId modelId)
+    {
+        // 利用者向けcatalogへ物理packageを露出させないEngineだけ、内部descriptor capabilityで解決する。
+        // 通常のEngineは従来どおり公開catalogをそのまま利用する。
+        var internalDescriptor = (provider as ITranscriptionInternalModelDescriptorCapability)?
+            .ResolveInternalDescriptor(modelId);
+        return internalDescriptor
+               ?? provider.GetAvailableModels().FirstOrDefault(x => x.ModelId == modelId);
+    }
 
     private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
 
