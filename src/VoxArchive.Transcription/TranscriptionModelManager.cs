@@ -16,6 +16,7 @@ public sealed class TranscriptionModelManager(
     private readonly object _gate = new();
     private ActiveDownload? _activeDownload;
     private string? _activeExclusiveOperation;
+    private TranscriptionModelUsageBlock? _exclusiveUsageBlock;
 
     /// <summary>取得開始・進捗・終了・キャンセル状態が変化したときに通知する</summary>
     public event EventHandler? StateChanged;
@@ -65,20 +66,8 @@ public sealed class TranscriptionModelManager(
     /// <summary>
     /// モデル管理操作と競合しない状態で文字起こし用reservationを取得する
     /// </summary>
-    /// <remarks>
-    /// 操作中判定とreservation取得を同じgate内で行い、「確認直後にdeleteが始まる」raceを防ぐ。
-    /// </remarks>
     public TranscriptionModelUsageReservation ReserveForTranscription(TranscriptionModelKey key)
-    {
-        lock (_gate)
-        {
-            if (_activeDownload is not null || _activeExclusiveOperation is not null)
-            {
-                throw new InvalidOperationException("モデルの処理中です。完了後に再度実行してください。");
-            }
-            return usageTracker.Acquire(key);
-        }
-    }
+        => usageTracker.Acquire(key);
 
     /// <summary>現在進行中のモデル取得snapshotを取得する</summary>
     public TranscriptionModelDownloadSnapshot? GetActiveDownload()
@@ -120,18 +109,29 @@ public sealed class TranscriptionModelManager(
             }
             else
             {
-                EnsureNoTranscriptionInUse(force ? "再取得" : "取得");
-                var descriptor = GetProvider(key.EngineId).GetAvailableModels()
-                    .FirstOrDefault(x => x.ModelId == key.ModelId)
-                    ?? throw new NotSupportedException($"未対応のモデルです: {key.EngineId}/{key.ModelId}");
-                active = new ActiveDownload(
-                    key,
-                    descriptor.DisplayName,
-                    force,
-                    new CancellationTokenSource(),
-                    progress);
-                _activeDownload = active;
-                active.Completion = RunOwnedDownloadAsync(active);
+                // 既存reservation確認と新規reservation禁止をUsageTrackerの同じlockで行う。
+                // AdmissionがManager経由でなく直接Acquireしても、このlease保持中は確実に拒否される。
+                var usageBlock = usageTracker.BlockNewReservations(force ? "再取得" : "取得");
+                try
+                {
+                    var descriptor = GetProvider(key.EngineId).GetAvailableModels()
+                        .FirstOrDefault(x => x.ModelId == key.ModelId)
+                        ?? throw new NotSupportedException($"未対応のモデルです: {key.EngineId}/{key.ModelId}");
+                    active = new ActiveDownload(
+                        key,
+                        descriptor.DisplayName,
+                        force,
+                        new CancellationTokenSource(),
+                        progress,
+                        usageBlock);
+                    _activeDownload = active;
+                    active.Completion = RunOwnedDownloadAsync(active);
+                }
+                catch
+                {
+                    usageBlock.Dispose();
+                    throw;
+                }
             }
         }
 
@@ -271,6 +271,7 @@ public sealed class TranscriptionModelManager(
             {
                 if (ReferenceEquals(_activeDownload, active)) _activeDownload = null;
             }
+            active.UsageBlock.Dispose();
             active.Cancellation.Dispose();
             RaiseStateChanged();
         }
@@ -309,31 +310,29 @@ public sealed class TranscriptionModelManager(
             {
                 throw new InvalidOperationException($"別のモデル処理中です: {_activeExclusiveOperation}");
             }
-            EnsureNoTranscriptionInUse(operation);
+
+            var usageBlock = usageTracker.BlockNewReservations(operation);
             _activeExclusiveOperation = operation;
+            _exclusiveUsageBlock = usageBlock;
         }
         RaiseStateChanged();
     }
 
     private void EndExclusiveOperation()
     {
+        TranscriptionModelUsageBlock? usageBlock;
         lock (_gate)
         {
             _activeExclusiveOperation = null;
+            usageBlock = _exclusiveUsageBlock;
+            _exclusiveUsageBlock = null;
         }
+        usageBlock?.Dispose();
     }
 
     private ITranscriptionModelProvider GetProvider(TranscriptionEngineId engineId)
         => engineRegistry.Get(engineId).ModelProvider
            ?? throw new InvalidOperationException($"このEngineはmanaged modelを使用しません: {engineId}");
-
-    private void EnsureNoTranscriptionInUse(string operation)
-    {
-        if (usageTracker.AnyInUse())
-        {
-            throw new InvalidOperationException($"文字起こし処理中のためモデルを{operation}できません。");
-        }
-    }
 
     private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
 
@@ -342,13 +341,15 @@ public sealed class TranscriptionModelManager(
         string modelDisplayName,
         bool force,
         CancellationTokenSource cancellation,
-        IProgress<TranscriptionModelTransferProgress>? externalProgress)
+        IProgress<TranscriptionModelTransferProgress>? externalProgress,
+        TranscriptionModelUsageBlock usageBlock)
     {
         public TranscriptionModelKey Key { get; } = key;
         public string ModelDisplayName { get; } = modelDisplayName;
         public bool Force { get; } = force;
         public CancellationTokenSource Cancellation { get; } = cancellation;
         public IProgress<TranscriptionModelTransferProgress>? ExternalProgress { get; } = externalProgress;
+        public TranscriptionModelUsageBlock UsageBlock { get; } = usageBlock;
         public Task<TranscriptionModelInstallation> Completion { get; set; } = null!;
         public long BytesReceived { get; set; }
         public long TotalBytes { get; set; }
