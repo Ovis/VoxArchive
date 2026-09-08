@@ -16,6 +16,8 @@ public sealed class TranscriptionModelManager(
     private readonly object _gate = new();
     private ActiveDownload? _activeDownload;
     private string? _activeExclusiveOperation;
+    private TranscriptionModelKey? _activeExclusiveKey;
+    private TaskCompletionSource? _activeExclusiveCompletion;
     private TranscriptionModelUsageBlock? _exclusiveUsageBlock;
 
     /// <summary>取得開始・進捗・終了・キャンセル状態が変化したときに通知する</summary>
@@ -36,7 +38,7 @@ public sealed class TranscriptionModelManager(
             return GetProvider(key.EngineId).Inspect(key.ModelId, level);
         }
 
-        BeginExclusiveOperation("再確認");
+        BeginExclusiveOperation("再確認", key);
         try
         {
             return GetProvider(key.EngineId).Inspect(key.ModelId, level);
@@ -60,6 +62,35 @@ public sealed class TranscriptionModelManager(
         lock (_gate)
         {
             return _activeDownload is not null || _activeExclusiveOperation is not null;
+        }
+    }
+
+    /// <summary>
+    /// 再確認・削除など、強制キャンセルしない排他モデル操作の現在状態を取得する
+    /// </summary>
+    public TranscriptionModelExclusiveOperationSnapshot? GetActiveExclusiveOperation()
+    {
+        lock (_gate)
+        {
+            return _activeExclusiveOperation is null || _activeExclusiveKey is null
+                ? null
+                : new TranscriptionModelExclusiveOperationSnapshot(_activeExclusiveKey.Value, _activeExclusiveOperation);
+        }
+    }
+
+    /// <summary>
+    /// 現在実行中の再確認・削除があれば、その操作が安全に終了するまで待つ
+    /// </summary>
+    public async Task WaitForActiveExclusiveOperationAsync()
+    {
+        Task? completion;
+        lock (_gate)
+        {
+            completion = _activeExclusiveCompletion?.Task;
+        }
+        if (completion is not null)
+        {
+            await completion;
         }
     }
 
@@ -187,7 +218,7 @@ public sealed class TranscriptionModelManager(
     /// <summary>文字起こしが実行中でなく、他のモデル操作もない場合だけモデルを削除する</summary>
     public async Task DeleteAsync(TranscriptionModelKey key, CancellationToken cancellationToken = default)
     {
-        BeginExclusiveOperation("削除");
+        BeginExclusiveOperation("削除", key);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -205,7 +236,7 @@ public sealed class TranscriptionModelManager(
     /// </summary>
     public TranscriptionModelInspection Reverify(TranscriptionModelKey key)
     {
-        BeginExclusiveOperation("再確認");
+        BeginExclusiveOperation("再確認", key);
         try
         {
             return GetProvider(key.EngineId).Inspect(key.ModelId, TranscriptionModelInspectionLevel.Hash);
@@ -300,7 +331,7 @@ public sealed class TranscriptionModelManager(
         }
     }
 
-    private void BeginExclusiveOperation(string operation)
+    private void BeginExclusiveOperation(string operation, TranscriptionModelKey key)
     {
         lock (_gate)
         {
@@ -315,6 +346,8 @@ public sealed class TranscriptionModelManager(
 
             var usageBlock = usageTracker.BlockNewReservations(operation);
             _activeExclusiveOperation = operation;
+            _activeExclusiveKey = key;
+            _activeExclusiveCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _exclusiveUsageBlock = usageBlock;
         }
         RaiseStateChanged();
@@ -323,13 +356,18 @@ public sealed class TranscriptionModelManager(
     private void EndExclusiveOperation()
     {
         TranscriptionModelUsageBlock? usageBlock;
+        TaskCompletionSource? completion;
         lock (_gate)
         {
             _activeExclusiveOperation = null;
+            _activeExclusiveKey = null;
+            completion = _activeExclusiveCompletion;
+            _activeExclusiveCompletion = null;
             usageBlock = _exclusiveUsageBlock;
             _exclusiveUsageBlock = null;
         }
         usageBlock?.Dispose();
+        completion?.TrySetResult();
     }
 
     private ITranscriptionModelProvider GetProvider(TranscriptionEngineId engineId)
@@ -402,6 +440,11 @@ public sealed record TranscriptionModelDownloadSnapshot(
     /// <summary>0～100の進捗率を取得する</summary>
     public double Percent => TotalBytes <= 0 ? 0d : Math.Clamp(BytesReceived * 100d / TotalBytes, 0d, 100d);
 }
+
+/// <summary>強制停止せず完了待機するモデル再確認・削除の現在状態を表す</summary>
+public sealed record TranscriptionModelExclusiveOperationSnapshot(
+    TranscriptionModelKey Key,
+    string OperationName);
 
 /// <summary>別モデル取得が進行中で新しいdownloadを開始できないことを表す</summary>
 public sealed class TranscriptionModelDownloadBusyException(TranscriptionModelDownloadSnapshot activeDownload)
