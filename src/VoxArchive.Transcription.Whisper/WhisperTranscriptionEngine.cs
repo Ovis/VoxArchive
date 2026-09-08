@@ -32,10 +32,28 @@ public sealed class WhisperTranscriptionEngine(
             throw new ArgumentException("Whisper Engineへ異なるoptions型が渡されました。", nameof(request));
         }
 
-        var chunks = await recognitionChunker.CreateChunksAsync(request.Audio, request.SpeechRegions, cancellationToken);
+        RecognitionChunkingDiagnosticResult? chunkingDiagnostic = null;
+        IReadOnlyList<RecognitionChunk> chunks;
+        if (request.Context.DiagnosticsEnabled)
+        {
+            chunkingDiagnostic = await recognitionChunker.CreateChunksWithDiagnosticsAsync(
+                request.Audio,
+                request.SpeechRegions,
+                cancellationToken);
+            chunks = chunkingDiagnostic.Chunks;
+        }
+        else
+        {
+            chunks = await recognitionChunker.CreateChunksAsync(request.Audio, request.SpeechRegions, cancellationToken);
+        }
+
         if (chunks.Count == 0)
         {
-            return new TranscriptionEngineResult([]);
+            return new TranscriptionEngineResult(
+                [],
+                Diagnostics: request.Context.DiagnosticsEnabled
+                    ? new TranscriptionEngineDiagnosticTrace(chunkingDiagnostic?.Traces ?? [])
+                    : null);
         }
 
         using var session = processorFactory.Create(options);
@@ -58,7 +76,10 @@ public sealed class WhisperTranscriptionEngine(
                 {
                     ["requestedBackend"] = requestedBackend,
                     ["actualBackend"] = actualBackend
-                });
+                },
+                request.Context.DiagnosticsEnabled
+                    ? new TranscriptionEngineDiagnosticTrace(chunkingDiagnostic?.Traces ?? [])
+                    : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
