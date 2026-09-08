@@ -724,6 +724,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 AutoTranscriptionPriority = _options.Transcription.AutoPriority,
                 ManualTranscriptionPriority = _options.Transcription.ManualPriority,
                 TranscriptionToastNotificationEnabled = _options.Transcription.ToastNotificationEnabled,
+                SileroVadSettings = currentTranscription.SileroVad,
                 FfmpegExecutablePath = _options.FfmpegExecutablePath
             };
 
@@ -773,6 +774,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 DefaultEngine = dialog.DefaultTranscriptionEngine,
                 PreferredLanguage = normalizedLanguage,
                 Engines = engines,
+                SileroVad = dialog.SileroVadSettings,
                 OutputFormats = normalizedFormats,
                 AutoPriority = dialog.AutoTranscriptionPriority,
                 ManualPriority = dialog.ManualTranscriptionPriority,
@@ -1121,6 +1123,6 @@ public sealed class ProcessListItem
         var app = string.IsNullOrWhiteSpace(process.ApplicationName) ? "(no-name)" : process.ApplicationName;
         var exe = string.IsNullOrWhiteSpace(process.ExecutableName) ? "" : $" [{process.ExecutableName}]";
         var title = string.IsNullOrWhiteSpace(process.WindowTitle) ? "" : $" - {process.WindowTitle}";
-        return $"{app}{exe} (PID:{process.ProcessId}){title}";
+        return $"{app}{exe} (PID:{ProcessId}){title}";
     }
 }
