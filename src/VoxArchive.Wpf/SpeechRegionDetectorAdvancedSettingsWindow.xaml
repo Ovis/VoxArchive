@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:VoxArchive.Wpf"
         Title="発話検出の詳細設定"
         Width="430"
-        Height="360"
+        Height="410"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="16">
@@ -30,19 +30,31 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="最小発話時間" />
-                <local:NumericUpDownControl x:Name="MinimumSpeechNumericUpDown" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" />
+                <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                    <TextBlock Text="発話判定しきい値" />
+                    <TextBlock Margin="0,2,0,0"
+                               Foreground="{DynamicResource TextMuted}"
+                               Text="0.01以上1.00未満" />
+                </StackPanel>
+                <local:NumericUpDownControl x:Name="ThresholdNumericUpDown"
+                                            Grid.Row="0"
+                                            Grid.Column="1"
+                                            Margin="0,0,0,8" />
 
-                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="最小無音時間" />
-                <local:NumericUpDownControl x:Name="MinimumSilenceNumericUpDown" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" />
+                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="最小発話時間" />
+                <local:NumericUpDownControl x:Name="MinimumSpeechNumericUpDown" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" />
 
-                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="前方パディング" />
-                <local:NumericUpDownControl x:Name="PrePaddingNumericUpDown" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" />
+                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="最小無音時間" />
+                <local:NumericUpDownControl x:Name="MinimumSilenceNumericUpDown" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" />
 
-                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="後方パディング" />
-                <local:NumericUpDownControl x:Name="PostPaddingNumericUpDown" Grid.Row="3" Grid.Column="1" />
+                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="前方パディング" />
+                <local:NumericUpDownControl x:Name="PrePaddingNumericUpDown" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" />
+
+                <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="後方パディング" />
+                <local:NumericUpDownControl x:Name="PostPaddingNumericUpDown" Grid.Row="4" Grid.Column="1" />
             </Grid>
 
             <Button Margin="0,14,0,0"
