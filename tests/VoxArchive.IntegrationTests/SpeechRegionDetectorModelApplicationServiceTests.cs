@@ -27,7 +27,7 @@ public sealed class SpeechRegionDetectorModelApplicationServiceTests
             Assert.That(manager.CancellationObserved, Is.True);
             Assert.That(service.GetActiveOperation(), Is.Null);
         });
-        Assert.ThrowsAsync<OperationCanceledException>(async () => await installTask);
+        Assert.That(async () => await installTask, Throws.InstanceOf<OperationCanceledException>());
     }
 
     [Test]
@@ -57,7 +57,7 @@ public sealed class SpeechRegionDetectorModelApplicationServiceTests
             Assert.That(manager.CancellationObserved, Is.True, "validation後のcommit判定でcancelを観測する必要がある");
             Assert.That(service.GetActiveOperation(), Is.Null);
         });
-        Assert.ThrowsAsync<OperationCanceledException>(async () => await installTask);
+        Assert.That(async () => await installTask, Throws.InstanceOf<OperationCanceledException>());
     }
 
     private sealed class BlockingModelManager : ISpeechRegionDetectorModelManager
