@@ -25,19 +25,7 @@ public sealed class SpeechRegionDetectorModelApplicationService(
     public Task<SpeechRegionDetectorModelStatusInfo> ReverifyAsync(CancellationToken cancellationToken = default)
     {
         var operation = BeginOperation("モデル再確認", canCancel: false, cancellationToken);
-        operation.Task = Task.Run(() =>
-        {
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                return ToStatus(modelManager.Recheck());
-            }
-            finally
-            {
-                EndOperation(operation);
-            }
-        }, cancellationToken);
-        return (Task<SpeechRegionDetectorModelStatusInfo>)operation.Task;
+        return RunReverifyAsync(operation);
     }
 
     /// <inheritdoc />
@@ -53,7 +41,8 @@ public sealed class SpeechRegionDetectorModelApplicationService(
             {
                 if (x.IsValidating)
                 {
-                    // native validationは安全に中断できないため、終了時はcancel要求だけ記録して完了まで待つ。
+                    // native validation自体は安全に中断できない。CanCancelはUI表示用にfalseへ切り替えるが、
+                    // 終了要求ではTokenをcancelしてvalidation完了後のcommitを抑止する。
                     operation.CanCancel = false;
                 }
 
@@ -64,27 +53,14 @@ public sealed class SpeechRegionDetectorModelApplicationService(
                     x.IsValidating));
             });
 
-        operation.Task = RunInstallAsync(operation, force, adapter);
-        return operation.Task;
+        return RunInstallAsync(operation, force, adapter);
     }
 
     /// <inheritdoc />
     public Task DeleteAsync(CancellationToken cancellationToken = default)
     {
         var operation = BeginOperation("モデル削除", canCancel: false, cancellationToken);
-        operation.Task = Task.Run(() =>
-        {
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                modelManager.Delete();
-            }
-            finally
-            {
-                EndOperation(operation);
-            }
-        }, cancellationToken);
-        return operation.Task;
+        return RunDeleteAsync(operation);
     }
 
     /// <inheritdoc />
@@ -112,20 +88,30 @@ public sealed class SpeechRegionDetectorModelApplicationService(
                 return;
             }
 
-            // download中だけcancelを通知する。validationへ入った後はnative処理を強制停止せず、その完了を待つ。
-            if (operation.CanCancel && !operation.Cancellation.IsCancellationRequested)
+            // validation中もTokenはcancelする。native側にはTokenを渡していないため実処理は完走し、
+            // transactionがvalidation直後にcancelを検出して公式配置へのcommitを行わない。
+            if (!operation.Cancellation.IsCancellationRequested)
             {
                 operation.Cancellation.Cancel();
             }
         }
 
+        await operation.Completion.Task;
+    }
+
+    private async Task<SpeechRegionDetectorModelStatusInfo> RunReverifyAsync(ActiveOperation operation)
+    {
         try
         {
-            await operation.Task;
+            return await Task.Run(() =>
+            {
+                operation.Cancellation.Token.ThrowIfCancellationRequested();
+                return ToStatus(modelManager.Recheck());
+            });
         }
-        catch (OperationCanceledException)
+        finally
         {
-            // 終了調停ではcancel成功を正常な終了条件として扱う。
+            CompleteOperation(operation);
         }
     }
 
@@ -140,7 +126,23 @@ public sealed class SpeechRegionDetectorModelApplicationService(
         }
         finally
         {
-            EndOperation(operation);
+            CompleteOperation(operation);
+        }
+    }
+
+    private async Task RunDeleteAsync(ActiveOperation operation)
+    {
+        try
+        {
+            await Task.Run(() =>
+            {
+                operation.Cancellation.Token.ThrowIfCancellationRequested();
+                modelManager.Delete();
+            });
+        }
+        finally
+        {
+            CompleteOperation(operation);
         }
     }
 
@@ -165,7 +167,7 @@ public sealed class SpeechRegionDetectorModelApplicationService(
         return operation;
     }
 
-    private void EndOperation(ActiveOperation operation)
+    private void CompleteOperation(ActiveOperation operation)
     {
         lock (_operationGate)
         {
@@ -174,7 +176,9 @@ public sealed class SpeechRegionDetectorModelApplicationService(
                 _activeOperation = null;
             }
         }
+
         operation.Cancellation.Dispose();
+        operation.Completion.TrySetResult();
     }
 
     private static SpeechRegionDetectorModelStatusInfo ToStatus(SpeechRegionDetectorModelState state)
@@ -190,6 +194,6 @@ public sealed class SpeechRegionDetectorModelApplicationService(
         public string OperationName { get; } = operationName;
         public bool CanCancel { get; set; } = canCancel;
         public CancellationTokenSource Cancellation { get; } = cancellation;
-        public Task Task { get; set; } = Task.CompletedTask;
+        public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }
