@@ -142,7 +142,7 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider
         // 「モデルを削除」は現在選択中precisionだけでなく、残してある他precisionも含む
         // ReazonSpeech k2-v2のローカルセット全体を削除する仕様である。
         var engineDirectory = Path.Combine(_modelsRootDirectory, EngineId.Value);
-        _transaction.DeleteSafely(engineDirectory, GetTemporaryRootDirectory());
+        _transaction.DeleteAtomically(engineDirectory, GetTemporaryRootDirectory());
         lock (_validationGate) _validationCache.Clear();
         return Task.CompletedTask;
     }
