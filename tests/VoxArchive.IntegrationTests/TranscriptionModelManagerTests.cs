@@ -5,7 +5,7 @@ using VoxArchive.Transcription.Abstractions;
 namespace VoxArchive.IntegrationTests;
 
 /// <summary>
-/// Model Managerがdownload共有とqueued/runningモデル保護を正しく調停することを確認する
+/// Model Managerがdownload共有と文字起こし・モデル管理のglobal排他を正しく調停することを確認する
 /// </summary>
 public sealed class TranscriptionModelManagerTests
 {
@@ -52,6 +52,46 @@ public sealed class TranscriptionModelManagerTests
                 () => manager.Reverify(ModelKey),
                 Throws.TypeOf<InvalidOperationException>());
         });
+    }
+
+    [Test]
+    public void AnyTranscriptionReservation_BlocksAllModelManagementOperations()
+    {
+        var provider = new ControlledModelProvider(isReady: true);
+        var (manager, usageTracker) = CreateManager(provider);
+        var otherKey = new TranscriptionModelKey(EngineId, new TranscriptionModelId("different-model"));
+        using var reservation = usageTracker.Acquire(otherKey);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                async () => await manager.InstallAsync(ModelKey, force: true),
+                Throws.TypeOf<InvalidOperationException>());
+            Assert.That(
+                async () => await manager.DeleteAsync(ModelKey),
+                Throws.TypeOf<InvalidOperationException>());
+            Assert.That(
+                () => manager.Reverify(ModelKey),
+                Throws.TypeOf<InvalidOperationException>());
+        });
+    }
+
+    [Test]
+    public async Task ActiveDownload_BlocksNewTranscriptionReservation()
+    {
+        var provider = new ControlledModelProvider();
+        var (manager, _) = CreateManager(provider);
+        var download = manager.InstallAsync(ModelKey, force: false);
+
+        Assert.That(
+            () => manager.ReserveForTranscription(ModelKey),
+            Throws.TypeOf<InvalidOperationException>());
+
+        provider.CompleteInstall();
+        await download;
+
+        using var reservation = manager.ReserveForTranscription(ModelKey);
+        Assert.That(manager.IsInUse(ModelKey), Is.True);
     }
 
     [Test]
