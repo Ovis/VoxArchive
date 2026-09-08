@@ -401,7 +401,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            RunOnUi(() => _logger.LogWarning(ex, "デバイス列挙失敗"));
+            RunOnUi(() => _logger.LogWarning(ex, "デバイス列挙失敗");
         }
     }
 
@@ -427,7 +427,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            RunOnUi(() => _logger.LogWarning(ex, "プロセス列挙失敗"));
+            RunOnUi(() => _logger.LogWarning(ex, "プロセス列挙失敗");
         }
     }
 
@@ -701,6 +701,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var reazonSpeechSettings = GetRequiredEngineSettings(currentTranscription, ReazonSpeechEngineId);
             var whisperConfiguration = _transcriptionEngineSettingsService.GetConfiguration(WhisperEngineId, whisperSettings);
             var reazonSpeechConfiguration = _transcriptionEngineSettingsService.GetConfiguration(ReazonSpeechEngineId, reazonSpeechSettings);
+            var advancedSettingsService = _serviceProvider.GetRequiredService<ITranscriptionEngineAdvancedSettingsService>();
+            var reazonSpeechAdvancedSettings = advancedSettingsService.GetValues(ReazonSpeechEngineId, reazonSpeechSettings);
 
             var dialog = new SettingsWindow(_transcriptionService)
             {
@@ -716,6 +718,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 AutoTranscriptionAfterRecord = _options.Transcription.AutoAfterRecord,
                 DefaultTranscriptionEngine = _options.Transcription.DefaultEngine,
                 ReazonSpeechModelId = reazonSpeechConfiguration.ModelId ?? "ja",
+                ReazonSpeechAdvancedSettings = reazonSpeechAdvancedSettings,
                 WhisperExecutionModes = whisperConfiguration.ExecutionModes,
                 WhisperExecutionMode = whisperConfiguration.ExecutionModeId ?? string.Empty,
                 WhisperModelId = whisperConfiguration.ModelId ?? "small",
@@ -753,6 +756,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None
                 ? TranscriptionOutputFormats.Txt
                 : dialog.TranscriptionOutputFormats;
+            var updatedReazonSpeechSettings = advancedSettingsService.UpdateValues(
+                ReazonSpeechEngineId,
+                reazonSpeechSettings,
+                dialog.ReazonSpeechAdvancedSettings);
 
             var engines = new Dictionary<string, TranscriptionEngineSettings>(currentTranscription.Engines, StringComparer.OrdinalIgnoreCase)
             {
@@ -763,7 +770,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     dialog.WhisperExecutionMode),
                 [ReazonSpeechEngineId] = _transcriptionEngineSettingsService.UpdateConfiguration(
                     ReazonSpeechEngineId,
-                    reazonSpeechSettings,
+                    updatedReazonSpeechSettings,
                     dialog.ReazonSpeechModelId,
                     executionModeId: null)
             };
