@@ -39,14 +39,18 @@ public sealed record TranscriptionModelInspection(
     TranscriptionModelInspectionLevel Level);
 
 /// <summary>
-/// モデル取得全体の転送進捗を表す
+/// モデル取得全体の転送・検証進捗を表す
 /// </summary>
-public sealed record TranscriptionModelTransferProgress(long BytesReceived, long TotalBytes)
+public sealed record TranscriptionModelTransferProgress(
+    long BytesReceived,
+    long? TotalBytes,
+    string? CurrentFileName = null,
+    bool IsValidating = false)
 {
-    /// <summary>0～100の進捗率を取得する</summary>
-    public double Percent => TotalBytes <= 0
-        ? 0d
-        : Math.Clamp(BytesReceived * 100d / TotalBytes, 0d, 100d);
+    /// <summary>総容量が既知の場合だけ0～100の進捗率を返す</summary>
+    public double? Percent => TotalBytes is > 0
+        ? Math.Clamp(BytesReceived * 100d / TotalBytes.Value, 0d, 100d)
+        : null;
 }
 
 /// <summary>
