@@ -7,7 +7,7 @@ namespace VoxArchive.Wpf;
 /// </summary>
 /// <remarks>
 /// Transcription層は安定codeだけを通知し、利用者向け文言と通知手段はPresentation層で決める。
-/// session suppression中は同じ警告が各ジョブで繰り返されるため、そのcodeだけはプロセス内で1回に抑える。
+/// session suppression中は同じ警告が各ジョブで繰り返されるため、その状態に入った通知はプロセス内で1回に抑える。
 /// </remarks>
 internal sealed class TranscriptionWarningNotificationSink : ITranscriptionWarningSink
 {
@@ -23,8 +23,10 @@ internal sealed class TranscriptionWarningNotificationSink : ITranscriptionWarni
         {
             "silero-unavailable" => "Silero VADを利用できないため、音量ベースVADで文字起こしを続行します。設定画面でモデル状態を確認してください。",
             "silero-inference-failed" => "Silero VADの処理に失敗したため、音量ベースVADで文字起こしを続行します。",
-            "silero-inference-failed-session-suppressed" => "Silero VADの処理が3回連続で失敗したため、この起動中は音量ベースVADを使用します。アプリ再起動後はSilero VADを再試行します。",
-            "silero-session-suppressed" => BuildSessionSuppressedMessageOnce(),
+            "silero-inference-failed-session-suppressed" => BuildSessionSuppressedMessageOnce(
+                "Silero VADの処理が3回連続で失敗したため、この起動中は音量ベースVADを使用します。アプリ再起動後はSilero VADを再試行します。"),
+            "silero-session-suppressed" => BuildSessionSuppressedMessageOnce(
+                "Silero VADはこの起動中無効化されているため、音量ベースVADで文字起こしを続行します。"),
             _ => null
         };
 
@@ -36,7 +38,7 @@ internal sealed class TranscriptionWarningNotificationSink : ITranscriptionWarni
         AppNotificationHub.Notify("VoxArchive", message, System.Windows.Forms.ToolTipIcon.Warning);
     }
 
-    private string? BuildSessionSuppressedMessageOnce()
+    private string? BuildSessionSuppressedMessageOnce(string message)
     {
         lock (_gate)
         {
@@ -46,7 +48,7 @@ internal sealed class TranscriptionWarningNotificationSink : ITranscriptionWarni
             }
 
             _sessionSuppressedNotified = true;
-            return "Silero VADはこの起動中無効化されているため、音量ベースVADで文字起こしを続行します。";
+            return message;
         }
     }
 }
