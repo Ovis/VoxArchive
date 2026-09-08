@@ -337,6 +337,7 @@ public partial class SettingsWindow
         var previousMessage = control.MessageText;
         control.ProgressVisibility = Visibility.Collapsed;
         control.ProgressPercent = 0;
+        control.ProgressIsIndeterminate = false;
         control.ProgressText = string.Empty;
 
         try
@@ -362,14 +363,17 @@ public partial class SettingsWindow
 
             if (isCurrentDownload && active is not null)
             {
-                control.StatusText = active.IsCancelling ? "取得中止処理中" : "取得中";
+                control.StatusText = active.IsCancelling
+                    ? "取得中止処理中"
+                    : active.IsValidating ? "検証中" : "取得中";
                 control.InstallButtonText = active.IsCancelling ? "取得をキャンセル中" : "取得をキャンセル";
-                control.CanInstall = !active.IsCancelling;
+                control.CanInstall = !active.IsCancelling && !active.IsValidating;
                 control.CanVerify = false;
                 control.CanDelete = false;
                 control.ProgressVisibility = Visibility.Visible;
                 control.ProgressPercent = active.Percent;
-                control.ProgressText = FormatProgress(active.BytesReceived, active.TotalBytes);
+                control.ProgressIsIndeterminate = active.IsIndeterminate || active.IsValidating;
+                control.ProgressText = FormatModelProgress(active);
                 if (!preserveMessage)
                 {
                     control.MessageText = string.Empty;
@@ -405,6 +409,19 @@ public partial class SettingsWindow
             control.CanInstall = false;
             control.CanDelete = false;
         }
+    }
+
+    private static string FormatModelProgress(TranscriptionModelDownloadInfo active)
+    {
+        if (active.IsValidating)
+        {
+            return "モデルを検証しています…";
+        }
+
+        var transfer = FormatProgress(active.BytesReceived, active.TotalBytes);
+        return string.IsNullOrWhiteSpace(active.CurrentFileName)
+            ? transfer
+            : $"{active.CurrentFileName}: {transfer}";
     }
 
     private static void ApplyInspectionState(TranscriptionModelManagerControl control, string state)
