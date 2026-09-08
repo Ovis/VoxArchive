@@ -45,6 +45,7 @@ public sealed class TranscriptionOrchestrator(
         SpeechRegionDetectionDiagnosticTrace? vadTrace = null;
         TranscriptionEngineDiagnosticTrace? engineDiagnostic = null;
         TranscriptionEngineResult? rawEngineResult = null;
+        TranscriptionEngineResult? canonicalEngineResult = null;
         TranscriptionDiagnosticSource? diagnosticSource = null;
 
         try
@@ -112,9 +113,9 @@ public sealed class TranscriptionOrchestrator(
 
             failedStage = "canonical-output";
             stageStopwatch.Restart();
-            var engineResult = _resultCanonicalizer.Canonicalize(rawEngineResult, preparedAudio);
+            canonicalEngineResult = _resultCanonicalizer.Canonicalize(rawEngineResult, preparedAudio);
             LogStage(request, "validation", "started", pipelineStopwatch.ElapsedMilliseconds);
-            resultValidator.Validate(engineResult, preparedAudio.Duration);
+            resultValidator.Validate(canonicalEngineResult, preparedAudio.Duration);
             LogStage(request, "validation", "completed", pipelineStopwatch.ElapsedMilliseconds);
             stageStopwatch.Stop();
             canonicalAndOutputMilliseconds += stageStopwatch.ElapsedMilliseconds;
@@ -122,7 +123,7 @@ public sealed class TranscriptionOrchestrator(
             failedStage = "speaker-labeling";
             LogStage(request, "speaker-labeling", "started", pipelineStopwatch.ElapsedMilliseconds);
             stageStopwatch.Restart();
-            var labeled = speakerLabelService.Apply(request.SourceRecordingPath, engineResult.Segments, cancellationToken);
+            var labeled = speakerLabelService.Apply(request.SourceRecordingPath, canonicalEngineResult.Segments, cancellationToken);
             stageStopwatch.Stop();
             speakerLabelingMilliseconds = stageStopwatch.ElapsedMilliseconds;
             LogStage(request, "speaker-labeling", "completed", pipelineStopwatch.ElapsedMilliseconds);
@@ -135,7 +136,7 @@ public sealed class TranscriptionOrchestrator(
                 request.SourceRecordingPath,
                 request.EngineId,
                 request.ArtifactOptions,
-                engineResult,
+                canonicalEngineResult,
                 labeled,
                 finishedAt,
                 cancellationToken);
@@ -152,6 +153,7 @@ public sealed class TranscriptionOrchestrator(
                     speechRegions,
                     vadTrace,
                     engineDiagnostic,
+                    canonicalEngineResult,
                     finishedAt,
                     status: "success",
                     failedStage: null,
@@ -169,11 +171,15 @@ public sealed class TranscriptionOrchestrator(
                     request.EngineId,
                     pipelineStopwatch.ElapsedMilliseconds,
                     speechRegions.Count,
-                    engineResult.Segments.Count,
+                    canonicalEngineResult.Segments.Count,
                     artifact.GeneratedFiles.Count);
             }
 
-            return new TranscriptionOrchestrationResult(artifact.DocumentPath, artifact.GeneratedFiles, engineResult.Metadata, finishedAt);
+            return new TranscriptionOrchestrationResult(
+                artifact.DocumentPath,
+                artifact.GeneratedFiles,
+                canonicalEngineResult.Metadata,
+                finishedAt);
         }
         catch (Exception ex)
         {
@@ -190,6 +196,7 @@ public sealed class TranscriptionOrchestrator(
                         speechRegions,
                         vadTrace,
                         engineDiagnostic,
+                        canonicalEngineResult,
                         DateTimeOffset.Now,
                         status: "failed",
                         failedStage,
@@ -278,6 +285,7 @@ public sealed class TranscriptionOrchestrator(
         IReadOnlyList<SpeechRegion>? speechRegions,
         SpeechRegionDetectionDiagnosticTrace? vadTrace,
         TranscriptionEngineDiagnosticTrace? engineDiagnostic,
+        TranscriptionEngineResult? canonicalEngineResult,
         DateTimeOffset timestamp,
         string status,
         string? failedStage,
@@ -337,6 +345,23 @@ public sealed class TranscriptionOrchestrator(
                     ElapsedMilliseconds = 0
                 })
                 .ToArray() ?? [],
+            AsrResults = engineDiagnostic?.AsrResults?
+                .Select(trace =>
+                {
+                    var canonicalText = FindCanonicalText(canonicalEngineResult, trace.RecognitionChunkId);
+                    var discarded = trace.Discarded || canonicalText is null;
+                    return new TranscriptionDiagnosticAsrResult
+                    {
+                        RecognitionChunkId = trace.RecognitionChunkId,
+                        RawText = trace.RawText,
+                        CanonicalText = canonicalText,
+                        TimestampTrace = CloneIfDefined(trace.TimestampTrace),
+                        Discarded = discarded,
+                        DiscardReason = trace.DiscardReason
+                            ?? (discarded ? "canonical-discarded" : null)
+                    };
+                })
+                .ToArray() ?? [],
             Timings = new TranscriptionDiagnosticTimings
             {
                 OverallMilliseconds = overallMilliseconds,
@@ -355,6 +380,28 @@ public sealed class TranscriptionOrchestrator(
         // 診断書き込みの失敗やJobキャンセルで、本体の成功/失敗結果を変えない。
         // writer自身が通常ログへwarningを残すため、戻り値は本pipelineでは利用しない。
         await diagnosticWriter.TryWriteAsync(request.SourceRecordingPath, timestamp, document, CancellationToken.None);
+    }
+
+    private static string? FindCanonicalText(
+        TranscriptionEngineResult? canonicalResult,
+        int recognitionChunkId)
+    {
+        if (canonicalResult is null)
+        {
+            return null;
+        }
+
+        var texts = canonicalResult.Segments
+            .Where(segment => segment.RecognitionChunkId == recognitionChunkId)
+            .Select(segment => segment.Text)
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .ToArray();
+        return texts.Length switch
+        {
+            0 => null,
+            1 => texts[0],
+            _ => string.Join(" ", texts)
+        };
     }
 
     private static TranscriptionDiagnosticSpeechRegion ToDiagnosticSpeechRegion(SpeechRegion region)
