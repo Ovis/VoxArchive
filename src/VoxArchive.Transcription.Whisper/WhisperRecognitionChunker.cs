@@ -7,18 +7,18 @@ namespace VoxArchive.Transcription.Whisper;
 /// </summary>
 /// <remarks>
 /// 現段階ではWhisper固有の最大長分割を行わず、SpeechRegion 1件をRecognitionChunk 1件へそのまま対応させる。
-/// 将来Whisper側へ独自chunkingを導入してもVADの責務を変更せずに済むよう、明示的なChunkerとして分離する。
+/// Engine固有の処理として具象型を直接利用し、共通Chunker Interfaceは設けない。
 /// </remarks>
-public sealed class WhisperRecognitionChunker : IDiagnosticRecognitionChunker
+public sealed class WhisperRecognitionChunker
 {
-    /// <inheritdoc />
+    /// <summary>指定した発話区間からWhisper向けRecognitionChunkを生成する</summary>
     public async Task<IReadOnlyList<RecognitionChunk>> CreateChunksAsync(
         IPreparedTranscriptionAudio audio,
         IReadOnlyList<SpeechRegion> speechRegions,
         CancellationToken cancellationToken = default)
         => (await CreateChunksWithDiagnosticsAsync(audio, speechRegions, cancellationToken)).Chunks;
 
-    /// <inheritdoc />
+    /// <summary>RecognitionChunkと分割理由を同時に生成する</summary>
     public Task<RecognitionChunkingDiagnosticResult> CreateChunksWithDiagnosticsAsync(
         IPreparedTranscriptionAudio audio,
         IReadOnlyList<SpeechRegion> speechRegions,
