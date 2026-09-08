@@ -3,11 +3,11 @@ using VoxArchive.Transcription.Abstractions;
 namespace VoxArchive.Transcription;
 
 /// <summary>
-/// Engine別Model Providerを横断してdownload、readiness、integrity、usage protectionを調停する
+/// Engine別Model Providerを横断してdownload、readiness、再確認、削除、usage protectionを調停する
 /// </summary>
 /// <remarks>
-/// モデル取得はアプリケーション全体で1件に制限し、同一モデルへの並行要求だけowner Taskを共有する。
-/// 設定UIは本クラスのsnapshotを観測し、物理Providerやdownload lifecycleを直接所有しない。
+/// モデル管理操作はアプリケーション全体で1件に制限し、queued/running文字起こしとは同時実行しない。
+/// 同一モデルdownloadへの並行要求だけはowner Taskを共有する。
 /// </remarks>
 public sealed class TranscriptionModelManager(
     TranscriptionEngineRegistry engineRegistry,
@@ -15,6 +15,7 @@ public sealed class TranscriptionModelManager(
 {
     private readonly object _gate = new();
     private ActiveDownload? _activeDownload;
+    private string? _activeExclusiveOperation;
 
     /// <summary>取得開始・進捗・終了・キャンセル状態が変化したときに通知する</summary>
     public event EventHandler? StateChanged;
@@ -23,17 +24,26 @@ public sealed class TranscriptionModelManager(
     public IReadOnlyList<TranscriptionModelDescriptor> GetAvailableModels(TranscriptionEngineId engineId)
         => GetProvider(engineId).GetAvailableModels();
 
-    /// <summary>モデルがJob実行可能な軽量readinessを満たすか確認する</summary>
+    /// <summary>モデルがJob実行可能なreadinessを満たすか確認する</summary>
     public bool IsReady(TranscriptionModelKey key) => GetProvider(key.EngineId).IsReady(key.ModelId);
 
     /// <summary>指定レベルでモデル配置状態を確認する</summary>
     public TranscriptionModelInspection Inspect(TranscriptionModelKey key, TranscriptionModelInspectionLevel level)
     {
-        if (level == TranscriptionModelInspectionLevel.Hash)
+        if (level != TranscriptionModelInspectionLevel.Hash)
         {
-            EnsureNotInUse(key, "SHA-256再確認");
+            return GetProvider(key.EngineId).Inspect(key.ModelId, level);
         }
-        return GetProvider(key.EngineId).Inspect(key.ModelId, level);
+
+        BeginExclusiveOperation("再確認");
+        try
+        {
+            return GetProvider(key.EngineId).Inspect(key.ModelId, level);
+        }
+        finally
+        {
+            EndExclusiveOperation();
+        }
     }
 
     /// <summary>readyなモデルの物理配置を取得する</summary>
@@ -42,6 +52,33 @@ public sealed class TranscriptionModelManager(
 
     /// <summary>queued/running Jobが指定モデルを保護しているか確認する</summary>
     public bool IsInUse(TranscriptionModelKey key) => usageTracker.IsInUse(key);
+
+    /// <summary>download/delete/recheckのいずれかが進行中か確認する</summary>
+    public bool IsManagementOperationInProgress()
+    {
+        lock (_gate)
+        {
+            return _activeDownload is not null || _activeExclusiveOperation is not null;
+        }
+    }
+
+    /// <summary>
+    /// モデル管理操作と競合しない状態で文字起こし用reservationを取得する
+    /// </summary>
+    /// <remarks>
+    /// 操作中判定とreservation取得を同じgate内で行い、「確認直後にdeleteが始まる」raceを防ぐ。
+    /// </remarks>
+    public TranscriptionModelUsageReservation ReserveForTranscription(TranscriptionModelKey key)
+    {
+        lock (_gate)
+        {
+            if (_activeDownload is not null || _activeExclusiveOperation is not null)
+            {
+                throw new InvalidOperationException("モデルの処理中です。完了後に再度実行してください。");
+            }
+            return usageTracker.Acquire(key);
+        }
+    }
 
     /// <summary>現在進行中のモデル取得snapshotを取得する</summary>
     public TranscriptionModelDownloadSnapshot? GetActiveDownload()
@@ -53,7 +90,7 @@ public sealed class TranscriptionModelManager(
     }
 
     /// <summary>
-    /// モデルを取得する。同一モデルへの並行要求は既存ownerを共有し、別モデル取得中は拒否する
+    /// モデルを取得する。同一モデルへの並行要求は既存ownerを共有し、その他のモデル管理操作中は拒否する
     /// </summary>
     public Task<TranscriptionModelInstallation> InstallAsync(
         TranscriptionModelKey key,
@@ -65,6 +102,11 @@ public sealed class TranscriptionModelManager(
         var isWaiter = false;
         lock (_gate)
         {
+            if (_activeExclusiveOperation is not null)
+            {
+                throw new InvalidOperationException($"別のモデル処理中です: {_activeExclusiveOperation}");
+            }
+
             if (_activeDownload is not null)
             {
                 if (_activeDownload.Key != key)
@@ -78,7 +120,7 @@ public sealed class TranscriptionModelManager(
             }
             else
             {
-                EnsureNotInUse(key, force ? "再取得" : "取得");
+                EnsureNoTranscriptionInUse(force ? "再取得" : "取得");
                 var descriptor = GetProvider(key.EngineId).GetAvailableModels()
                     .FirstOrDefault(x => x.ModelId == key.ModelId)
                     ?? throw new NotSupportedException($"未対応のモデルです: {key.EngineId}/{key.ModelId}");
@@ -142,29 +184,37 @@ public sealed class TranscriptionModelManager(
         return true;
     }
 
-    /// <summary>queued/running Jobに使われていないモデルを削除する</summary>
+    /// <summary>文字起こしが実行中でなく、他のモデル操作もない場合だけモデルを削除する</summary>
     public async Task DeleteAsync(TranscriptionModelKey key, CancellationToken cancellationToken = default)
     {
-        lock (_gate)
+        BeginExclusiveOperation("削除");
+        try
         {
-            if (_activeDownload?.Key == key)
-            {
-                throw new InvalidOperationException("取得中のモデルは削除できません。");
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            await GetProvider(key.EngineId).DeleteAsync(key.ModelId, cancellationToken);
         }
-        EnsureNotInUse(key, "削除");
-        await GetProvider(key.EngineId).DeleteAsync(key.ModelId, cancellationToken);
-        RaiseStateChanged();
+        finally
+        {
+            EndExclusiveOperation();
+            RaiseStateChanged();
+        }
     }
 
     /// <summary>
-    /// queued/running Jobに使われていないモデルのSHA-256完全性を明示的に再確認する
+    /// 文字起こしが実行中でなく、他のモデル操作もない場合だけモデルを明示的に再確認する
     /// </summary>
     public TranscriptionModelInspection Reverify(TranscriptionModelKey key)
     {
-        EnsureNotInUse(key, "SHA-256再確認");
-        // SHA計算は高コストなのでJobごとには行わず、download完了時とこの明示操作だけに限定する。
-        return GetProvider(key.EngineId).Inspect(key.ModelId, TranscriptionModelInspectionLevel.Hash);
+        BeginExclusiveOperation("再確認");
+        try
+        {
+            return GetProvider(key.EngineId).Inspect(key.ModelId, TranscriptionModelInspectionLevel.Hash);
+        }
+        finally
+        {
+            EndExclusiveOperation();
+            RaiseStateChanged();
+        }
     }
 
     /// <summary>現在のdownload ownerへキャンセルを通知し、完了まで待つ</summary>
@@ -189,9 +239,7 @@ public sealed class TranscriptionModelManager(
         }
         catch
         {
-            // アプリ終了処理ではowner Taskの成功結果を利用しない。
-            // 既に通信失敗や検証失敗でfaultしていた場合も終了処理自体へ例外を伝播させず、
-            // RunOwnedDownloadAsyncのfinallyによるstaging/active stateの解放完了だけを待つ。
+            // 終了処理ではowner Taskの成功結果を使わず、finallyによるactive state解放だけを待つ。
         }
     }
 
@@ -249,15 +297,41 @@ public sealed class TranscriptionModelManager(
         }
     }
 
+    private void BeginExclusiveOperation(string operation)
+    {
+        lock (_gate)
+        {
+            if (_activeDownload is not null)
+            {
+                throw new InvalidOperationException("モデル取得中のため別のモデル処理を開始できません。");
+            }
+            if (_activeExclusiveOperation is not null)
+            {
+                throw new InvalidOperationException($"別のモデル処理中です: {_activeExclusiveOperation}");
+            }
+            EnsureNoTranscriptionInUse(operation);
+            _activeExclusiveOperation = operation;
+        }
+        RaiseStateChanged();
+    }
+
+    private void EndExclusiveOperation()
+    {
+        lock (_gate)
+        {
+            _activeExclusiveOperation = null;
+        }
+    }
+
     private ITranscriptionModelProvider GetProvider(TranscriptionEngineId engineId)
         => engineRegistry.Get(engineId).ModelProvider
            ?? throw new InvalidOperationException($"このEngineはmanaged modelを使用しません: {engineId}");
 
-    private void EnsureNotInUse(TranscriptionModelKey key, string operation)
+    private void EnsureNoTranscriptionInUse(string operation)
     {
-        if (usageTracker.IsInUse(key))
+        if (usageTracker.AnyInUse())
         {
-            throw new InvalidOperationException($"queued/running Jobが使用中のモデルは{operation}できません: {key.EngineId}/{key.ModelId}");
+            throw new InvalidOperationException($"文字起こし処理中のためモデルを{operation}できません。");
         }
     }
 
