@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using VoxArchive.Transcription;
 
 namespace VoxArchive.IntegrationTests;
@@ -119,6 +120,8 @@ public sealed class ManagedModelFileTransactionTests
                 Assert.That(validatedAfterCommit, Is.True);
                 Assert.That(File.Exists(Path.Combine(destination, "old.txt")), Is.False);
                 Assert.That(File.ReadAllBytes(Path.Combine(destination, "model.onnx")), Is.EqualTo(new byte[] { 1, 2, 3 }));
+                Assert.That(Directory.Exists(temporaryRoot)
+                            && Directory.EnumerateFileSystemEntries(temporaryRoot).Any(), Is.False);
             });
         }
         finally
@@ -272,19 +275,24 @@ public sealed class ManagedModelFileTransactionTests
     }
 
     [Test]
-    public void CleanupOwnedTemporaryDirectories_DeletesOnlyVoxArchiveGuidNamedDirectories()
+    public void CleanupOwnedTemporaryDirectories_UncommittedBackupRestoresLastWorkingModel()
     {
         var root = CreateTemporaryRoot();
         try
         {
             var temporaryRoot = Path.Combine(root, ".model-ops");
             Directory.CreateDirectory(temporaryRoot);
-            var download = Path.Combine(temporaryRoot, $"download-{Guid.NewGuid():N}");
+            var destination = Path.Combine(root, "models", "reazonspeech", "ja-int8-fp32");
+            Directory.CreateDirectory(destination);
+            File.WriteAllText(Path.Combine(destination, "new.txt"), "not-committed");
+
             var backup = Path.Combine(temporaryRoot, $"backup-{Guid.NewGuid():N}");
-            var deletion = Path.Combine(temporaryRoot, $"delete-{Guid.NewGuid():N}");
-            var unrelated = Path.Combine(temporaryRoot, "keep-me");
-            var spoofed = Path.Combine(temporaryRoot, "download-not-a-guid");
-            foreach (var path in new[] { download, backup, deletion, unrelated, spoofed }) Directory.CreateDirectory(path);
+            Directory.CreateDirectory(backup);
+            File.WriteAllText(Path.Combine(backup, "old.txt"), "working");
+            File.WriteAllText(
+                backup + ".recovery.json",
+                JsonSerializer.Serialize(new { DestinationDirectory = Path.GetFullPath(destination) }));
+
             using var client = CreateClient(new Dictionary<string, byte[]>());
             var transaction = new ManagedModelFileTransaction(client);
 
@@ -292,11 +300,93 @@ public sealed class ManagedModelFileTransactionTests
 
             Assert.Multiple(() =>
             {
-                Assert.That(Directory.Exists(download), Is.False);
+                Assert.That(File.ReadAllText(Path.Combine(destination, "old.txt")), Is.EqualTo("working"));
+                Assert.That(File.Exists(Path.Combine(destination, "new.txt")), Is.False);
                 Assert.That(Directory.Exists(backup), Is.False);
+                Assert.That(File.Exists(backup + ".recovery.json"), Is.False);
+            });
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void CleanupOwnedTemporaryDirectories_CommittedBackupKeepsNewModelAndDeletesBackup()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var temporaryRoot = Path.Combine(root, ".model-ops");
+            Directory.CreateDirectory(temporaryRoot);
+            var destination = Path.Combine(root, "models", "reazonspeech", "ja-int8-fp32");
+            Directory.CreateDirectory(destination);
+            File.WriteAllText(Path.Combine(destination, "new.txt"), "validated");
+
+            var backup = Path.Combine(temporaryRoot, $"backup-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(backup);
+            File.WriteAllText(Path.Combine(backup, "old.txt"), "working");
+            File.WriteAllText(
+                backup + ".recovery.json",
+                JsonSerializer.Serialize(new { DestinationDirectory = Path.GetFullPath(destination) }));
+            File.WriteAllText(backup + ".committed", string.Empty);
+
+            using var client = CreateClient(new Dictionary<string, byte[]>());
+            var transaction = new ManagedModelFileTransaction(client);
+
+            transaction.CleanupOwnedTemporaryDirectories(temporaryRoot);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(File.ReadAllText(Path.Combine(destination, "new.txt")), Is.EqualTo("validated"));
+                Assert.That(File.Exists(Path.Combine(destination, "old.txt")), Is.False);
+                Assert.That(Directory.Exists(backup), Is.False);
+                Assert.That(File.Exists(backup + ".recovery.json"), Is.False);
+                Assert.That(File.Exists(backup + ".committed"), Is.False);
+            });
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void CleanupOwnedTemporaryDirectories_BackupWithoutManifestIsPreserved()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var temporaryRoot = Path.Combine(root, ".model-ops");
+            Directory.CreateDirectory(temporaryRoot);
+            var backup = Path.Combine(temporaryRoot, $"backup-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(backup);
+            File.WriteAllText(Path.Combine(backup, "old.txt"), "working");
+            var download = Path.Combine(temporaryRoot, $"download-{Guid.NewGuid():N}");
+            var deletion = Path.Combine(temporaryRoot, $"delete-{Guid.NewGuid():N}");
+            var unrelated = Path.Combine(temporaryRoot, "keep-me");
+            Directory.CreateDirectory(download);
+            Directory.CreateDirectory(deletion);
+            Directory.CreateDirectory(unrelated);
+
+            var failures = new List<string>();
+            using var client = CreateClient(new Dictionary<string, byte[]>());
+            var transaction = new ManagedModelFileTransaction(client)
+            {
+                CleanupFailureHandler = (path, _) => failures.Add(path)
+            };
+
+            transaction.CleanupOwnedTemporaryDirectories(temporaryRoot);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Directory.Exists(backup), Is.True);
+                Assert.That(File.ReadAllText(Path.Combine(backup, "old.txt")), Is.EqualTo("working"));
+                Assert.That(Directory.Exists(download), Is.False);
                 Assert.That(Directory.Exists(deletion), Is.False);
                 Assert.That(Directory.Exists(unrelated), Is.True);
-                Assert.That(Directory.Exists(spoofed), Is.True);
+                Assert.That(failures, Does.Contain(backup));
             });
         }
         finally
