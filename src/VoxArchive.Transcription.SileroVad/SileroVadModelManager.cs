@@ -105,11 +105,15 @@ public sealed class SileroVadModelManager : ISpeechRegionDetectorModelManager
                     return Task.CompletedTask;
                 },
                 progress,
-                cancellationToken);
+                cancellationToken,
+                committed =>
+                {
+                    // 正式配置側でもloadできることをbackup保持中に確認する。
+                    // path固有の問題があればtransactionが旧モデルへrollbackするため、既存正常モデルを失わない。
+                    _validateModelLoad(Path.Combine(committed, Path.GetFileName(_modelPath)));
+                    return Task.CompletedTask;
+                });
 
-            // commit後の公式配置でも再度loadできることを確認し、session cacheへ反映する。
-            // stagingだけ成功して公式配置で失敗する異常を「利用可能」と誤表示しないための確認である。
-            _validateModelLoad(_modelPath);
             lock (_gate) _cachedAvailability = true;
         }
         finally
