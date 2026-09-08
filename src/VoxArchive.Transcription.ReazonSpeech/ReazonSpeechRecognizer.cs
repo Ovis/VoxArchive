@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NAudio.Wave;
 using SherpaOnnx;
 using VoxArchive.Transcription.Abstractions;
@@ -11,12 +12,15 @@ public sealed class ReazonSpeechRecognizer
 {
     private const int ModelSampleRate = 16_000;
     private const int FeatureDimension = 80;
-    private const string TokenTimestampTraceMetadataKey = "k2TokenTimestampTrace";
+    private static readonly JsonSerializerOptions DiagnosticJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     /// <summary>
     /// 指定したRecognitionChunkを順次認識する
     /// </summary>
-    public async Task<IReadOnlyList<RecognizedTranscriptionSegment>> RecognizeAsync(
+    public async Task<ReazonSpeechRecognitionResult> RecognizeAsync(
         IPreparedTranscriptionAudio audio,
         IReadOnlyList<RecognitionChunk> chunks,
         ReazonSpeechEngineOptions options,
@@ -29,12 +33,22 @@ public sealed class ReazonSpeechRecognizer
         // ONNXモデルのロードは高コストなので、RecognitionChunkごとにRecognizerを作り直さず1 Jobで共有する。
         using var recognizer = new OfflineRecognizer(config);
         var segments = new List<RecognizedTranscriptionSegment>(chunks.Count);
+        var diagnosticResults = diagnosticsEnabled
+            ? new List<AsrResultDiagnosticTrace>(chunks.Count)
+            : null;
+
         foreach (var chunk in chunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var samples = await ReadChunkSamplesAsync(audio, chunk, cancellationToken);
             if (samples.Length == 0)
             {
+                diagnosticResults?.Add(new AsrResultDiagnosticTrace(
+                    chunk.RecognitionChunkId,
+                    RawText: null,
+                    TimestampTrace: null,
+                    Discarded: true,
+                    DiscardReason: "empty-chunk-audio"));
                 continue;
             }
 
@@ -48,25 +62,31 @@ public sealed class ReazonSpeechRecognizer
                 () => Recognize(recognizer, k2InputSamples),
                 CancellationToken.None);
             cancellationToken.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(recognition.Text))
-            {
-                continue;
-            }
 
-            IReadOnlyDictionary<string, object?>? metadata = null;
+            JsonElement? timestampTrace = null;
             if (diagnosticsEnabled)
             {
                 // ReazonSpeech公式K2 APIのtimestampはsubwordごとの単一点であり、segmentの終了時刻は提供されない。
-                // 存在しないrangeを推測してcanonical時刻へ混ぜず、raw→補正後sampleのtraceだけを診断用metadataへ保持する。
-                // 通常ログにはtoken/textを出さず、診断OFF時はtrace生成自体を避ける。
+                // 存在しないrangeを推測せず、0.9秒補正前後とabsolute sampleのtraceだけを診断へ残す。
                 var tokenTimestampTrace = ReazonSpeechK2TokenTimestampTraceBuilder.Build(
                     recognition.Tokens,
                     recognition.Timestamps,
                     chunk);
-                metadata = new Dictionary<string, object?>
-                {
-                    [TokenTimestampTraceMetadataKey] = tokenTimestampTrace
-                };
+                timestampTrace = JsonSerializer.SerializeToElement(tokenTimestampTrace, DiagnosticJsonOptions);
+            }
+
+            var discarded = string.IsNullOrWhiteSpace(recognition.Text);
+            diagnosticResults?.Add(new AsrResultDiagnosticTrace(
+                chunk.RecognitionChunkId,
+                recognition.Text,
+                timestampTrace,
+                discarded,
+                discarded ? "whitespace-only" : null));
+
+            if (discarded)
+            {
+                // canonical結果には残さないが、診断ON時は上のraw traceに必ず保持する。
+                continue;
             }
 
             var start = SamplesToTimeSpan(chunk.StartSample, audio.Format.SampleRate);
@@ -74,11 +94,11 @@ public sealed class ReazonSpeechRecognizer
             segments.Add(new RecognizedTranscriptionSegment(
                 start,
                 end,
-                recognition.Text.Trim(),
-                chunk.RecognitionChunkId,
-                metadata));
+                recognition.Text,
+                chunk.RecognitionChunkId));
         }
-        return segments;
+
+        return new ReazonSpeechRecognitionResult(segments, diagnosticResults ?? []);
     }
 
     /// <summary>
@@ -197,3 +217,10 @@ public sealed class ReazonSpeechRecognizer
         IReadOnlyList<string> Tokens,
         IReadOnlyList<float> Timestamps);
 }
+
+/// <summary>
+/// ReazonSpeech Recognizerが返す未canonical segmentと詳細診断raw traceを保持する
+/// </summary>
+public sealed record ReazonSpeechRecognitionResult(
+    IReadOnlyList<RecognizedTranscriptionSegment> Segments,
+    IReadOnlyList<AsrResultDiagnosticTrace> Diagnostics);
