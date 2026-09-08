@@ -31,10 +31,28 @@ public sealed class ReazonSpeechTranscriptionEngine(
             throw new ArgumentException("ReazonSpeech Engineへ異なるoptions型が渡されました。", nameof(request));
         }
 
-        var chunks = await recognitionChunker.CreateChunksAsync(request.Audio, request.SpeechRegions, cancellationToken);
+        RecognitionChunkingDiagnosticResult? chunkingDiagnostic = null;
+        IReadOnlyList<RecognitionChunk> chunks;
+        if (request.Context.DiagnosticsEnabled)
+        {
+            chunkingDiagnostic = await recognitionChunker.CreateChunksWithDiagnosticsAsync(
+                request.Audio,
+                request.SpeechRegions,
+                cancellationToken);
+            chunks = chunkingDiagnostic.Chunks;
+        }
+        else
+        {
+            chunks = await recognitionChunker.CreateChunksAsync(request.Audio, request.SpeechRegions, cancellationToken);
+        }
+
         if (chunks.Count == 0)
         {
-            return new TranscriptionEngineResult([]);
+            return new TranscriptionEngineResult(
+                [],
+                Diagnostics: request.Context.DiagnosticsEnabled
+                    ? new TranscriptionEngineDiagnosticTrace(chunkingDiagnostic?.Traces ?? [])
+                    : null);
         }
 
         const string provider = "cpu";
@@ -75,7 +93,10 @@ public sealed class ReazonSpeechTranscriptionEngine(
                 {
                     ["provider"] = provider,
                     ["decodingMethod"] = decodingMethod
-                });
+                },
+                request.Context.DiagnosticsEnabled
+                    ? new TranscriptionEngineDiagnosticTrace(chunkingDiagnostic?.Traces ?? [])
+                    : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
