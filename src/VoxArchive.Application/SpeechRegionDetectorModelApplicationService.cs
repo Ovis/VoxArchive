@@ -43,7 +43,7 @@ public sealed class SpeechRegionDetectorModelApplicationService(
                 {
                     // validation開始は終了処理の判断にも使うため、SynchronizationContext経由で遅延させず同期反映する。
                     // native validation自体は安全に中断できないが、終了要求ではTokenをcancelして完了後のcommitを抑止する。
-                    operation.CanCancel = false;
+                    SetCanCancel(operation, false);
                 }
 
                 progress.Report(new SpeechRegionDetectorModelTransferInfo(
@@ -165,6 +165,17 @@ public sealed class SpeechRegionDetectorModelApplicationService(
         }
 
         return operation;
+    }
+
+    private void SetCanCancel(ActiveOperation operation, bool canCancel)
+    {
+        lock (_operationGate)
+        {
+            if (ReferenceEquals(_activeOperation, operation))
+            {
+                operation.CanCancel = canCancel;
+            }
+        }
     }
 
     private void CompleteOperation(ActiveOperation operation)
