@@ -9,19 +9,20 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// <remarks>
 /// VAD結果であるSpeechRegion自体は変更せず、K2固有の入力長制約をRecognitionChunkへ閉じ込める。
 /// 25秒を超えるSpeechRegionだけRMS解析し、通常無音、forced split、短い末尾再配分の順に境界を決定する。
+/// Engine固有の処理として具象型を直接利用し、共通Chunker Interfaceは設けない。
 /// </remarks>
-public sealed class ReazonSpeechRecognitionChunker : IDiagnosticRecognitionChunker
+public sealed class ReazonSpeechRecognitionChunker
 {
     private const long MaximumChunkSamples = 25L * ReazonSpeechRmsAnalyzer.RequiredSampleRate;
 
-    /// <inheritdoc />
+    /// <summary>指定した発話区間からReazonSpeech向けRecognitionChunkを生成する</summary>
     public async Task<IReadOnlyList<RecognitionChunk>> CreateChunksAsync(
         IPreparedTranscriptionAudio audio,
         IReadOnlyList<SpeechRegion> speechRegions,
         CancellationToken cancellationToken = default)
         => (await CreateChunksCoreAsync(audio, speechRegions, includeDiagnostics: false, cancellationToken)).Chunks;
 
-    /// <inheritdoc />
+    /// <summary>RecognitionChunkと分割理由を同時に生成する</summary>
     public Task<RecognitionChunkingDiagnosticResult> CreateChunksWithDiagnosticsAsync(
         IPreparedTranscriptionAudio audio,
         IReadOnlyList<SpeechRegion> speechRegions,
