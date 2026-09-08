@@ -14,7 +14,8 @@ public sealed class SileroPreferredSpeechRegionDetectorTests
     {
         var silero = new StubDetector((_, _, _) => Task.FromResult<IReadOnlyList<SpeechRegion>>([]));
         var fallback = new StubDetector((_, _, _) => Task.FromResult<IReadOnlyList<SpeechRegion>>([CreateRegion(9)]));
-        var sut = CreateSut(silero, fallback);
+        var warnings = new RecordingWarningSink();
+        var sut = CreateSut(silero, fallback, warnings);
 
         var result = await sut.DetectAsync(new TestPreparedAudio(), EmptySettings());
 
@@ -23,6 +24,7 @@ public sealed class SileroPreferredSpeechRegionDetectorTests
             Assert.That(result, Is.Empty);
             Assert.That(silero.CallCount, Is.EqualTo(1));
             Assert.That(fallback.CallCount, Is.Zero);
+            Assert.That(warnings.Codes, Is.Empty);
         });
     }
 
@@ -33,7 +35,8 @@ public sealed class SileroPreferredSpeechRegionDetectorTests
             throw new SileroVadUnavailableException("model unavailable"));
         var fallback = new StubDetector((_, _, _) =>
             Task.FromResult<IReadOnlyList<SpeechRegion>>([CreateRegion(1)]));
-        var sut = CreateSut(silero, fallback);
+        var warnings = new RecordingWarningSink();
+        var sut = CreateSut(silero, fallback, warnings);
         var audio = new TestPreparedAudio();
 
         for (var i = 0; i < 4; i++)
@@ -47,6 +50,7 @@ public sealed class SileroPreferredSpeechRegionDetectorTests
             // モデル利用不可は推論失敗ではないため、3回を超えても次ジョブでSileroを再試行する。
             Assert.That(silero.CallCount, Is.EqualTo(4));
             Assert.That(fallback.CallCount, Is.EqualTo(4));
+            Assert.That(warnings.Codes, Is.All.EqualTo("silero-unavailable"));
         });
     }
 
@@ -56,7 +60,8 @@ public sealed class SileroPreferredSpeechRegionDetectorTests
         var silero = new StubDetector((_, _, _) => throw new InvalidOperationException("inference failed"));
         var fallback = new StubDetector((_, _, _) =>
             Task.FromResult<IReadOnlyList<SpeechRegion>>([CreateRegion(2)]));
-        var sut = CreateSut(silero, fallback);
+        var warnings = new RecordingWarningSink();
+        var sut = CreateSut(silero, fallback, warnings);
         var audio = new TestPreparedAudio();
 
         for (var i = 0; i < 4; i++)
@@ -68,6 +73,31 @@ public sealed class SileroPreferredSpeechRegionDetectorTests
         {
             Assert.That(silero.CallCount, Is.EqualTo(3));
             Assert.That(fallback.CallCount, Is.EqualTo(4));
+            Assert.That(warnings.Codes, Is.EqualTo(new[]
+            {
+                "silero-inference-failed",
+                "silero-inference-failed",
+                "silero-inference-failed-session-suppressed",
+                "silero-session-suppressed"
+            }));
+        });
+    }
+
+    [Test]
+    public async Task DetectAsync_WhenWarningSinkFails_StillUsesFallback()
+    {
+        var silero = new StubDetector((_, _, _) =>
+            throw new SileroVadUnavailableException("model unavailable"));
+        var fallback = new StubDetector((_, _, _) =>
+            Task.FromResult<IReadOnlyList<SpeechRegion>>([CreateRegion(7)]));
+        var sut = CreateSut(silero, fallback, new ThrowingWarningSink());
+
+        var result = await sut.DetectAsync(new TestPreparedAudio(), EmptySettings());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Single().SpeechRegionId, Is.EqualTo(7));
+            Assert.That(fallback.CallCount, Is.EqualTo(1));
         });
     }
 
@@ -131,8 +161,9 @@ public sealed class SileroPreferredSpeechRegionDetectorTests
 
     private static SileroPreferredSpeechRegionDetector CreateSut(
         ISpeechRegionDetector silero,
-        ISpeechRegionDetector fallback)
-        => new(silero, fallback, NullLogger<SileroPreferredSpeechRegionDetector>.Instance);
+        ISpeechRegionDetector fallback,
+        ITranscriptionWarningSink? warningSink = null)
+        => new(silero, fallback, NullLogger<SileroPreferredSpeechRegionDetector>.Instance, warningSink);
 
     private static SpeechRegionDetectorSettingsSnapshot EmptySettings()
         => new(1, default);
@@ -154,6 +185,19 @@ public sealed class SileroPreferredSpeechRegionDetectorTests
             CallCount++;
             return handler(audio, settings, cancellationToken);
         }
+    }
+
+    private sealed class RecordingWarningSink : ITranscriptionWarningSink
+    {
+        public List<string> Codes { get; } = [];
+
+        public void Report(TranscriptionWarning warning) => Codes.Add(warning.Code);
+    }
+
+    private sealed class ThrowingWarningSink : ITranscriptionWarningSink
+    {
+        public void Report(TranscriptionWarning warning)
+            => throw new InvalidOperationException("notification failure");
     }
 
     private sealed class TestPreparedAudio : IPreparedTranscriptionAudio
