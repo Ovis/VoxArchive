@@ -79,9 +79,13 @@ public sealed record RecognizedTranscriptionSegment(
 /// <summary>
 /// エンジンの認識結果を表す
 /// </summary>
+/// <param name="Segments">認識segment一覧</param>
+/// <param name="Metadata">canonical artifactへ保持するEngine固有metadata</param>
+/// <param name="Diagnostics">詳細診断ON時だけ返すEngine非依存trace。通常処理ではnull</param>
 public sealed record TranscriptionEngineResult(
     IReadOnlyList<RecognizedTranscriptionSegment> Segments,
-    IReadOnlyDictionary<string, object?>? Metadata = null);
+    IReadOnlyDictionary<string, object?>? Metadata = null,
+    TranscriptionEngineDiagnosticTrace? Diagnostics = null);
 
 /// <summary>
 /// ASR Engineの最小実行契約を定義する
