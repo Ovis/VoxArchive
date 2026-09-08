@@ -8,13 +8,13 @@
         <StackPanel Margin="0,8,0,0">
             <RadioButton x:Name="SileroModeRadioButton"
                          GroupName="VadMode"
-                         Foreground="{DynamicResource TextPrimary}"
+                         Style="{DynamicResource CommonLabeledRadioButtonStyle}"
                          Content="Silero VAD（精度優先・推奨）"
                          Checked="OnVadModeChanged" />
             <RadioButton x:Name="VolumeBasedModeRadioButton"
                          Margin="0,6,0,0"
                          GroupName="VadMode"
-                         Foreground="{DynamicResource TextPrimary}"
+                         Style="{DynamicResource CommonLabeledRadioButtonStyle}"
                          Content="音量ベースVAD（メモリ使用量優先）"
                          Checked="OnVadModeChanged" />
         </StackPanel>
