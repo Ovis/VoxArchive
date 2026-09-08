@@ -103,6 +103,7 @@ public sealed record TranscriptionDiagnosticAsrResult
     public JsonElement? TimestampTrace { get; init; }
     public bool Discarded { get; init; }
     public string? DiscardReason { get; init; }
+    public long ElapsedMilliseconds { get; init; }
 }
 
 /// <summary>既存話者判定の最終ラベルと判定根拠を保持する</summary>
