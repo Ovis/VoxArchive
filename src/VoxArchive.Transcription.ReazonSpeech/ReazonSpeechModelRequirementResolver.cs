@@ -3,7 +3,7 @@ using VoxArchive.Transcription.Abstractions;
 namespace VoxArchive.Transcription.ReazonSpeech;
 
 /// <summary>
-/// ReazonSpeech optionsと複数ファイルmodel packageの関係をEngine project内で解決する
+/// ReazonSpeech optionsとprecision別物理model packageの関係をEngine project内で解決する
 /// </summary>
 public sealed class ReazonSpeechModelRequirementResolver : ITranscriptionModelRequirementResolver
 {
@@ -17,13 +17,19 @@ public sealed class ReazonSpeechModelRequirementResolver : ITranscriptionModelRe
 
     /// <inheritdoc />
     public TranscriptionModelId ResolveRequiredModel(ITranscriptionEngineOptions options)
-        => GetOptions(options).ModelId;
+        => ReazonSpeechModelCatalog.GetPackageId(GetOptions(options).Precision);
 
     /// <inheritdoc />
     public ITranscriptionEngineOptions SelectModel(
         ITranscriptionEngineOptions options,
         TranscriptionModelId modelId)
-        => GetOptions(options) with
+    {
+        if (modelId != ReazonSpeechModelCatalog.JapaneseModelId)
+        {
+            throw new NotSupportedException($"未対応のReazonSpeech論理モデルです: {modelId}");
+        }
+
+        return GetOptions(options) with
         {
             ModelId = modelId,
             EncoderPath = null,
@@ -31,6 +37,7 @@ public sealed class ReazonSpeechModelRequirementResolver : ITranscriptionModelRe
             JoinerPath = null,
             TokensPath = null
         };
+    }
 
     /// <inheritdoc />
     public ITranscriptionEngineOptions BindInstallation(
@@ -38,9 +45,11 @@ public sealed class ReazonSpeechModelRequirementResolver : ITranscriptionModelRe
         TranscriptionModelInstallation installation)
     {
         var reazon = GetOptions(options);
-        if (installation.EngineId != ReazonSpeechEngineIdentity.EngineId || installation.ModelId != reazon.ModelId)
+        var expectedPackageId = ReazonSpeechModelCatalog.GetPackageId(reazon.Precision);
+        if (installation.EngineId != ReazonSpeechEngineIdentity.EngineId || installation.ModelId != expectedPackageId)
         {
-            throw new InvalidOperationException("ReazonSpeech optionsとモデル配置の識別子が一致しません。");
+            throw new InvalidOperationException(
+                $"ReazonSpeech optionsとモデル配置の識別子が一致しません。期待={expectedPackageId}, 実際={installation.ModelId}");
         }
 
         var requiredFiles = GetRequiredFileNames(reazon.Precision);
@@ -56,11 +65,6 @@ public sealed class ReazonSpeechModelRequirementResolver : ITranscriptionModelRe
     /// <summary>
     /// 指定precisionでsherpa-onnxへ渡すモデルファイル名を返す
     /// </summary>
-    /// <remarks>
-    /// モデル取得単位はModelManager側の責務であり、ここではJob Admissionで確定したprecisionに対して
-    /// どの物理ファイルを利用するかだけを決定する。異なるprecisionのファイルが同じ配置先に共存しても
-    /// prefix検索で誤選択しないよう、配布元の固定ファイル名を完全一致で解決する。
-    /// </remarks>
     internal static ReazonSpeechRequiredModelFiles GetRequiredFileNames(ReazonSpeechPrecision precision)
         => precision switch
         {
