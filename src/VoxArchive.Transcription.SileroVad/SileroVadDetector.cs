@@ -80,27 +80,33 @@ public sealed class SileroVadDetector(string modelPath) : IDiagnosticSpeechRegio
                     break;
                 }
 
-                if (read == window.Length)
+                if (read < window.Length)
                 {
-                    detector.AcceptWaveform(window);
+                    // sherpa-onnxのFlushはSilero内部に残ったpartial inference window自体を推論する処理ではない。
+                    // EOFの実sampleだけを渡すと末尾発話が判定されない可能性があるため、この最終windowに限って
+                    // 必要最小限の0を補い512 sampleを成立させる。補ったsampleはVAD推論専用でcanonical timelineには含めない。
+                    PadEofWindow(window, read);
                 }
-                else
-                {
-                    // 最終端を0で埋めると人工無音がVAD判断へ混入するため、実際に存在するsampleだけを渡す。
-                    var tail = new float[read];
-                    Array.Copy(window, tail, read);
-                    detector.AcceptWaveform(tail);
-                }
+
+                detector.AcceptWaveform(window);
                 DrainSegments(detector, rawRegions);
+
+                if (read < window.Length)
+                {
+                    // ISampleProviderではshort readがEOFを表すため、人工0を含むwindowを一度だけ渡して終了する。
+                    break;
+                }
             }
 
             detector.Flush();
             DrainSegments(detector, rawRegions);
         }
 
-        // Prepared Audioが保持する実sample数を使い、Durationからの再計算誤差をVAD境界へ持ち込まない。
-        var speechRegions = SileroVadRegionBuilder.Build(rawRegions, audio.SampleCount, audio.Format.SampleRate, options);
-        var diagnosticRawRegions = rawRegions
+        // EOF paddingでnative側のsegmentが実音声末尾を越える可能性があるため、raw段階でPrepared Audioへclampする。
+        // artificial sampleを診断JSONや後段のcanonical timelineへ漏らさないことが目的であり、Durationから再計算しない。
+        var realRawRegions = ClampRawRegions(rawRegions, audio.SampleCount);
+        var speechRegions = SileroVadRegionBuilder.Build(realRawRegions, audio.SampleCount, audio.Format.SampleRate, options);
+        var diagnosticRawRegions = realRawRegions
             .Select((range, index) => new SpeechRegionDetectionRawRegion(index, range.StartSample, range.EndSample))
             .ToArray();
         return new SpeechRegionDetectionDiagnosticResult(
@@ -118,6 +124,50 @@ public sealed class SileroVadDetector(string modelPath) : IDiagnosticSpeechRegio
                     prePaddingMilliseconds = options.PrePaddingMilliseconds,
                     postPaddingMilliseconds = options.PostPaddingMilliseconds
                 })));
+    }
+
+    /// <summary>
+    /// EOFのpartial windowをSilero推論に必要なwindow長へ0埋めする
+    /// </summary>
+    /// <param name="window">実sampleが先頭から格納されたSilero入力window</param>
+    /// <param name="realSampleCount">window内に存在する実Prepared Audio sample数</param>
+    /// <returns>推論専用に追加した0 sample数</returns>
+    internal static int PadEofWindow(Span<float> window, int realSampleCount)
+    {
+        if (realSampleCount < 0 || realSampleCount > window.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(realSampleCount));
+        }
+        if (realSampleCount == 0 || realSampleCount == window.Length)
+        {
+            return 0;
+        }
+
+        window[realSampleCount..].Clear();
+        return window.Length - realSampleCount;
+    }
+
+    /// <summary>
+    /// native VADが返したraw regionを実Prepared Audioのsample範囲へ制限する
+    /// </summary>
+    /// <param name="ranges">native VADが返したraw region</param>
+    /// <param name="sampleCount">Prepared Audioに実在するsample数</param>
+    internal static IReadOnlyList<AudioSampleRange> ClampRawRegions(
+        IEnumerable<AudioSampleRange> ranges,
+        long sampleCount)
+    {
+        ArgumentNullException.ThrowIfNull(ranges);
+        if (sampleCount <= 0)
+        {
+            return [];
+        }
+
+        return ranges
+            .Select(range => new AudioSampleRange(
+                Math.Clamp(range.StartSample, 0L, sampleCount),
+                Math.Clamp(range.EndSample, 0L, sampleCount)))
+            .Where(range => range.EndSample > range.StartSample)
+            .ToArray();
     }
 
     /// <summary>
