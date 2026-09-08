@@ -364,7 +364,7 @@ public sealed class TranscriptionOrchestrator(
                     EndSample = trace.EndSample,
                     SplitReason = trace.SplitReason,
                     SplitDetails = CloneIfDefined(trace.SplitDetails),
-                    ElapsedMilliseconds = 0
+                    ElapsedMilliseconds = GetChunkAsrElapsedMilliseconds(engineDiagnostic, trace.RecognitionChunkId)
                 })
                 .ToArray() ?? [],
             AsrResults = engineDiagnostic?.AsrResults?
@@ -382,7 +382,8 @@ public sealed class TranscriptionOrchestrator(
                         TimestampTrace = CloneIfDefined(trace.TimestampTrace),
                         Discarded = discarded,
                         DiscardReason = trace.DiscardReason
-                            ?? (discarded ? "canonical-discarded" : null)
+                            ?? (discarded ? "canonical-discarded" : null),
+                        ElapsedMilliseconds = trace.ElapsedMilliseconds
                     };
                 })
                 .ToArray() ?? [],
@@ -414,6 +415,15 @@ public sealed class TranscriptionOrchestrator(
         // writer自身が通常ログへwarningを残すため、戻り値は本pipelineでは利用しない。
         await diagnosticWriter.TryWriteAsync(request.SourceRecordingPath, timestamp, document, CancellationToken.None);
     }
+
+    private static long GetChunkAsrElapsedMilliseconds(
+        TranscriptionEngineDiagnosticTrace? engineDiagnostic,
+        int recognitionChunkId)
+        => engineDiagnostic?.AsrResults?
+            .Where(x => x.RecognitionChunkId == recognitionChunkId)
+            .Select(x => x.ElapsedMilliseconds)
+            .DefaultIfEmpty(0)
+            .Max() ?? 0;
 
     private static string? CanonicalizeDiagnosticText(string? rawText)
     {
