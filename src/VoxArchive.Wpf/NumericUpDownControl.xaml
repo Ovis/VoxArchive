@@ -1,0 +1,23 @@
+<UserControl x:Class="VoxArchive.Wpf.NumericUpDownControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="30" />
+            <ColumnDefinition Width="30" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <TextBox x:Name="ValueTextBox"
+                 VerticalContentAlignment="Center"
+                 LostKeyboardFocus="OnValueTextBoxLostKeyboardFocus"
+                 KeyDown="OnValueTextBoxKeyDown" />
+        <Button Grid.Column="1" Content="−" Padding="0" Click="OnDecreaseClick" />
+        <Button Grid.Column="2" Content="＋" Padding="0" Click="OnIncreaseClick" />
+        <TextBlock x:Name="UnitTextBlock"
+                   Grid.Column="3"
+                   Margin="6,0,0,0"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource TextMuted}" />
+    </Grid>
+</UserControl>
