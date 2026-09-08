@@ -163,8 +163,13 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
             }
 
             TryDeleteDirectory(backupDirectory);
-            TryDeleteFile(recoveryManifestPath);
-            TryDeleteFile(committedMarkerPath);
+            if (!Directory.Exists(backupDirectory))
+            {
+                // backup削除に失敗した場合はmanifest/markerを残す。
+                // 次回起動時にcommit済みbackupと判別して安全にcleanupを再試行するためである。
+                TryDeleteFile(recoveryManifestPath);
+                TryDeleteFile(committedMarkerPath);
+            }
             return destinationDirectory;
         }
         catch
@@ -300,6 +305,7 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
             {
                 throw new InvalidDataException("モデルbackupの復旧先が空です。");
             }
+            ValidateRecoveryDestination(manifest.DestinationDirectory, temporaryRootDirectory);
         }
         catch (Exception ex)
         {
@@ -374,6 +380,18 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
     {
         var manifest = new BackupRecoveryManifest(Path.GetFullPath(destinationDirectory));
         File.WriteAllText(path, JsonSerializer.Serialize(manifest));
+    }
+
+    private static void ValidateRecoveryDestination(string destinationDirectory, string temporaryRootDirectory)
+    {
+        var modelsRootDirectory = Path.GetDirectoryName(Path.GetFullPath(temporaryRootDirectory))
+            ?? throw new InvalidDataException("モデル管理一時領域の親ディレクトリを解決できません。");
+        var modelsRootWithSeparator = Path.TrimEndingDirectorySeparator(modelsRootDirectory) + Path.DirectorySeparatorChar;
+        var destination = Path.GetFullPath(destinationDirectory);
+        if (!destination.StartsWith(modelsRootWithSeparator, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("モデルbackupの復旧先がVoxArchiveのmodels領域外です。");
+        }
     }
 
     private static string GetRecoveryManifestPath(string backupDirectory)
