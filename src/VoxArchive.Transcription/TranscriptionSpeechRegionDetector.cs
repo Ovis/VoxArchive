@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NAudio.Wave;
 using VoxArchive.Transcription.Abstractions;
 
@@ -6,7 +7,7 @@ namespace VoxArchive.Transcription;
 /// <summary>
 /// 前処理済み音声から既存VAD規則で発話区間を検出する
 /// </summary>
-public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
+public sealed class TranscriptionSpeechRegionDetector : IDiagnosticSpeechRegionDetector
 {
     private const double FrameMilliseconds = 30d;
     private const double MinSpeechMilliseconds = 250d;
@@ -21,33 +22,65 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
     /// <inheritdoc />
     public async Task<IReadOnlyList<SpeechRegion>> DetectAsync(
         IPreparedTranscriptionAudio audio,
+        SpeechRegionDetectorSettingsSnapshot settings,
+        CancellationToken cancellationToken = default)
+        => (await DetectWithDiagnosticsAsync(audio, settings, cancellationToken)).SpeechRegions;
+
+    /// <inheritdoc />
+    public async Task<SpeechRegionDetectionDiagnosticResult> DetectWithDiagnosticsAsync(
+        IPreparedTranscriptionAudio audio,
+        SpeechRegionDetectorSettingsSnapshot settings,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audio);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        // この実装はSileroが利用できない場合の互換fallbackであり、Silero固有設定は意図的に適用しない。
+        // 既存の音量ベースVAD条件を変えるとfallback時だけ従来結果が変化するため、内部定数を維持する。
         await using var stream = await audio.OpenReadAsync(cancellationToken);
         var detected = await Task.Run(() => Detect(stream, cancellationToken), cancellationToken);
 
-        // resamplingやPCM量子化によって生成WAVのTotalTimeが元録音基準のDurationをわずかに超える場合がある。
-        // Engineへ渡すSpeechRegionはabsolute timeline契約に従う必要があるため、公開境界では正本のDurationへ収める。
-        return ClampToDuration(detected, audio.Duration);
+        // Durationから再計算するとresamplingの末尾丸めで1sampleずれる可能性があるため、
+        // Prepared Audioが保持する実sample数でraw/finalの双方をclampする。
+        var speechRegions = ClampToSampleCount(detected.SpeechRegions, audio.SampleCount);
+        var rawRegions = ClampRawToSampleCount(detected.RawRegions, audio.SampleCount);
+        return new SpeechRegionDetectionDiagnosticResult(
+            speechRegions,
+            new SpeechRegionDetectionDiagnosticTrace(
+                "VolumeBasedVad",
+                rawRegions,
+                FallbackUsed: false,
+                FallbackReason: null,
+                EffectiveSettings: BuildEffectiveSettings()));
     }
 
-    private static IReadOnlyList<SpeechRegion> Detect(Stream stream, CancellationToken cancellationToken)
+    private static VolumeVadDetectionResult Detect(Stream stream, CancellationToken cancellationToken)
     {
         using var reader = new WaveFileReader(stream);
         ISampleProvider sampleProvider = reader.ToSampleProvider();
+        var sampleRate = sampleProvider.WaveFormat.SampleRate;
+        var totalSamples = Math.Max(0L, reader.WaveFormat.BlockAlign > 0
+            ? reader.Length / reader.WaveFormat.BlockAlign
+            : 0L);
         if (sampleProvider.WaveFormat.Channels != 1)
         {
-            return [new SpeechRegion(TimeSpan.Zero, reader.TotalTime)];
+            if (totalSamples <= 0)
+            {
+                return new VolumeVadDetectionResult([], []);
+            }
+
+            return new VolumeVadDetectionResult(
+                [CreateRegion(0, 0, totalSamples, [new AudioSampleRange(0, totalSamples)], [0])],
+                [new SpeechRegionDetectionRawRegion(0, 0, totalSamples)]);
         }
 
-        var sampleRate = sampleProvider.WaveFormat.SampleRate;
         var frameSamples = Math.Max(1, (int)Math.Round(sampleRate * (FrameMilliseconds / 1000d)));
         var minSpeechFrames = Math.Max(1, (int)Math.Ceiling(MinSpeechMilliseconds / FrameMilliseconds));
         var minSilenceFrames = Math.Max(1, (int)Math.Ceiling(MinSilenceMilliseconds / FrameMilliseconds));
-        var paddingFrames = Math.Max(0, (int)Math.Ceiling(SpeechPaddingMilliseconds / FrameMilliseconds));
-        var mergeGapFrames = Math.Max(0, (int)Math.Ceiling(MergeGapMilliseconds / FrameMilliseconds));
+        var paddingSamples = Math.Max(0L, (long)Math.Ceiling(sampleRate * SpeechPaddingMilliseconds / 1000d));
+        var mergeGapSamples = Math.Max(0L, (long)Math.Ceiling(sampleRate * MergeGapMilliseconds / 1000d));
         var dbFrames = new List<double>(AnalysisFrameCapacity);
+        var frameLengths = new List<int>(AnalysisFrameCapacity);
         var buffer = new float[frameSamples];
 
         while (true)
@@ -60,17 +93,14 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
             }
 
             var sum = 0d;
-            for (var i = 0; i < read; i++)
-            {
-                sum += buffer[i] * buffer[i];
-            }
-
+            for (var i = 0; i < read; i++) sum += buffer[i] * buffer[i];
             dbFrames.Add(ToDecibel(Math.Sqrt(sum / Math.Max(1, read))));
+            frameLengths.Add(read);
         }
 
         if (dbFrames.Count == 0)
         {
-            return Array.Empty<SpeechRegion>();
+            return new VolumeVadDetectionResult([], []);
         }
 
         var noiseFloorDb = Percentile(dbFrames, NoiseFloorPercentile);
@@ -102,40 +132,48 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
             }
 
             trailingSilence++;
-            if (trailingSilence < minSilenceFrames)
-            {
-                continue;
-            }
-
+            if (trailingSilence < minSilenceFrames) continue;
             AddSpeechRangeIfValid(ranges, speechStart, i - trailingSilence, minSpeechFrames);
             inSpeech = false;
             trailingSilence = 0;
         }
 
-        if (inSpeech)
-        {
-            AddSpeechRangeIfValid(ranges, speechStart, dbFrames.Count - 1, minSpeechFrames);
-        }
+        if (inSpeech) AddSpeechRangeIfValid(ranges, speechStart, dbFrames.Count - 1, minSpeechFrames);
         if (ranges.Count == 0)
         {
-            return Array.Empty<SpeechRegion>();
+            return new VolumeVadDetectionResult([], []);
         }
 
+        var frameStarts = new long[frameLengths.Count + 1];
+        for (var i = 0; i < frameLengths.Count; i++) frameStarts[i + 1] = frameStarts[i] + frameLengths[i];
+
+        var rawRegions = new List<SpeechRegionDetectionRawRegion>(ranges.Count);
+        var padded = new List<DetectedRange>(ranges.Count);
         for (var i = 0; i < ranges.Count; i++)
         {
-            ranges[i] = (
-                Math.Max(0, ranges[i].StartFrame - paddingFrames),
-                Math.Min(dbFrames.Count - 1, ranges[i].EndFrame + paddingFrames));
+            var range = ranges[i];
+            var coreStart = frameStarts[range.StartFrame];
+            var coreEnd = frameStarts[Math.Min(range.EndFrame + 1, frameStarts.Length - 1)];
+            rawRegions.Add(new SpeechRegionDetectionRawRegion(i, coreStart, coreEnd));
+            padded.Add(new DetectedRange(
+                Math.Max(0, coreStart - paddingSamples),
+                Math.Min(totalSamples, coreEnd + paddingSamples),
+                [new AudioSampleRange(coreStart, coreEnd)],
+                [i]));
         }
 
-        var merged = new List<(int StartFrame, int EndFrame)> { ranges[0] };
-        for (var i = 1; i < ranges.Count; i++)
+        var merged = new List<DetectedRange> { padded[0] };
+        for (var i = 1; i < padded.Count; i++)
         {
-            var current = ranges[i];
+            var current = padded[i];
             var last = merged[^1];
-            if (current.StartFrame - last.EndFrame <= mergeGapFrames)
+            if (current.StartSample - last.EndSample <= mergeGapSamples)
             {
-                merged[^1] = (last.StartFrame, Math.Max(last.EndFrame, current.EndFrame));
+                merged[^1] = new DetectedRange(
+                    last.StartSample,
+                    Math.Max(last.EndSample, current.EndSample),
+                    [.. last.CoreRanges, .. current.CoreRanges],
+                    [.. last.SourceRawSpeechRegionIds, .. current.SourceRawSpeechRegionIds]);
             }
             else
             {
@@ -144,59 +182,69 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         }
 
         var result = new List<SpeechRegion>(merged.Count);
-        foreach (var range in merged)
+        for (var i = 0; i < merged.Count; i++)
         {
-            var start = TimeSpan.FromSeconds(range.StartFrame * FrameMilliseconds / 1000d);
-            var end = TimeSpan.FromSeconds((range.EndFrame + 1) * FrameMilliseconds / 1000d);
-            if (end > reader.TotalTime)
+            var range = merged[i];
+            if (range.EndSample > range.StartSample)
             {
-                end = reader.TotalTime;
-            }
-            if (end > start)
-            {
-                result.Add(new SpeechRegion(start, end));
+                result.Add(CreateRegion(i, range.StartSample, range.EndSample, range.CoreRanges, range.SourceRawSpeechRegionIds));
             }
         }
-
-        return result;
+        return new VolumeVadDetectionResult(result, rawRegions);
     }
 
-    private static IReadOnlyList<SpeechRegion> ClampToDuration(
-        IReadOnlyList<SpeechRegion> regions,
-        TimeSpan duration)
-    {
-        if (duration <= TimeSpan.Zero || regions.Count == 0)
+    private static JsonElement BuildEffectiveSettings()
+        => JsonSerializer.SerializeToElement(new
         {
-            return Array.Empty<SpeechRegion>();
-        }
+            frameMilliseconds = FrameMilliseconds,
+            minimumSpeechMilliseconds = MinSpeechMilliseconds,
+            minimumSilenceMilliseconds = MinSilenceMilliseconds,
+            speechPaddingMilliseconds = SpeechPaddingMilliseconds,
+            mergeGapMilliseconds = MergeGapMilliseconds,
+            noiseFloorPercentile = NoiseFloorPercentile,
+            minimumThresholdDb = MinimumThresholdDb,
+            thresholdOffsetDb = ThresholdOffsetDb
+        });
 
+    private static IReadOnlyList<SpeechRegion> ClampToSampleCount(IReadOnlyList<SpeechRegion> regions, long sampleCount)
+    {
+        if (sampleCount <= 0 || regions.Count == 0) return [];
         var result = new List<SpeechRegion>(regions.Count);
         foreach (var region in regions)
         {
-            var start = region.Start < TimeSpan.Zero
-                ? TimeSpan.Zero
-                : region.Start > duration
-                    ? duration
-                    : region.Start;
-            var end = region.End > duration ? duration : region.End;
-            if (end > start)
-            {
-                result.Add(new SpeechRegion(start, end));
-            }
+            var start = Math.Clamp(region.StartSample, 0L, sampleCount);
+            var end = Math.Clamp(region.EndSample, 0L, sampleCount);
+            if (end <= start) continue;
+            var cores = region.CoreRanges
+                .Select(x => new AudioSampleRange(Math.Clamp(x.StartSample, start, end), Math.Clamp(x.EndSample, start, end)))
+                .Where(x => x.EndSample > x.StartSample)
+                .ToArray();
+            result.Add(region with { StartSample = start, EndSample = end, CoreRanges = cores });
         }
         return result;
     }
 
-    private static void AddSpeechRangeIfValid(
-        ICollection<(int StartFrame, int EndFrame)> ranges,
-        int start,
-        int end,
-        int minFrames)
+    private static IReadOnlyList<SpeechRegionDetectionRawRegion> ClampRawToSampleCount(
+        IReadOnlyList<SpeechRegionDetectionRawRegion> regions,
+        long sampleCount)
     {
-        if (end - start + 1 >= minFrames)
-        {
-            ranges.Add((start, end));
-        }
+        if (sampleCount <= 0 || regions.Count == 0) return [];
+        return regions
+            .Select(region => region with
+            {
+                StartSample = Math.Clamp(region.StartSample, 0L, sampleCount),
+                EndSample = Math.Clamp(region.EndSample, 0L, sampleCount)
+            })
+            .Where(region => region.EndSample > region.StartSample)
+            .ToArray();
+    }
+
+    private static SpeechRegion CreateRegion(int id, long startSample, long endSample, IReadOnlyList<AudioSampleRange> coreRanges, IReadOnlyList<int> sourceRawSpeechRegionIds)
+        => new(id, startSample, endSample, coreRanges, sourceRawSpeechRegionIds);
+
+    private static void AddSpeechRangeIfValid(ICollection<(int StartFrame, int EndFrame)> ranges, int start, int end, int minFrames)
+    {
+        if (end - start + 1 >= minFrames) ranges.Add((start, end));
     }
 
     private static double ToDecibel(double rms) => 20d * Math.Log10(Math.Max(rms, 1e-9d));
@@ -207,4 +255,14 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         var index = (int)Math.Floor((ordered.Length - 1) * Math.Clamp(percentile, 0d, 1d));
         return ordered[index];
     }
+
+    private sealed record VolumeVadDetectionResult(
+        IReadOnlyList<SpeechRegion> SpeechRegions,
+        IReadOnlyList<SpeechRegionDetectionRawRegion> RawRegions);
+
+    private sealed record DetectedRange(
+        long StartSample,
+        long EndSample,
+        IReadOnlyList<AudioSampleRange> CoreRanges,
+        IReadOnlyList<int> SourceRawSpeechRegionIds);
 }

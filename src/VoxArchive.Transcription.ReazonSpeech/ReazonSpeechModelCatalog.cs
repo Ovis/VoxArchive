@@ -1,3 +1,4 @@
+using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.ReazonSpeech;
@@ -8,29 +9,72 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 public static class ReazonSpeechModelCatalog
 {
     private const string RepositoryBaseUrl = "https://huggingface.co/reazon-research/reazonspeech-k2-v2/resolve";
-    private const string Revision = "291488c8151be24d7da4bf7af26e533fad96e407";
+    internal const string Revision = "291488c8151be24d7da4bf7af26e533fad96e407";
 
-    /// <summary>日本語モデルID</summary>
+    /// <summary>利用者向け日本語モデルID</summary>
     public static TranscriptionModelId JapaneseModelId { get; } = new("ja");
 
-    /// <summary>選択可能なReazonSpeechモデル定義</summary>
-    public static IReadOnlyList<TranscriptionModelPackageDefinition> All { get; } = [CreateJapanese()];
+    /// <summary>FP32物理package ID</summary>
+    public static TranscriptionModelId JapaneseFp32PackageId { get; } = new("ja-fp32");
 
-    private static TranscriptionModelPackageDefinition CreateJapanese()
+    /// <summary>INT8物理package ID</summary>
+    public static TranscriptionModelId JapaneseInt8PackageId { get; } = new("ja-int8");
+
+    /// <summary>encoder/joiner INT8 + decoder FP32物理package ID</summary>
+    public static TranscriptionModelId JapaneseInt8Fp32PackageId { get; } = new("ja-int8-fp32");
+
+    /// <summary>実行時に利用可能なprecision別物理package定義</summary>
+    internal static IReadOnlyList<ReazonSpeechManagedModelPackage> Packages { get; } =
+    [
+        CreatePackage(
+            JapaneseFp32PackageId,
+            ReazonSpeechPrecision.Fp32,
+            "encoder-epoch-99-avg-1.onnx",
+            "decoder-epoch-99-avg-1.onnx",
+            "joiner-epoch-99-avg-1.onnx"),
+        CreatePackage(
+            JapaneseInt8PackageId,
+            ReazonSpeechPrecision.Int8,
+            "encoder-epoch-99-avg-1.int8.onnx",
+            "decoder-epoch-99-avg-1.int8.onnx",
+            "joiner-epoch-99-avg-1.int8.onnx"),
+        CreatePackage(
+            JapaneseInt8Fp32PackageId,
+            ReazonSpeechPrecision.Int8Fp32,
+            "encoder-epoch-99-avg-1.int8.onnx",
+            "decoder-epoch-99-avg-1.onnx",
+            "joiner-epoch-99-avg-1.int8.onnx")
+    ];
+
+    /// <summary>指定precisionに対応する物理package IDを返す</summary>
+    public static TranscriptionModelId GetPackageId(ReazonSpeechPrecision precision)
+        => precision switch
+        {
+            ReazonSpeechPrecision.Fp32 => JapaneseFp32PackageId,
+            ReazonSpeechPrecision.Int8 => JapaneseInt8PackageId,
+            ReazonSpeechPrecision.Int8Fp32 => JapaneseInt8Fp32PackageId,
+            _ => throw new ArgumentOutOfRangeException(nameof(precision), precision, "未対応のReazonSpeech precisionです。")
+        };
+
+    private static ReazonSpeechManagedModelPackage CreatePackage(
+        TranscriptionModelId packageId,
+        ReazonSpeechPrecision precision,
+        string encoder,
+        string decoder,
+        string joiner)
         => new(
-            ReazonSpeechEngineIdentity.EngineId,
-            JapaneseModelId,
-            "日本語（k2-v2）",
-            "k2-v2",
-            Revision,
-            "Apache-2.0",
-            [
-                CreateFile("encoder-epoch-99-avg-1.int8.onnx", 154_670_139, "2c7bd08a8a99f9ddd0d9e458456577b1f6279214e51426f114f9eced44c54e1d"),
-                CreateFile("decoder-epoch-99-avg-1.onnx", 11_767_836, "58b18211ae06265466bfa17172dab574df94f76c8bcb61a3640c28ba860e4124"),
-                CreateFile("joiner-epoch-99-avg-1.int8.onnx", 2_696_970, "49cc7ea1d3d35a40a27442db5e89996da64bf0e683a903dce76e99e57a12e4de"),
-                CreateFile("tokens.txt", 45_754, "2c3ac659818a48a0c04010e0593bbc4d7c8a24a054340b01131499c05fd52def")
-            ]);
+            packageId,
+            precision,
+            [CreateFile(encoder), CreateFile(decoder), CreateFile(joiner), CreateFile("tokens.txt")]);
 
-    private static TranscriptionModelFileDefinition CreateFile(string fileName, long size, string sha256)
-        => new(new Uri($"{RepositoryBaseUrl}/{Revision}/{fileName}?download=true"), fileName, size, sha256);
+    private static ManagedModelDownloadFile CreateFile(string fileName)
+        => new(new Uri($"{RepositoryBaseUrl}/{Revision}/{fileName}?download=true"), fileName);
 }
+
+/// <summary>
+/// ReazonSpeechで1回のRecognizer初期化に必要な物理ファイル集合を保持する
+/// </summary>
+internal sealed record ReazonSpeechManagedModelPackage(
+    TranscriptionModelId PackageId,
+    ReazonSpeechPrecision Precision,
+    IReadOnlyList<ManagedModelDownloadFile> Files);

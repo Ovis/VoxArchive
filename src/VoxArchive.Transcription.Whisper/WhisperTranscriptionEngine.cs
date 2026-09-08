@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using VoxArchive.Transcription.Abstractions;
 
@@ -7,7 +8,7 @@ namespace VoxArchive.Transcription.Whisper;
 /// Whisper固有の認識処理だけをEngine契約へ接続する
 /// </summary>
 public sealed class WhisperTranscriptionEngine(
-    WhisperSpeechRegionStrategy speechRegionStrategy,
+    WhisperRecognitionChunker recognitionChunker,
     WhisperProcessorFactory processorFactory,
     WhisperRecognizer recognizer,
     ILogger<WhisperTranscriptionEngine> logger) : ITranscriptionEngine
@@ -32,10 +33,34 @@ public sealed class WhisperTranscriptionEngine(
             throw new ArgumentException("Whisper Engineへ異なるoptions型が渡されました。", nameof(request));
         }
 
-        var regions = await speechRegionStrategy.GetRegionsAsync(request.Audio, cancellationToken);
-        if (regions.Count == 0)
+        RecognitionChunkingDiagnosticResult? chunkingDiagnostic = null;
+        IReadOnlyList<RecognitionChunk> chunks;
+        var chunkingStopwatch = request.Context.DiagnosticsEnabled ? Stopwatch.StartNew() : null;
+        if (request.Context.DiagnosticsEnabled)
         {
-            return new TranscriptionEngineResult([]);
+            chunkingDiagnostic = await recognitionChunker.CreateChunksWithDiagnosticsAsync(
+                request.Audio,
+                request.SpeechRegions,
+                cancellationToken);
+            chunks = chunkingDiagnostic.Chunks;
+        }
+        else
+        {
+            chunks = await recognitionChunker.CreateChunksAsync(request.Audio, request.SpeechRegions, cancellationToken);
+        }
+        chunkingStopwatch?.Stop();
+
+        if (chunks.Count == 0)
+        {
+            return new TranscriptionEngineResult(
+                [],
+                Diagnostics: request.Context.DiagnosticsEnabled
+                    ? new TranscriptionEngineDiagnosticTrace(
+                        chunkingDiagnostic?.Traces ?? [],
+                        chunkingStopwatch?.ElapsedMilliseconds ?? 0,
+                        0,
+                        [])
+                    : null);
         }
 
         using var session = processorFactory.Create(options);
@@ -51,14 +76,29 @@ public sealed class WhisperTranscriptionEngine(
 
         try
         {
-            var segments = await recognizer.RecognizeAsync(session, request.Audio, regions, cancellationToken);
+            var asrStopwatch = request.Context.DiagnosticsEnabled ? Stopwatch.StartNew() : null;
+            var recognition = await recognizer.RecognizeAsync(
+                session,
+                request.Audio,
+                chunks,
+                request.Context.DiagnosticsEnabled,
+                cancellationToken);
+            asrStopwatch?.Stop();
+
             return new TranscriptionEngineResult(
-                segments,
+                recognition.Segments,
                 new Dictionary<string, object?>
                 {
                     ["requestedBackend"] = requestedBackend,
                     ["actualBackend"] = actualBackend
-                });
+                },
+                request.Context.DiagnosticsEnabled
+                    ? new TranscriptionEngineDiagnosticTrace(
+                        chunkingDiagnostic?.Traces ?? [],
+                        chunkingStopwatch?.ElapsedMilliseconds ?? 0,
+                        asrStopwatch?.ElapsedMilliseconds ?? 0,
+                        recognition.Diagnostics)
+                    : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

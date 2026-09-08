@@ -93,18 +93,6 @@
             <Setter Property="Foreground" Value="#4F78B7" />
             <Setter Property="BorderBrush" Value="#2D3E55" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ProgressBar">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3" ClipToBounds="True">
-                            <Grid>
-                                <Rectangle x:Name="PART_Track" Fill="Transparent" />
-                                <Rectangle x:Name="PART_Indicator" Fill="{TemplateBinding Foreground}" HorizontalAlignment="Left" />
-                            </Grid>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
     </UserControl.Resources>
 
@@ -123,8 +111,10 @@
                     <TextBlock Text="{Binding StatusText, RelativeSource={RelativeSource AncestorType=UserControl}}" Foreground="{StaticResource ModelTextPrimary}" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding MessageText, RelativeSource={RelativeSource AncestorType=UserControl}}" Foreground="{StaticResource ModelTextMuted}" Margin="0,3,0,0" TextWrapping="Wrap" />
                     <StackPanel Visibility="{Binding ProgressVisibility, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                        <ProgressBar Height="7" Margin="0,6,0,0" Minimum="0" Maximum="100" Value="{Binding ProgressPercent, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                        <TextBlock Text="{Binding ProgressText, RelativeSource={RelativeSource AncestorType=UserControl}}" Foreground="{StaticResource ModelTextMuted}" Margin="0,3,0,0" />
+                        <ProgressBar Height="7" Margin="0,6,0,0" Minimum="0" Maximum="100"
+                                     IsIndeterminate="{Binding ProgressIsIndeterminate, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                     Value="{Binding ProgressPercent, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        <TextBlock Text="{Binding ProgressText, RelativeSource={RelativeSource AncestorType=UserControl}}" Foreground="{StaticResource ModelTextMuted}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </StackPanel>
             </Grid>

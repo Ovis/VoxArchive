@@ -1,3 +1,4 @@
+using System.Text.Json;
 using VoxArchive.Application.Abstractions;
 using VoxArchive.Domain;
 using VoxArchive.Transcription;
@@ -148,6 +149,12 @@ public sealed class TranscriptionJobAdmissionService(
                 persistedEngineSettings.Settings.Clone(),
                 settings.PreferredLanguage);
 
+            // Silero設定もEngine設定と同じくAdmission時点で固定する。
+            // Queue投入後に設定画面を変更しても実行条件と診断JSONが変化しないよう、Domain設定をopaque JSONへ変換して保持する。
+            var speechRegionDetectorSettings = new SpeechRegionDetectorSettingsSnapshot(
+                1,
+                JsonSerializer.SerializeToElement(settings.SileroVad));
+
             var orchestrationRequest = new TranscriptionOrchestrationRequest(
                 audioFilePath,
                 engineId,
@@ -159,7 +166,10 @@ public sealed class TranscriptionJobAdmissionService(
                     ToArtifactFormats(settings.OutputFormats),
                     artifactSuffix,
                     executionSnapshot),
-                settings.DiagnosticsLogEnabled);
+                settings.DiagnosticsLogEnabled)
+            {
+                SpeechRegionDetectorSettings = speechRegionDetectorSettings
+            };
 
             return TranscriptionAdmissionResult.Accepted(new AdmittedTranscriptionJob(descriptor, orchestrationRequest, priority, reservation));
         }

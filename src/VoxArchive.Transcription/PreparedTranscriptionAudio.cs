@@ -8,7 +8,8 @@ namespace VoxArchive.Transcription;
 internal sealed class PreparedTranscriptionAudio(
     string filePath,
     TranscriptionAudioRequirements format,
-    TimeSpan duration) : IPreparedTranscriptionAudio
+    TimeSpan duration,
+    long sampleCount) : IPreparedTranscriptionAudio
 {
     private int _disposed;
 
@@ -17,6 +18,9 @@ internal sealed class PreparedTranscriptionAudio(
 
     /// <inheritdoc />
     public TimeSpan Duration { get; } = duration;
+
+    /// <inheritdoc />
+    public long SampleCount { get; } = sampleCount;
 
     /// <inheritdoc />
     public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken = default)

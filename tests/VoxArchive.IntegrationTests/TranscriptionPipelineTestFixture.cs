@@ -18,8 +18,11 @@ internal static class TranscriptionPipelineTestFixture
     /// <summary>
     /// Engineの実行動作を差し替えられるテスト用pipelineを生成する
     /// </summary>
+    /// <param name="transcribeAsync">Engineの認識動作</param>
+    /// <param name="diagnosticDirectory">詳細診断JSONの保存先。未指定時はテスト専用一時ディレクトリを使用する</param>
     internal static PipelineContext CreatePipeline(
-        Func<TranscriptionEngineRequest, CancellationToken, Task<TranscriptionEngineResult>> transcribeAsync)
+        Func<TranscriptionEngineRequest, CancellationToken, Task<TranscriptionEngineResult>> transcribeAsync,
+        string? diagnosticDirectory = null)
     {
         var engine = new ControllableEngine(transcribeAsync);
         var settingsProvider = new TestSettingsProvider();
@@ -37,12 +40,17 @@ internal static class TranscriptionPipelineTestFixture
         var registry = new TranscriptionEngineRegistry([registration]);
         var usageTracker = new TranscriptionModelUsageTracker();
         var modelManager = new TranscriptionModelManager(registry, usageTracker);
+        diagnosticDirectory ??= Path.Combine(Path.GetTempPath(), "VoxArchive.Tests", "diagnostics", Guid.NewGuid().ToString("N"));
         var orchestrator = new TranscriptionOrchestrator(
             registry,
             new TranscriptionAudioPreparationService(),
+            new FullAudioSpeechRegionDetector(),
             new TranscriptionEngineResultValidator(),
             new TranscriptionSpeakerLabelService(),
             new TranscriptionArtifactService(new TranscriptionDocumentStore(), new TranscriptionExportService()),
+            new TranscriptionDiagnosticWriter(
+                NullLogger<TranscriptionDiagnosticWriter>.Instance,
+                diagnosticDirectory),
             NullLogger<TranscriptionOrchestrator>.Instance);
         var admission = new TranscriptionJobAdmissionService(registry, modelManager, usageTracker);
         var queue = new TranscriptionJobQueue(admission, orchestrator, NullLogger<TranscriptionJobQueue>.Instance);
@@ -136,6 +144,45 @@ internal static class TranscriptionPipelineTestFixture
             TranscriptionEngineRequest request,
             CancellationToken cancellationToken = default)
             => transcribeAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Queue/Admissionのテスト目的ではVAD精度を検証しないため、Prepared Audio全体を1発話として返す
+    /// </summary>
+    private sealed class FullAudioSpeechRegionDetector : IDiagnosticSpeechRegionDetector
+    {
+        public Task<IReadOnlyList<SpeechRegion>> DetectAsync(
+            IPreparedTranscriptionAudio audio,
+            SpeechRegionDetectorSettingsSnapshot settings,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(CreateRegions(audio, cancellationToken));
+
+        public Task<SpeechRegionDetectionDiagnosticResult> DetectWithDiagnosticsAsync(
+            IPreparedTranscriptionAudio audio,
+            SpeechRegionDetectorSettingsSnapshot settings,
+            CancellationToken cancellationToken = default)
+        {
+            var regions = CreateRegions(audio, cancellationToken);
+            return Task.FromResult(new SpeechRegionDetectionDiagnosticResult(
+                regions,
+                new SpeechRegionDetectionDiagnosticTrace(
+                    nameof(FullAudioSpeechRegionDetector),
+                    [],
+                    FallbackUsed: false,
+                    FallbackReason: null,
+                    EffectiveSettings: JsonSerializer.SerializeToElement(new { mode = "full-audio-test" }))));
+        }
+
+        private static IReadOnlyList<SpeechRegion> CreateRegions(
+            IPreparedTranscriptionAudio audio,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var endSample = audio.SampleCount;
+            return endSample == 0
+                ? []
+                : [new SpeechRegion(0, 0, endSample, [new AudioSampleRange(0, endSample)], [0])];
+        }
     }
 
     private sealed class TestSettingsProvider : ITranscriptionEngineSettingsProvider

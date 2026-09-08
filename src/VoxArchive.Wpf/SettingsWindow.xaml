@@ -121,6 +121,10 @@
             <Setter Property="Margin" Value="0,2,0,2" />
         </Style>
 
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        </Style>
+
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
             <Setter Property="Background" Value="#223042" />
@@ -355,7 +359,7 @@
                             <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="有効時は AppData\\Local\\VoxArchive\\logs に録音メトリクスを出力します。" />
                         </StackPanel>
 
-                        <Border Height="470" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                        <Border MinHeight="470" Background="#10161F" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="12,10">
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                 <CheckBox x:Name="TranscriptionEnabledCheckBox" Content="文字起こしを有効にする" />

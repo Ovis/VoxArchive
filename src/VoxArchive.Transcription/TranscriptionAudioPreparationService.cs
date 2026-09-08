@@ -36,7 +36,11 @@ public sealed class TranscriptionAudioPreparationService
             var duration = await Task.Run(
                 () => ConvertAudioToWaveFile(audioFilePath, tempWavePath, speakerGainDb, micGainDb, requirements, cancellationToken),
                 cancellationToken);
-            return new PreparedTranscriptionAudio(tempWavePath, requirements, duration);
+
+            // Prepared Audioのsample座標はDurationから逆算せず、実際に生成したWAVのdata長を正本とする。
+            // resamplingや末尾丸めで元録音Durationと1sample単位の差が出ても、VAD/Chunk/診断が同じ座標系を参照できる。
+            var sampleCount = GetExactSampleCount(tempWavePath, requirements);
+            return new PreparedTranscriptionAudio(tempWavePath, requirements, duration, sampleCount);
         }
         catch
         {
@@ -170,6 +174,27 @@ public sealed class TranscriptionAudioPreparationService
         }
 
         return peak;
+    }
+
+    private static long GetExactSampleCount(
+        string wavePath,
+        TranscriptionAudioRequirements requirements)
+    {
+        using var reader = new WaveFileReader(wavePath);
+        if (reader.WaveFormat.SampleRate != requirements.SampleRate
+            || reader.WaveFormat.Channels != requirements.Channels)
+        {
+            throw new InvalidDataException(
+                $"生成したPrepared Audio形式が要求と一致しません。実際={reader.WaveFormat.SampleRate}Hz/{reader.WaveFormat.Channels}ch");
+        }
+
+        if (reader.WaveFormat.BlockAlign <= 0)
+        {
+            throw new InvalidDataException("Prepared AudioのBlockAlignが不正です。");
+        }
+
+        // WaveFileReader.Lengthはdata chunkのbyte長なので、BlockAlignで割ると1chあたりのframe/sample数になる。
+        return reader.Length / reader.WaveFormat.BlockAlign;
     }
 
     private static void ValidateRequirements(TranscriptionAudioRequirements requirements)

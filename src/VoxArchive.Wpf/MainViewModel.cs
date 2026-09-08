@@ -701,6 +701,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var reazonSpeechSettings = GetRequiredEngineSettings(currentTranscription, ReazonSpeechEngineId);
             var whisperConfiguration = _transcriptionEngineSettingsService.GetConfiguration(WhisperEngineId, whisperSettings);
             var reazonSpeechConfiguration = _transcriptionEngineSettingsService.GetConfiguration(ReazonSpeechEngineId, reazonSpeechSettings);
+            var advancedSettingsService = _serviceProvider.GetRequiredService<ITranscriptionEngineAdvancedSettingsService>();
+            var reazonSpeechAdvancedSettings = advancedSettingsService.GetValues(ReazonSpeechEngineId, reazonSpeechSettings);
 
             var dialog = new SettingsWindow(_transcriptionService)
             {
@@ -716,6 +718,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 AutoTranscriptionAfterRecord = _options.Transcription.AutoAfterRecord,
                 DefaultTranscriptionEngine = _options.Transcription.DefaultEngine,
                 ReazonSpeechModelId = reazonSpeechConfiguration.ModelId ?? "ja",
+                ReazonSpeechAdvancedSettings = reazonSpeechAdvancedSettings,
                 WhisperExecutionModes = whisperConfiguration.ExecutionModes,
                 WhisperExecutionMode = whisperConfiguration.ExecutionModeId ?? string.Empty,
                 WhisperModelId = whisperConfiguration.ModelId ?? "small",
@@ -724,6 +727,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 AutoTranscriptionPriority = _options.Transcription.AutoPriority,
                 ManualTranscriptionPriority = _options.Transcription.ManualPriority,
                 TranscriptionToastNotificationEnabled = _options.Transcription.ToastNotificationEnabled,
+                SileroVadSettings = currentTranscription.SileroVad,
                 FfmpegExecutablePath = _options.FfmpegExecutablePath
             };
 
@@ -752,6 +756,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var normalizedFormats = dialog.TranscriptionOutputFormats == TranscriptionOutputFormats.None
                 ? TranscriptionOutputFormats.Txt
                 : dialog.TranscriptionOutputFormats;
+            var updatedReazonSpeechSettings = advancedSettingsService.UpdateValues(
+                ReazonSpeechEngineId,
+                reazonSpeechSettings,
+                dialog.ReazonSpeechAdvancedSettings);
 
             var engines = new Dictionary<string, TranscriptionEngineSettings>(currentTranscription.Engines, StringComparer.OrdinalIgnoreCase)
             {
@@ -762,7 +770,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     dialog.WhisperExecutionMode),
                 [ReazonSpeechEngineId] = _transcriptionEngineSettingsService.UpdateConfiguration(
                     ReazonSpeechEngineId,
-                    reazonSpeechSettings,
+                    updatedReazonSpeechSettings,
                     dialog.ReazonSpeechModelId,
                     executionModeId: null)
             };
@@ -773,6 +781,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 DefaultEngine = dialog.DefaultTranscriptionEngine,
                 PreferredLanguage = normalizedLanguage,
                 Engines = engines,
+                SileroVad = dialog.SileroVadSettings,
                 OutputFormats = normalizedFormats,
                 AutoPriority = dialog.AutoTranscriptionPriority,
                 ManualPriority = dialog.ManualTranscriptionPriority,
@@ -914,7 +923,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     return;
                 }
 
-                var title = e.Job.Trigger == ApplicationTranscriptionTrigger.AutoAfterRecord ? "自動文字起こし完了" : "文字起こし完了";
+                var title = e.Result.NoSpeechDetected
+                    ? "音声区間は検出されませんでした"
+                    : e.Job.Trigger == ApplicationTranscriptionTrigger.AutoAfterRecord
+                        ? "自動文字起こし完了"
+                        : "文字起こし完了";
                 AppNotificationHub.Notify("VoxArchive", $"{title}: {Path.GetFileName(e.Job.AudioFilePath)}", System.Windows.Forms.ToolTipIcon.Info);
                 return;
             }

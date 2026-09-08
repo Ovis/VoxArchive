@@ -18,7 +18,11 @@ public sealed class TranscriptionEngineSettingsService(TranscriptionEngineRegist
     {
         var registration = engineRegistry.Get(new TranscriptionEngineId(engineId));
         var options = registration.SettingsProvider.Deserialize(settings.Settings, settings.SchemaVersion);
-        var modelId = registration.ModelRequirementResolver?.ResolveRequiredModel(options).Value;
+
+        // ReazonSpeechのようにprecisionで物理packageが切り替わるEngineでは、
+        // UIへ内部package IDを露出させず利用者が選択した論理モデルIDを返す。
+        var modelId = registration.ModelSelectionCapability?.GetSelectedModel(options).Value
+                      ?? registration.ModelRequirementResolver?.ResolveRequiredModel(options).Value;
         var executionModeId = registration.ExecutionModeCapability?.GetSelectedMode(options);
         var executionModes = registration.ExecutionModeCapability?.GetAvailableModes()
             .Select(x => new TranscriptionExecutionModeInfo(x.Id, x.DisplayName))

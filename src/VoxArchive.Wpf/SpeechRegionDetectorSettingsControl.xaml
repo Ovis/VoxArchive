@@ -1,0 +1,95 @@
+<UserControl x:Class="VoxArchive.Wpf.SpeechRegionDetectorSettingsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinWidth="280">
+    <StackPanel Margin="0,14,0,0">
+        <TextBlock Text="無音部分を除外" FontWeight="SemiBold" />
+        <TextBlock Margin="0,4,0,0"
+                   Foreground="{DynamicResource TextMuted}"
+                   TextWrapping="Wrap"
+                   Text="文字起こし前に音声のある部分を検出し、無音と判定された部分を文字起こし対象から除外します。録音ファイル自体は変更されません。" />
+
+        <StackPanel Margin="0,8,0,0">
+            <RadioButton x:Name="SileroModeRadioButton"
+                         GroupName="VadMode"
+                         Style="{DynamicResource CommonLabeledRadioButtonStyle}"
+                         Content="Silero VAD（高精度・推奨）"
+                         Checked="OnVadModeChanged" />
+            <RadioButton x:Name="VolumeBasedModeRadioButton"
+                         Margin="0,6,0,0"
+                         GroupName="VadMode"
+                         Style="{DynamicResource CommonLabeledRadioButtonStyle}"
+                         Content="音量ベース（省メモリ）"
+                         Checked="OnVadModeChanged" />
+        </StackPanel>
+
+        <TextBlock Margin="0,7,0,0"
+                   Foreground="{DynamicResource TextMuted}"
+                   TextWrapping="Wrap"
+                   Text="Silero VADは長時間の音声でメモリ使用量が増える場合があります。メモリ使用量を抑えたい場合は音量ベースを選択してください。" />
+        <TextBlock Margin="0,4,0,0"
+                   Foreground="{DynamicResource TextMuted}"
+                   TextWrapping="Wrap"
+                   Text="Silero VADを選択していてモデルを利用できない場合は、音量ベースへ自動的に切り替わります。" />
+
+        <StackPanel x:Name="SileroSettingsPanel">
+            <Border Margin="0,8,0,0"
+                    Padding="8,6"
+                    Background="#0E1724"
+                    BorderBrush="#2D3E55"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <StackPanel>
+                    <DockPanel LastChildFill="True">
+                        <TextBlock Text="Sileroモデル状態"
+                                   Foreground="{DynamicResource TextMuted}"
+                                   Margin="0,0,8,0" />
+                        <TextBlock x:Name="ModelStatusTextBlock"
+                                   Text="確認中"
+                                   FontWeight="SemiBold" />
+                    </DockPanel>
+
+                    <WrapPanel Margin="0,8,0,0" HorizontalAlignment="Right">
+                        <Button x:Name="ReverifyButton"
+                                Content="再確認"
+                                Margin="0,0,6,0"
+                                Click="OnReverifyClick" />
+                        <Button x:Name="InstallButton"
+                                Content="モデル取得"
+                                Margin="0,0,6,0"
+                                Click="OnInstallClick" />
+                        <Button x:Name="DeleteButton"
+                                Margin="0"
+                                Content="削除"
+                                Click="OnDeleteClick" />
+                    </WrapPanel>
+
+                    <ProgressBar x:Name="DownloadProgressBar"
+                                 Margin="0,8,0,0"
+                                 Height="8"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Visibility="Collapsed" />
+                    <TextBlock x:Name="ProgressTextBlock"
+                               Margin="0,4,0,0"
+                               Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed" />
+                    <TextBlock x:Name="MessageTextBlock"
+                               Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <WrapPanel Margin="0,8,0,0">
+                <Button Content="無音部分の除外を詳細設定..."
+                        Margin="0,0,8,0"
+                        HorizontalAlignment="Left"
+                        Click="OnAdvancedSettingsClick" />
+                <Button Content="既定値に戻す"
+                        HorizontalAlignment="Left"
+                        Click="OnResetDefaultsClick" />
+            </WrapPanel>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

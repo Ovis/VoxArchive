@@ -1,5 +1,5 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.ReazonSpeech;
@@ -8,7 +8,7 @@ namespace VoxArchive.Transcription.ReazonSpeech;
 /// ReazonSpeech固有のrecognitionだけをEngine契約へ接続する
 /// </summary>
 public sealed class ReazonSpeechTranscriptionEngine(
-    ISpeechRegionDetector speechRegionDetector,
+    ReazonSpeechRecognitionChunker recognitionChunker,
     ReazonSpeechRecognizer recognizer,
     ILogger<ReazonSpeechTranscriptionEngine> logger) : ITranscriptionEngine
 {
@@ -32,32 +32,64 @@ public sealed class ReazonSpeechTranscriptionEngine(
             throw new ArgumentException("ReazonSpeech Engineへ異なるoptions型が渡されました。", nameof(request));
         }
 
-        var regions = await speechRegionDetector.DetectAsync(request.Audio, cancellationToken);
-        if (regions.Count == 0)
+        RecognitionChunkingDiagnosticResult? chunkingDiagnostic = null;
+        IReadOnlyList<RecognitionChunk> chunks;
+        var chunkingStopwatch = request.Context.DiagnosticsEnabled ? Stopwatch.StartNew() : null;
+        if (request.Context.DiagnosticsEnabled)
         {
-            return new TranscriptionEngineResult([]);
+            chunkingDiagnostic = await recognitionChunker.CreateChunksWithDiagnosticsAsync(
+                request.Audio,
+                request.SpeechRegions,
+                cancellationToken);
+            chunks = chunkingDiagnostic.Chunks;
+        }
+        else
+        {
+            chunks = await recognitionChunker.CreateChunksAsync(request.Audio, request.SpeechRegions, cancellationToken);
+        }
+        chunkingStopwatch?.Stop();
+
+        if (chunks.Count == 0)
+        {
+            return new TranscriptionEngineResult(
+                [],
+                Diagnostics: request.Context.DiagnosticsEnabled
+                    ? new TranscriptionEngineDiagnosticTrace(
+                        chunkingDiagnostic?.Traces ?? [],
+                        chunkingStopwatch?.ElapsedMilliseconds ?? 0,
+                        0,
+                        [])
+                    : null);
         }
 
         const string provider = "cpu";
-        const string decodingMethod = "greedy_search";
+        var decodingMethod = options.DecodingMethod switch
+        {
+            ReazonSpeechDecodingMethod.GreedySearch => "greedy_search",
+            ReazonSpeechDecodingMethod.ModifiedBeamSearch => "modified_beam_search",
+            _ => options.DecodingMethod.ToString()
+        };
         if (request.Context.DiagnosticsEnabled)
         {
             logger.LogInformation(
-                "ReazonSpeech recognition started. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}, RegionCount={RegionCount}",
+                "ReazonSpeech recognition started. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}, RegionCount={RegionCount}, ChunkCount={ChunkCount}",
                 provider,
                 options.ModelId,
                 decodingMethod,
-                regions.Count);
+                request.SpeechRegions.Count,
+                chunks.Count);
         }
 
         try
         {
-            var segments = await recognizer.RecognizeAsync(
+            var asrStopwatch = request.Context.DiagnosticsEnabled ? Stopwatch.StartNew() : null;
+            var recognition = await recognizer.RecognizeAsync(
                 request.Audio,
-                regions,
+                chunks,
                 options,
                 request.Context.DiagnosticsEnabled,
                 cancellationToken);
+            asrStopwatch?.Stop();
 
             if (request.Context.DiagnosticsEnabled)
             {
@@ -66,16 +98,23 @@ public sealed class ReazonSpeechTranscriptionEngine(
                     provider,
                     options.ModelId,
                     decodingMethod,
-                    segments.Count);
+                    recognition.Segments.Count);
             }
 
             return new TranscriptionEngineResult(
-                segments,
+                recognition.Segments,
                 new Dictionary<string, object?>
                 {
                     ["provider"] = provider,
                     ["decodingMethod"] = decodingMethod
-                });
+                },
+                request.Context.DiagnosticsEnabled
+                    ? new TranscriptionEngineDiagnosticTrace(
+                        chunkingDiagnostic?.Traces ?? [],
+                        chunkingStopwatch?.ElapsedMilliseconds ?? 0,
+                        asrStopwatch?.ElapsedMilliseconds ?? 0,
+                        recognition.Diagnostics)
+                    : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -87,7 +126,7 @@ public sealed class ReazonSpeechTranscriptionEngine(
             // 成功時metadataと同じ識別情報を構造化ログへ残す。
             logger.LogError(
                 ex,
-                "ReazonSpeech recognition failed. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}",
+                "ReazonSpeech transcription failed. Provider={Provider}, Model={Model}, DecodingMethod={DecodingMethod}",
                 provider,
                 options.ModelId,
                 decodingMethod);

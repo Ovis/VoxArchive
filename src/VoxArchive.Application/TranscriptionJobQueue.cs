@@ -242,12 +242,15 @@ public sealed class TranscriptionJobQueue : IDisposable
 
             return new TranscriptionJobResult(
                 true,
-                "文字起こしが完了しました。",
+                result.NoSpeechDetected
+                    ? "音声区間は検出されませんでした"
+                    : "文字起こしが完了しました。",
                 result.GeneratedFiles,
                 startedAt,
                 result.FinishedAt)
             {
-                Outcome = TranscriptionJobOutcome.Completed
+                Outcome = TranscriptionJobOutcome.Completed,
+                NoSpeechDetected = result.NoSpeechDetected
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -1,38 +1,44 @@
+using System.Diagnostics;
+using System.Text.Json;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
 
 namespace VoxArchive.Transcription.Whisper;
 
 /// <summary>
-/// WhisperProcessorへVAD区間を渡し、absolute timelineのEngine segmentへ変換する
+/// WhisperProcessorへRecognitionChunkを渡し、absolute timelineのEngine segmentへ変換する
 /// </summary>
 public sealed class WhisperRecognizer
 {
     private const double VadMergeGapMilliseconds = 300d;
 
     /// <summary>
-    /// 指定区間を順次認識する
+    /// 指定したRecognitionChunkを順次認識する
     /// </summary>
-    public async Task<IReadOnlyList<RecognizedTranscriptionSegment>> RecognizeAsync(
+    public async Task<WhisperRecognitionResult> RecognizeAsync(
         WhisperProcessorSession session,
         IPreparedTranscriptionAudio audio,
-        IReadOnlyList<SpeechRegion> regions,
+        IReadOnlyList<RecognitionChunk> chunks,
+        bool diagnosticsEnabled,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(audio);
-        ArgumentNullException.ThrowIfNull(regions);
+        ArgumentNullException.ThrowIfNull(chunks);
 
         var collected = new List<RecognizedTranscriptionSegment>();
-        foreach (var region in regions)
+        var diagnosticResults = diagnosticsEnabled
+            ? new List<AsrResultDiagnosticTrace>()
+            : null;
+
+        foreach (var chunk in chunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var segmentWavePath = Path.Combine(Path.GetTempPath(), $"voxarchive-whisper-seg-{Guid.NewGuid():N}.wav");
             try
             {
-                await WriteRegionAsync(audio, region, segmentWavePath, cancellationToken);
+                await WriteChunkAsync(audio, chunk, segmentWavePath, cancellationToken);
                 await using var segmentStream = new FileStream(
                     segmentWavePath,
                     FileMode.Open,
@@ -41,22 +47,85 @@ public sealed class WhisperRecognizer
                     64 * 1024,
                     useAsync: true);
 
+                var diagnosticStartIndex = diagnosticResults?.Count ?? 0;
+                var chunkStopwatch = diagnosticsEnabled ? Stopwatch.StartNew() : null;
+
                 // Whisper.net 1.9.1はProcessAsync(Stream, CancellationToken)を公開しているため、
                 // 旧実装のreflectionは不要である。native処理中のCancellationToken処理もSDKへそのまま委譲する。
                 await foreach (var result in session.Processor.ProcessAsync(segmentStream, cancellationToken))
                 {
-                    var text = result.Text?.Trim() ?? string.Empty;
+                    var rawText = result.Text ?? string.Empty;
+                    var (start, end) = NormalizeSegmentTimeline(
+                        result.Start,
+                        result.End,
+                        chunk,
+                        audio.Format.SampleRate,
+                        audio.Duration);
+
+                    if (diagnosticsEnabled)
+                    {
+                        var timestampTrace = JsonSerializer.SerializeToElement(new
+                        {
+                            rawStartSeconds = result.Start.TotalSeconds,
+                            rawEndSeconds = result.End.TotalSeconds,
+                            correctedStartSeconds = result.Start.TotalSeconds,
+                            correctedEndSeconds = result.End.TotalSeconds,
+                            clampedAbsoluteStartSeconds = start.TotalSeconds,
+                            clampedAbsoluteEndSeconds = end.TotalSeconds,
+                            absoluteStartSample = ToCanonicalStartSample(start, audio.Format.SampleRate, audio.SampleCount),
+                            absoluteEndSample = ToCanonicalEndSample(end, audio.Format.SampleRate, audio.SampleCount)
+                        });
+                        var discarded = string.IsNullOrWhiteSpace(rawText);
+                        diagnosticResults!.Add(new AsrResultDiagnosticTrace(
+                            chunk.RecognitionChunkId,
+                            rawText,
+                            timestampTrace,
+                            discarded,
+                            discarded ? "whitespace-only" : null));
+                    }
+
+                    var text = rawText.Trim();
                     if (string.IsNullOrWhiteSpace(text))
                     {
                         continue;
                     }
 
-                    var (start, end) = NormalizeSegmentTimeline(
-                        result.Start,
-                        result.End,
-                        region,
-                        audio.Duration);
-                    collected.Add(new RecognizedTranscriptionSegment(start, end, text));
+                    // 既存の同一chunk内merge挙動は維持するため、mergeへ渡す文字列は従来どおりTrim済みとする。
+                    // raw文字列そのものは上のdiagnostic traceに保持しているため情報は失われない。
+                    collected.Add(new RecognizedTranscriptionSegment(
+                        start,
+                        end,
+                        text,
+                        chunk.RecognitionChunkId));
+                }
+
+                chunkStopwatch?.Stop();
+                if (diagnosticResults is not null)
+                {
+                    var elapsedMilliseconds = chunkStopwatch?.ElapsedMilliseconds ?? 0;
+                    if (diagnosticResults.Count == diagnosticStartIndex)
+                    {
+                        // Whisperがsegmentを1件も返さないchunkも診断上は欠落させない。
+                        diagnosticResults.Add(new AsrResultDiagnosticTrace(
+                            chunk.RecognitionChunkId,
+                            RawText: null,
+                            TimestampTrace: null,
+                            Discarded: true,
+                            DiscardReason: "no-result",
+                            ElapsedMilliseconds: elapsedMilliseconds));
+                    }
+                    else
+                    {
+                        // 1chunkから複数segmentが返る場合も、同じProcessAsync呼び出し全体の時間を各raw traceへ付ける。
+                        // segmentごとの時間を推測して分割すると実測値でなくなるため、chunk単位の同一値として保持する。
+                        for (var i = diagnosticStartIndex; i < diagnosticResults.Count; i++)
+                        {
+                            diagnosticResults[i] = diagnosticResults[i] with
+                            {
+                                ElapsedMilliseconds = elapsedMilliseconds
+                            };
+                        }
+                    }
                 }
             }
             finally
@@ -65,50 +134,63 @@ public sealed class WhisperRecognizer
             }
         }
 
-        return MergeAdjacentSegments(collected);
+        return new WhisperRecognitionResult(
+            MergeAdjacentSegments(collected),
+            diagnosticResults ?? []);
     }
 
     /// <summary>
-    /// Whisper.netが返すVAD区間内の相対timestampをCommon契約のabsolute timelineへ正規化する
+    /// Whisper.netが返すRecognitionChunk内の相対timestampをCommon契約のabsolute timelineへ正規化する
     /// </summary>
     /// <remarks>
     /// Whisperは音声末尾で量子化誤差等により、実際に渡した区間より少し後ろのEndを返すことがある。
     /// Common validatorを緩めると他Engineの契約違反まで隠すため、Whisper固有adapterで実際の入力区間へ収める。
+    /// RecognitionChunk自体はsample座標を正本とし、Engine境界でのみTimeSpanへ変換する。
     /// </remarks>
     internal static (TimeSpan Start, TimeSpan End) NormalizeSegmentTimeline(
         TimeSpan relativeStart,
         TimeSpan relativeEnd,
-        SpeechRegion region,
+        RecognitionChunk chunk,
+        int sampleRate,
         TimeSpan audioDuration)
     {
-        ArgumentNullException.ThrowIfNull(region);
-
-        var regionStart = region.Start < TimeSpan.Zero ? TimeSpan.Zero : region.Start;
-        var regionEnd = region.End < audioDuration ? region.End : audioDuration;
-        if (regionEnd < regionStart)
+        ArgumentNullException.ThrowIfNull(chunk);
+        if (sampleRate <= 0)
         {
-            regionEnd = regionStart;
+            throw new ArgumentOutOfRangeException(nameof(sampleRate));
         }
 
-        var absoluteStart = region.Start + relativeStart;
-        var absoluteEnd = region.Start + relativeEnd;
-        var start = Clamp(absoluteStart, regionStart, regionEnd);
-        var end = Clamp(absoluteEnd, start, regionEnd);
+        var chunkStart = SamplesToTimeSpan(chunk.StartSample, sampleRate);
+        var chunkEnd = SamplesToTimeSpan(chunk.EndSample, sampleRate);
+        if (chunkEnd > audioDuration)
+        {
+            chunkEnd = audioDuration;
+        }
+        if (chunkEnd < chunkStart)
+        {
+            chunkEnd = chunkStart;
+        }
+
+        var absoluteStart = chunkStart + relativeStart;
+        var absoluteEnd = chunkStart + relativeEnd;
+        var start = Clamp(absoluteStart, chunkStart, chunkEnd);
+        var end = Clamp(absoluteEnd, start, chunkEnd);
         return (start, end);
     }
 
-    private static async Task WriteRegionAsync(
+    private static async Task WriteChunkAsync(
         IPreparedTranscriptionAudio audio,
-        SpeechRegion region,
+        RecognitionChunk chunk,
         string destinationPath,
         CancellationToken cancellationToken)
     {
         await using var source = await audio.OpenReadAsync(cancellationToken);
         using var reader = new WaveFileReader(source);
+        var sampleRate = reader.WaveFormat.SampleRate;
         var provider = new OffsetSampleProvider(reader.ToSampleProvider())
         {
-            SkipOver = region.Start,
-            Take = region.Duration
+            SkipOver = SamplesToTimeSpan(chunk.StartSample, sampleRate),
+            Take = SamplesToTimeSpan(chunk.Length, sampleRate)
         };
 
         await Task.Run(() => WaveFileWriter.CreateWaveFile16(destinationPath, provider), cancellationToken);
@@ -122,13 +204,22 @@ public sealed class WhisperRecognizer
             return segments;
         }
 
-        var ordered = segments.OrderBy(x => x.Start).ToList();
+        var ordered = segments
+            .Select((segment, index) => (segment, index))
+            .OrderBy(x => x.segment.Start)
+            .ThenBy(x => x.index)
+            .Select(x => x.segment)
+            .ToList();
         var merged = new List<RecognizedTranscriptionSegment>(ordered.Count) { ordered[0] };
         for (var i = 1; i < ordered.Count; i++)
         {
             var current = ordered[i];
             var last = merged[^1];
-            if ((current.Start - last.End).TotalMilliseconds <= VadMergeGapMilliseconds)
+
+            // RecognitionChunkをまたいでsegmentを結合するとASR結果から生成元chunkを追跡できなくなるため、
+            // 従来の近接segment結合は同一chunk内に限定する。
+            if (current.RecognitionChunkId == last.RecognitionChunkId
+                && (current.Start - last.End).TotalMilliseconds <= VadMergeGapMilliseconds)
             {
                 merged[^1] = last with
                 {
@@ -157,6 +248,15 @@ public sealed class WhisperRecognizer
         return $"{left} {right}";
     }
 
+    private static long ToCanonicalStartSample(TimeSpan value, int sampleRate, long sampleCount)
+        => Math.Clamp((long)Math.Floor(value.TotalSeconds * sampleRate), 0L, sampleCount);
+
+    private static long ToCanonicalEndSample(TimeSpan value, int sampleRate, long sampleCount)
+        => Math.Clamp((long)Math.Ceiling(value.TotalSeconds * sampleRate), 0L, sampleCount);
+
+    private static TimeSpan SamplesToTimeSpan(long samples, int sampleRate)
+        => TimeSpan.FromSeconds(samples / (double)sampleRate);
+
     private static TimeSpan Clamp(TimeSpan value, TimeSpan minimum, TimeSpan maximum)
     {
         if (value < minimum)
@@ -182,3 +282,10 @@ public sealed class WhisperRecognizer
         }
     }
 }
+
+/// <summary>
+/// Whisper Recognizerが返す未canonical segmentとnative raw診断traceを保持する
+/// </summary>
+public sealed record WhisperRecognitionResult(
+    IReadOnlyList<RecognizedTranscriptionSegment> Segments,
+    IReadOnlyList<AsrResultDiagnosticTrace> Diagnostics);

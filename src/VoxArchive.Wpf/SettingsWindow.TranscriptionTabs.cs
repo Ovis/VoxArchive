@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Extensions.DependencyInjection;
 using VoxArchive.Application.Abstractions;
 
 namespace VoxArchive.Wpf;
@@ -15,6 +16,7 @@ public partial class SettingsWindow
 
     private bool _whisperTabVisited;
     private bool _reazonSpeechTabVisited;
+    private SpeechRegionDetectorSettingsControl? _speechRegionDetectorSettingsControl;
 
     /// <summary>新規文字起こしで既定として使用するEngineの安定IDを取得・設定する</summary>
     public string DefaultTranscriptionEngine
@@ -50,6 +52,8 @@ public partial class SettingsWindow
     {
         PopulateModelChoices(WhisperEngineId, WhisperModelManagerControl);
         PopulateModelChoices(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+        InitializeSpeechRegionDetectorSettingsControl();
+        InitializeReazonSpeechAdvancedSettingsControl();
 
         WhisperModelManagerControl.SelectedModelChanged += OnWhisperModelSelectionChanged;
         WhisperModelManagerControl.VerifyRequested += OnWhisperModelVerifyRequested;
@@ -63,6 +67,32 @@ public partial class SettingsWindow
 
         _transcriptionService.ModelStateChanged += OnModelManagerStateChanged;
         TranscriptionTabControl.SelectedIndex = 0;
+    }
+
+    private void InitializeSpeechRegionDetectorSettingsControl()
+    {
+        // テスト用constructorではApplication DIが存在しない場合があるため、Facadeを解決できる実アプリだけControlを追加する。
+        // PresentationからSilero具象型へは依存せず、専用Application Facadeだけを利用する。
+        var app = System.Windows.Application.Current as App;
+        var modelService = app?.Services.GetService<ISpeechRegionDetectorModelApplicationService>();
+        if (modelService is null
+            || TranscriptionTabControl.Items.Count == 0
+            || TranscriptionTabControl.Items[0] is not TabItem commonTab
+            || commonTab.Content is not Grid commonGrid)
+        {
+            return;
+        }
+
+        var leftColumn = commonGrid.Children
+            .OfType<StackPanel>()
+            .FirstOrDefault(x => Grid.GetColumn(x) == 0);
+        if (leftColumn is null)
+        {
+            return;
+        }
+
+        _speechRegionDetectorSettingsControl = new SpeechRegionDetectorSettingsControl(modelService);
+        leftColumn.Children.Add(_speechRegionDetectorSettingsControl);
     }
 
     private void PopulateModelChoices(string engineId, TranscriptionModelManagerControl control)
@@ -141,24 +171,32 @@ public partial class SettingsWindow
             return;
         }
 
+        var isReazonSpeech = string.Equals(engineId, ReazonSpeechEngineId, StringComparison.OrdinalIgnoreCase);
+        var operationLabel = isReazonSpeech ? "利用可能性確認" : "完全性確認";
         control.CanVerify = false;
-        control.MessageText = "モデルファイルの完全性を確認しています...";
+        control.MessageText = isReazonSpeech
+            ? "モデルを読み込めるか確認しています..."
+            : "モデルファイルの完全性を確認しています...";
         try
         {
             var inspection = await _transcriptionService.ReverifyModelAsync(engineId, modelId);
             ApplyInspectionState(control, inspection.State);
             if (inspection.IsReady)
             {
-                control.MessageText = "モデルファイルの完全性を確認しました。";
+                control.MessageText = isReazonSpeech
+                    ? "モデルを利用できることを確認しました。"
+                    : "モデルファイルの完全性を確認しました。";
             }
             else
             {
-                control.MessageText = "完全性確認で問題が見つかりました。モデルを再取得してください。";
+                control.MessageText = isReazonSpeech
+                    ? "モデルを読み込めませんでした。モデルを再取得してください。"
+                    : "完全性確認で問題が見つかりました。モデルを再取得してください。";
             }
         }
         catch (Exception ex)
         {
-            control.MessageText = BuildModelOperationErrorMessage("完全性確認", ex);
+            control.MessageText = BuildModelOperationErrorMessage(operationLabel, ex);
         }
         finally
         {
@@ -261,10 +299,14 @@ public partial class SettingsWindow
         }
 
         var displayName = GetModelDisplayName(engineId, modelId);
+        var isReazonSpeech = string.Equals(engineId, ReazonSpeechEngineId, StringComparison.OrdinalIgnoreCase);
         var engineName = string.Equals(engineId, WhisperEngineId, StringComparison.OrdinalIgnoreCase) ? "Whisper" : "ReazonSpeech";
+        var deleteScopeNotice = isReazonSpeech
+            ? "\n\nReazonSpeechでは、現在選択中のprecisionだけでなく、ローカルに保存されている fp32 / int8 / int8-fp32 の全モデルセットを削除します。"
+            : string.Empty;
         var result = ModernDialog.Show(
             this,
-            $"{engineName} / {displayName} のローカルモデルファイルを削除します。\nモデルの選択設定は維持され、再度利用するにはモデル取得が必要です。",
+            $"{engineName} / {displayName} のローカルモデルファイルを削除します。\nモデルの選択設定は維持され、再度利用するにはモデル取得が必要です。{deleteScopeNotice}",
             "モデル削除",
             MessageBoxButton.OKCancel,
             MessageBoxImage.Warning,
@@ -299,6 +341,7 @@ public partial class SettingsWindow
         var previousMessage = control.MessageText;
         control.ProgressVisibility = Visibility.Collapsed;
         control.ProgressPercent = 0;
+        control.ProgressIsIndeterminate = false;
         control.ProgressText = string.Empty;
 
         try
@@ -324,14 +367,17 @@ public partial class SettingsWindow
 
             if (isCurrentDownload && active is not null)
             {
-                control.StatusText = active.IsCancelling ? "取得中止処理中" : "取得中";
+                control.StatusText = active.IsCancelling
+                    ? "取得中止処理中"
+                    : active.IsValidating ? "検証中" : "取得中";
                 control.InstallButtonText = active.IsCancelling ? "取得をキャンセル中" : "取得をキャンセル";
-                control.CanInstall = !active.IsCancelling;
+                control.CanInstall = !active.IsCancelling && !active.IsValidating;
                 control.CanVerify = false;
                 control.CanDelete = false;
                 control.ProgressVisibility = Visibility.Visible;
                 control.ProgressPercent = active.Percent;
-                control.ProgressText = FormatProgress(active.BytesReceived, active.TotalBytes);
+                control.ProgressIsIndeterminate = active.IsIndeterminate || active.IsValidating;
+                control.ProgressText = FormatModelProgress(active);
                 if (!preserveMessage)
                 {
                     control.MessageText = string.Empty;
@@ -367,6 +413,19 @@ public partial class SettingsWindow
             control.CanInstall = false;
             control.CanDelete = false;
         }
+    }
+
+    private static string FormatModelProgress(TranscriptionModelDownloadInfo active)
+    {
+        if (active.IsValidating)
+        {
+            return "モデルを検証しています…";
+        }
+
+        var transfer = FormatProgress(active.BytesReceived, active.TotalBytes);
+        return string.IsNullOrWhiteSpace(active.CurrentFileName)
+            ? transfer
+            : $"{active.CurrentFileName}: {transfer}";
     }
 
     private static void ApplyInspectionState(TranscriptionModelManagerControl control, string state)
@@ -405,22 +464,42 @@ public partial class SettingsWindow
         }
     }
 
-    private static bool TryGetSelectedModel(TranscriptionModelManagerControl control, out string modelId)
+    private bool TryGetSelectedModel(TranscriptionModelManagerControl control, out string modelId)
     {
-        if (!string.IsNullOrWhiteSpace(control.SelectedModelId))
+        if (string.IsNullOrWhiteSpace(control.SelectedModelId))
         {
-            modelId = control.SelectedModelId.Trim();
+            modelId = string.Empty;
+            return false;
+        }
+
+        var logicalModelId = control.SelectedModelId.Trim();
+        if (!ReferenceEquals(control, ReazonSpeechModelManagerControl))
+        {
+            modelId = logicalModelId;
             return true;
         }
 
-        modelId = string.Empty;
-        return false;
+        // ReazonSpeechは利用者へ論理モデルだけを見せ、モデル管理操作では編集中precisionに対応する物理packageを使う。
+        // テスト用SettingsWindowなどDIがない場合だけ論理IDへ戻し、実アプリではApplication resolverを必ず経由する。
+        var app = System.Windows.Application.Current as App;
+        var resolver = app?.Services.GetService<ITranscriptionModelOperationResolverService>();
+        modelId = resolver?.ResolveModelId(
+            ReazonSpeechEngineId,
+            logicalModelId,
+            ReazonSpeechAdvancedSettings) ?? logicalModelId;
+        return true;
     }
 
     private string GetModelDisplayName(string engineId, string modelId)
     {
-        return _transcriptionService.GetAvailableModels(engineId)
-            .FirstOrDefault(model => string.Equals(model.Id, modelId, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? modelId;
+        var models = _transcriptionService.GetAvailableModels(engineId);
+        if (string.Equals(engineId, ReazonSpeechEngineId, StringComparison.OrdinalIgnoreCase))
+        {
+            // modelIdには内部package IDが渡ることがあるが、通知・確認ダイアログへは実装詳細を露出させない。
+            return models.FirstOrDefault()?.DisplayName ?? "日本語（k2-v2）";
+        }
+
+        return models.FirstOrDefault(model => string.Equals(model.Id, modelId, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? modelId;
     }
 
     private static string FormatProgress(long received, long total)
@@ -455,7 +534,7 @@ public partial class SettingsWindow
             HttpRequestException => $"{operation}に失敗しました。ネットワーク接続を確認してください。",
             UnauthorizedAccessException => $"{operation}に失敗しました。モデル保存先へアクセスできません。",
             IOException => $"{operation}に失敗しました。空き容量またはモデル保存先を確認してください。",
-            InvalidDataException => $"{operation}に失敗しました。取得したモデルの完全性を確認できませんでした。",
+            InvalidDataException => $"{operation}に失敗しました。取得したモデルを利用できませんでした。",
             _ => $"{operation}に失敗しました。診断ログを確認してください。"
         };
     }

@@ -1,0 +1,52 @@
+<UserControl x:Class="VoxArchive.Wpf.ReazonSpeechAdvancedSettingsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:VoxArchive.Wpf"
+             MinWidth="280">
+    <StackPanel>
+        <TextBlock Text="実行設定" FontWeight="SemiBold" />
+        <TextBlock Margin="0,4,0,10"
+                   Foreground="{DynamicResource TextMuted}"
+                   TextWrapping="Wrap"
+                   Text="ReazonSpeechはCPU実行のみ対応しています。モデル精度とdecoding方式を指定できます。" />
+        <TextBlock x:Name="ValidationMessageTextBlock"
+                   Margin="0,0,0,10"
+                   Foreground="#E7B35A"
+                   TextWrapping="Wrap"
+                   Visibility="Collapsed" />
+
+        <TextBlock Text="モデル精度" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4" />
+        <ComboBox x:Name="PrecisionComboBox">
+            <ComboBoxItem Content="FP32" Tag="fp32" />
+            <ComboBoxItem Content="INT8" Tag="int8" />
+            <ComboBoxItem Content="INT8 / FP32（既定）" Tag="int8-fp32" />
+        </ComboBox>
+
+        <TextBlock Text="Decoding method" Foreground="{DynamicResource TextMuted}" Margin="0,10,0,4" />
+        <ComboBox x:Name="DecodingMethodComboBox" SelectionChanged="OnDecodingMethodSelectionChanged">
+            <ComboBoxItem Content="Greedy search（既定）" Tag="greedy_search" />
+            <ComboBoxItem Content="Modified beam search" Tag="modified_beam_search" />
+        </ComboBox>
+
+        <StackPanel x:Name="MaxActivePathsPanel" Margin="0,10,0,0">
+            <TextBlock Text="Max active paths" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4" />
+            <local:NumericUpDownControl x:Name="MaxActivePathsControl"
+                                        Minimum="-2147483648"
+                                        Maximum="2147483647"
+                                        Increment="1"
+                                        DecimalPlaces="0" />
+        </StackPanel>
+
+        <TextBlock Text="CPU threads" Foreground="{DynamicResource TextMuted}" Margin="0,10,0,4" />
+        <local:NumericUpDownControl x:Name="CpuThreadsControl"
+                                    Minimum="-2147483648"
+                                    Maximum="2147483647"
+                                    Increment="1"
+                                    DecimalPlaces="0" />
+
+        <Button Margin="0,12,0,0"
+                HorizontalAlignment="Left"
+                Content="既定値に戻す"
+                Click="OnResetDefaultsClick" />
+    </StackPanel>
+</UserControl>

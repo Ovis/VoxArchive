@@ -18,12 +18,32 @@ public sealed class TranscriptionSpeakerLabelService
         string audioFilePath,
         IReadOnlyList<RecognizedTranscriptionSegment> segments,
         CancellationToken cancellationToken = default)
+        => ApplyCore(audioFilePath, segments, includeDiagnostics: false, cancellationToken).Segments;
+
+    /// <summary>
+    /// 既存の話者判定結果に加えて、同じ判定で使用したCH1/CH2エネルギーを診断用に返す
+    /// </summary>
+    /// <remarks>
+    /// 診断のために別計算を行うと通常処理と診断値が食い違う可能性があるため、
+    /// ラベル決定に実際に使用した同じ累積値をそのまま返す。
+    /// </remarks>
+    public SpeakerLabelingDiagnosticResult ApplyWithDiagnostics(
+        string audioFilePath,
+        IReadOnlyList<RecognizedTranscriptionSegment> segments,
+        CancellationToken cancellationToken = default)
+        => ApplyCore(audioFilePath, segments, includeDiagnostics: true, cancellationToken);
+
+    private static SpeakerLabelingDiagnosticResult ApplyCore(
+        string audioFilePath,
+        IReadOnlyList<RecognizedTranscriptionSegment> segments,
+        bool includeDiagnostics,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);
         ArgumentNullException.ThrowIfNull(segments);
         if (segments.Count == 0)
         {
-            return Array.Empty<LabeledTranscriptionSegment>();
+            return new SpeakerLabelingDiagnosticResult([], []);
         }
 
         try
@@ -31,7 +51,15 @@ public sealed class TranscriptionSpeakerLabelService
             using var reader = new AudioFileReader(audioFilePath);
             if (reader.WaveFormat.Channels < 2)
             {
-                return segments.Select(x => new LabeledTranscriptionSegment(x, null)).ToArray();
+                var unlabeled = segments.Select(x => new LabeledTranscriptionSegment(x, null)).ToArray();
+                var diagnostics = includeDiagnostics
+                    ? segments.Select((x, index) => new SpeakerLabelingDiagnosticTrace(
+                        x.RecognitionChunkId ?? index,
+                        SpeakerLabel: null,
+                        SpeakerChannelEnergy: null,
+                        MicrophoneChannelEnergy: null)).ToArray()
+                    : [];
+                return new SpeakerLabelingDiagnosticResult(unlabeled, diagnostics);
             }
 
             ISampleProvider sampleProvider = reader;
@@ -85,13 +113,18 @@ public sealed class TranscriptionSpeakerLabelService
             }
 
             var labeled = new List<LabeledTranscriptionSegment>(segments.Count);
+            var traces = includeDiagnostics ? new List<SpeakerLabelingDiagnosticTrace>(segments.Count) : null;
             for (var i = 0; i < segments.Count; i++)
             {
-                labeled.Add(new LabeledTranscriptionSegment(
-                    segments[i],
-                    ResolveSpeakerLabel(leftEnergy[i], rightEnergy[i])));
+                var label = ResolveSpeakerLabel(leftEnergy[i], rightEnergy[i]);
+                labeled.Add(new LabeledTranscriptionSegment(segments[i], label));
+                traces?.Add(new SpeakerLabelingDiagnosticTrace(
+                    segments[i].RecognitionChunkId ?? i,
+                    label,
+                    leftEnergy[i],
+                    rightEnergy[i]));
             }
-            return labeled;
+            return new SpeakerLabelingDiagnosticResult(labeled, traces ?? []);
         }
         catch (OperationCanceledException)
         {
@@ -100,8 +133,16 @@ public sealed class TranscriptionSpeakerLabelService
         catch
         {
             // 話者判定は認識結果に対する付加情報であり、original audioの読み取り失敗だけで
-            // ASR結果そのものを破棄しない既存仕様を維持する。
-            return segments.Select(x => new LabeledTranscriptionSegment(x, null)).ToArray();
+            // ASR結果そのものを破棄しない既存仕様を維持する。診断値も推測せずnullとして残す。
+            var unlabeled = segments.Select(x => new LabeledTranscriptionSegment(x, null)).ToArray();
+            var diagnostics = includeDiagnostics
+                ? segments.Select((x, index) => new SpeakerLabelingDiagnosticTrace(
+                    x.RecognitionChunkId ?? index,
+                    SpeakerLabel: null,
+                    SpeakerChannelEnergy: null,
+                    MicrophoneChannelEnergy: null)).ToArray()
+                : [];
+            return new SpeakerLabelingDiagnosticResult(unlabeled, diagnostics);
         }
     }
 
@@ -146,3 +187,19 @@ public sealed class TranscriptionSpeakerLabelService
 public sealed record LabeledTranscriptionSegment(
     RecognizedTranscriptionSegment Segment,
     string? SpeakerLabel);
+
+/// <summary>
+/// 1 segmentの話者判定結果と、その判定に使用したCH1/CH2エネルギーを保持する
+/// </summary>
+public sealed record SpeakerLabelingDiagnosticTrace(
+    int RecognitionChunkId,
+    string? SpeakerLabel,
+    double? SpeakerChannelEnergy,
+    double? MicrophoneChannelEnergy);
+
+/// <summary>
+/// 話者ラベル付きsegmentと診断根拠を同じ処理結果として返す
+/// </summary>
+public sealed record SpeakerLabelingDiagnosticResult(
+    IReadOnlyList<LabeledTranscriptionSegment> Segments,
+    IReadOnlyList<SpeakerLabelingDiagnosticTrace> Traces);

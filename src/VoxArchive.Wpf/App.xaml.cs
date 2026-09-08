@@ -8,6 +8,7 @@ using VoxArchive.Audio;
 using VoxArchive.Audio.Abstractions;
 using VoxArchive.Infrastructure;
 using VoxArchive.Runtime;
+using VoxArchive.Transcription.Abstractions;
 using ZLogger;
 
 namespace VoxArchive.Wpf;
@@ -64,6 +65,10 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<IRecordingServiceFactory, RecordingServiceFactory>();
                     services.AddSingleton<LocalRecordingBootstrapper>();
                     services.AddSingleton<RecordingRuntimeContextHolder>();
+
+                    // fallback警告の表示手段はPresentation責務なので、Runtime構成を登録する前にWPF実装だけを提供する。
+                    // Runtime側は抽象sinkを任意解決するため、CLI/テストなどPresentationを持たないホストでは未登録のまま動作できる。
+                    services.AddSingleton<ITranscriptionWarningSink, TranscriptionWarningNotificationSink>();
 
                     // 文字起こしのCommon/Engine/Application構成はRuntimeだけが所有する。
                     // WPFからWhisper/ReazonSpeech具象型を登録するとComposition Rootが分散するため、ここでは拡張1本だけを呼ぶ。
@@ -145,12 +150,34 @@ public partial class App : System.Windows.Application
         {
             try
             {
-                // モデル取得のownerはWindowではなくApplication facadeなので、終了時も同じFacadeを通してキャンセル・完了待機する。
+                // ASRモデル取得のownerはWindowではなくApplication facadeなので、終了時も同じFacadeを通してキャンセル・完了待機する。
                 _host.Services.GetService<ITranscriptionApplicationService>()?.CancelActiveModelDownloadAndWaitAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
                 _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Model download cancellation threw during shutdown.");
+            }
+
+            try
+            {
+                // 再確認・削除はnative処理やatomic renameの途中を安全に強制停止できないため、
+                // OS shutdownなどMainWindowの確認経路を通らない終了でも現在の操作が完了するまで待つ。
+                _host.Services.GetService<ITranscriptionModelManagementApplicationService>()?.WaitForActiveOperationAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "ASR model management operation wait threw during shutdown.");
+            }
+
+            try
+            {
+                // 明示終了ではMainWindow側で利用者確認を行うが、OS shutdownや起動失敗など別経路でもモデル操作を放置しない。
+                // native validationはApplication facade内で安全に完了待機し、cancel済みTokenによってcommitだけを抑止する。
+                _host.Services.GetService<ISpeechRegionDetectorModelApplicationService>()?.CancelActiveOperationAndWaitAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _host.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Speech region detector model operation shutdown threw during shutdown.");
             }
 
             try { _host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult(); }

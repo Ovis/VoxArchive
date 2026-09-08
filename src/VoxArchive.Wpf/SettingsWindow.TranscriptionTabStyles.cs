@@ -15,6 +15,7 @@ public partial class SettingsWindow
     {
         base.OnContentRendered(e);
         ApplyTranscriptionTabStyles();
+        InitializeReazonSpeechAdvancedSettingsControl();
     }
 
     /// <summary>

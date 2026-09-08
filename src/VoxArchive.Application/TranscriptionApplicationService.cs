@@ -87,7 +87,11 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
         var adapter = progress is null
             ? null
             : new Progress<TranscriptionModelTransferProgress>(x =>
-                progress.Report(new TranscriptionModelTransferInfo(x.BytesReceived, x.TotalBytes)));
+                progress.Report(new TranscriptionModelTransferInfo(
+                    x.BytesReceived,
+                    x.TotalBytes,
+                    x.CurrentFileName,
+                    x.IsValidating)));
         await _modelManager.InstallAsync(
             ToModelKey(confirmedModel.EngineId, confirmedModel.ModelId),
             force: false,
@@ -311,7 +315,14 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
     /// <inheritdoc />
     public async Task InstallModelAsync(string engineId, string modelId, bool force, IProgress<TranscriptionModelTransferInfo>? progress = null, CancellationToken cancellationToken = default)
     {
-        var adapter = progress is null ? null : new Progress<TranscriptionModelTransferProgress>(x => progress.Report(new TranscriptionModelTransferInfo(x.BytesReceived, x.TotalBytes)));
+        var adapter = progress is null
+            ? null
+            : new Progress<TranscriptionModelTransferProgress>(x =>
+                progress.Report(new TranscriptionModelTransferInfo(
+                    x.BytesReceived,
+                    x.TotalBytes,
+                    x.CurrentFileName,
+                    x.IsValidating)));
         await _modelManager.InstallAsync(ToModelKey(engineId, modelId), force, adapter, cancellationToken);
     }
 
@@ -326,7 +337,18 @@ public sealed class TranscriptionApplicationService : ITranscriptionApplicationS
     public TranscriptionModelDownloadInfo? GetActiveModelDownload()
     {
         var active = _modelManager.GetActiveDownload();
-        return active is null ? null : new TranscriptionModelDownloadInfo(active.Key.EngineId.Value, active.Key.ModelId.Value, active.ModelDisplayName, active.BytesReceived, active.TotalBytes, active.WaiterCount, active.IsCancelling);
+        return active is null
+            ? null
+            : new TranscriptionModelDownloadInfo(
+                active.Key.EngineId.Value,
+                active.Key.ModelId.Value,
+                active.ModelDisplayName,
+                active.BytesReceived,
+                active.TotalBytes,
+                active.WaiterCount,
+                active.IsCancelling,
+                active.CurrentFileName,
+                active.IsValidating);
     }
 
     /// <inheritdoc />
