@@ -28,7 +28,25 @@ public sealed class TranscriptionModelManager(
         => GetProvider(engineId).GetAvailableModels();
 
     /// <summary>モデルがJob実行可能なreadinessを満たすか確認する</summary>
-    public bool IsReady(TranscriptionModelKey key) => GetProvider(key.EngineId).IsReady(key.ModelId);
+    public bool IsReady(TranscriptionModelKey key)
+    {
+        var provider = GetProvider(key.EngineId);
+        if (provider is not ITranscriptionModelReadinessCache readinessCache)
+        {
+            // Whisperなどnative loadを伴わない既存Providerは従来どおり軽量判定を行う。
+            return provider.IsReady(key.ModelId);
+        }
+
+        if (readinessCache.TryGetCachedReadiness(key.ModelId, out var cached))
+        {
+            return cached;
+        }
+
+        // ReazonSpeechの初回readiness確認はnative OfflineRecognizerの生成を伴う。
+        // cache miss時だけ新規Job reservationを一時停止し、モデル管理操作や既存Jobと競合する状態で初回loadを始めない。
+        using var usageBlock = usageTracker.BlockNewReservations("モデル利用可能性確認");
+        return provider.IsReady(key.ModelId);
+    }
 
     /// <summary>指定レベルでモデル配置状態を確認する</summary>
     public TranscriptionModelInspection Inspect(TranscriptionModelKey key, TranscriptionModelInspectionLevel level)
@@ -55,15 +73,6 @@ public sealed class TranscriptionModelManager(
 
     /// <summary>queued/running Jobが指定モデルを保護しているか確認する</summary>
     public bool IsInUse(TranscriptionModelKey key) => usageTracker.IsInUse(key);
-
-    /// <summary>download/delete/recheckのいずれかが進行中か確認する</summary>
-    public bool IsManagementOperationInProgress()
-    {
-        lock (_gate)
-        {
-            return _activeDownload is not null || _activeExclusiveOperation is not null;
-        }
-    }
 
     /// <summary>
     /// 再確認・削除など、強制キャンセルしない排他モデル操作の現在状態を取得する
@@ -93,12 +102,6 @@ public sealed class TranscriptionModelManager(
             await completion;
         }
     }
-
-    /// <summary>
-    /// モデル管理操作と競合しない状態で文字起こし用reservationを取得する
-    /// </summary>
-    public TranscriptionModelUsageReservation ReserveForTranscription(TranscriptionModelKey key)
-        => usageTracker.Acquire(key);
 
     /// <summary>現在進行中のモデル取得snapshotを取得する</summary>
     public TranscriptionModelDownloadSnapshot? GetActiveDownload()
@@ -141,7 +144,7 @@ public sealed class TranscriptionModelManager(
             else
             {
                 // 既存reservation確認と新規reservation禁止をUsageTrackerの同じlockで行う。
-                // AdmissionがManager経由でなく直接Acquireしても、このlease保持中は確実に拒否される。
+                // Admissionが直接Acquireしても、このlease保持中は確実に拒否される。
                 var usageBlock = usageTracker.BlockNewReservations(force ? "再取得" : "取得");
                 try
                 {
