@@ -21,6 +21,29 @@ public sealed class RecognitionChunkerTests
     }
 
     [Test]
+    public async Task Whisper_CreateChunksWithDiagnosticsAsync_RecordsSpeechRegionReason()
+    {
+        var regions = CreateRegions();
+        var sut = new WhisperRecognitionChunker();
+
+        var result = await sut.CreateChunksWithDiagnosticsAsync(new TestPreparedAudio(), regions);
+
+        AssertChunks(result.Chunks, regions);
+        Assert.That(result.Traces, Has.Count.EqualTo(result.Chunks.Count));
+        for (var i = 0; i < result.Traces.Count; i++)
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Traces[i].RecognitionChunkId, Is.EqualTo(result.Chunks[i].RecognitionChunkId));
+                Assert.That(result.Traces[i].SpeechRegionId, Is.EqualTo(result.Chunks[i].SpeechRegionId));
+                Assert.That(result.Traces[i].StartSample, Is.EqualTo(result.Chunks[i].StartSample));
+                Assert.That(result.Traces[i].EndSample, Is.EqualTo(result.Chunks[i].EndSample));
+                Assert.That(result.Traces[i].SplitReason, Is.EqualTo("speech-region"));
+            });
+        }
+    }
+
+    [Test]
     public async Task ReazonSpeech_CreateChunksAsync_CurrentPhaseMapsSpeechRegionsOneToOne()
     {
         var regions = CreateRegions();
@@ -29,6 +52,18 @@ public sealed class RecognitionChunkerTests
         var chunks = await sut.CreateChunksAsync(new TestPreparedAudio(), regions);
 
         AssertChunks(chunks, regions);
+    }
+
+    [Test]
+    public async Task ReazonSpeech_CreateChunksWithDiagnosticsAsync_ShortRegionsUseSpeechRegionReason()
+    {
+        var regions = CreateRegions();
+        var sut = new ReazonSpeechRecognitionChunker();
+
+        var result = await sut.CreateChunksWithDiagnosticsAsync(new TestPreparedAudio(), regions);
+
+        AssertChunks(result.Chunks, regions);
+        Assert.That(result.Traces.Select(x => x.SplitReason), Is.All.EqualTo("speech-region"));
     }
 
     [Test]
