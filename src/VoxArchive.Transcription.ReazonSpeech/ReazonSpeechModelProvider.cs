@@ -93,11 +93,18 @@ public sealed class ReazonSpeechModelProvider : ITranscriptionModelProvider, ITr
             _ => TranscriptionModelPackageState.Installed
         };
 
-        // ReazonSpeechではSHA-256を利用可能判定に使わない。既存APIの明示再確認経路だけは
-        // Hash levelを「強制load validation」のトリガーとして扱い、UIでは完全性確認ではなく利用可能性確認として表示する。
-        if (state == TranscriptionModelPackageState.Installed && level == TranscriptionModelInspectionLevel.Hash)
+        if (state == TranscriptionModelPackageState.Installed)
         {
-            InvalidateValidation(package.PackageId);
+            // ReazonSpeechの「利用可能」は必要ファイルが存在するだけでは成立せず、native OfflineRecognizerを
+            // 実際に初期化できることまで含む。UIの通常状態確認でもこの結果をpackage stateへ反映し、
+            // load不能なモデルを「取得済み」と誤表示しないようにする。
+            if (level == TranscriptionModelInspectionLevel.Hash)
+            {
+                // ReazonSpeechではSHA-256を利用可能判定に使わない。Hash levelは明示的な再確認として
+                // cached validationを破棄し、native load validationを必ず再実行するためのトリガーとして扱う。
+                InvalidateValidation(package.PackageId);
+            }
+
             state = IsReady(package.PackageId)
                 ? TranscriptionModelPackageState.Installed
                 : TranscriptionModelPackageState.Corrupt;
