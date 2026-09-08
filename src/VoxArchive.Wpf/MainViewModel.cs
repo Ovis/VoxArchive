@@ -1123,6 +1123,6 @@ public sealed class ProcessListItem
         var app = string.IsNullOrWhiteSpace(process.ApplicationName) ? "(no-name)" : process.ApplicationName;
         var exe = string.IsNullOrWhiteSpace(process.ExecutableName) ? "" : $" [{process.ExecutableName}]";
         var title = string.IsNullOrWhiteSpace(process.WindowTitle) ? "" : $" - {process.WindowTitle}";
-        return $"{app}{exe} (PID:{ProcessId}){title}";
+        return $"{app}{exe} (PID:{process.ProcessId}){title}";
     }
 }
