@@ -31,7 +31,8 @@ public partial class SettingsWindow
 
     private void InitializeReazonSpeechAdvancedSettingsControl()
     {
-        if (TranscriptionTabControl.Items.Count <= 2
+        if (_reazonSpeechAdvancedSettingsControl is not null
+            || TranscriptionTabControl.Items.Count <= 2
             || TranscriptionTabControl.Items[2] is not TabItem reazonTab
             || reazonTab.Content is not Grid reazonGrid)
         {
@@ -52,6 +53,16 @@ public partial class SettingsWindow
             Margin = new System.Windows.Thickness(0, 14, 0, 0)
         };
         _reazonSpeechAdvancedSettingsControl.ApplyValues(_pendingReazonSpeechAdvancedSettings);
+        _reazonSpeechAdvancedSettingsControl.PrecisionChanged += OnReazonSpeechPrecisionChanged;
         rightColumn.Children.Add(_reazonSpeechAdvancedSettingsControl);
+    }
+
+    private void OnReazonSpeechPrecisionChanged(object? sender, EventArgs e)
+    {
+        // precision変更はモデル管理対象の物理packageを切り替えるため、保存前でも状態表示を即時更新する。
+        if (_reazonSpeechTabVisited)
+        {
+            RefreshModelControl(ReazonSpeechEngineId, ReazonSpeechModelManagerControl);
+        }
     }
 }
