@@ -4,70 +4,89 @@
              xmlns:local="clr-namespace:VoxArchive.Wpf"
              MinWidth="280">
     <StackPanel Margin="0,14,0,0">
-        <TextBlock Text="発話検出（Silero VAD）" FontWeight="SemiBold" />
+        <TextBlock Text="発話検出" FontWeight="SemiBold" />
+
+        <StackPanel Margin="0,8,0,0">
+            <RadioButton x:Name="SileroModeRadioButton"
+                         GroupName="VadMode"
+                         Content="Silero VAD（精度優先・推奨）"
+                         Checked="OnVadModeChanged" />
+            <RadioButton x:Name="VolumeBasedModeRadioButton"
+                         Margin="0,6,0,0"
+                         GroupName="VadMode"
+                         Content="音量ベースVAD（メモリ使用量優先）"
+                         Checked="OnVadModeChanged" />
+        </StackPanel>
+
+        <TextBlock Margin="0,7,0,0"
+                   Foreground="{DynamicResource TextMuted}"
+                   TextWrapping="Wrap"
+                   Text="Silero VADは長時間の音声でメモリ使用量が増える場合があります。メモリ使用量を抑えたい場合は音量ベースVADを選択してください。" />
         <TextBlock Margin="0,4,0,0"
                    Foreground="{DynamicResource TextMuted}"
                    TextWrapping="Wrap"
-                   Text="Sileroモデルが利用できない場合は、音量ベースVADへ自動的に切り替わります。" />
+                   Text="Silero VADを選択していてモデルを利用できない場合は、音量ベースVADへ自動的に切り替わります。" />
 
-        <Border Margin="0,8,0,0"
-                Padding="8,6"
-                Background="#0E1724"
-                BorderBrush="#2D3E55"
-                BorderThickness="1"
-                CornerRadius="6">
-            <StackPanel>
-                <DockPanel LastChildFill="True">
-                    <TextBlock Text="モデル状態" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,0" />
-                    <TextBlock x:Name="ModelStatusTextBlock" Text="確認中" FontWeight="SemiBold" />
-                </DockPanel>
+        <StackPanel x:Name="SileroSettingsPanel">
+            <Border Margin="0,8,0,0"
+                    Padding="8,6"
+                    Background="#0E1724"
+                    BorderBrush="#2D3E55"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <StackPanel>
+                    <DockPanel LastChildFill="True">
+                        <TextBlock Text="Sileroモデル状態" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,0" />
+                        <TextBlock x:Name="ModelStatusTextBlock" Text="確認中" FontWeight="SemiBold" />
+                    </DockPanel>
 
-                <WrapPanel Margin="0,8,0,0">
-                    <Button x:Name="ReverifyButton" Content="再確認" Margin="0,0,6,0" Click="OnReverifyClick" />
-                    <Button x:Name="InstallButton" Content="モデル取得" Margin="0,0,6,0" Click="OnInstallClick" />
-                    <Button x:Name="DeleteButton" Content="削除" Click="OnDeleteClick" />
-                </WrapPanel>
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button x:Name="ReverifyButton" Content="再確認" Margin="0,0,6,0" Click="OnReverifyClick" />
+                        <Button x:Name="InstallButton" Content="モデル取得" Margin="0,0,6,0" Click="OnInstallClick" />
+                        <Button x:Name="DeleteButton" Content="削除" Click="OnDeleteClick" />
+                    </WrapPanel>
 
-                <ProgressBar x:Name="DownloadProgressBar"
-                             Margin="0,8,0,0"
-                             Height="8"
-                             Minimum="0"
-                             Maximum="100"
-                             Visibility="Collapsed" />
-                <TextBlock x:Name="ProgressTextBlock"
-                           Margin="0,4,0,0"
-                           Foreground="{DynamicResource TextMuted}"
-                           TextWrapping="Wrap"
-                           Visibility="Collapsed" />
-                <TextBlock x:Name="MessageTextBlock"
-                           Margin="0,6,0,0"
-                           Foreground="{DynamicResource TextMuted}"
-                           TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
+                    <ProgressBar x:Name="DownloadProgressBar"
+                                 Margin="0,8,0,0"
+                                 Height="8"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Visibility="Collapsed" />
+                    <TextBlock x:Name="ProgressTextBlock"
+                               Margin="0,4,0,0"
+                               Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed" />
+                    <TextBlock x:Name="MessageTextBlock"
+                               Margin="0,6,0,0"
+                               Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
 
-        <Grid Margin="0,10,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="110" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Margin="0,0,8,0">
-                <TextBlock Text="発話判定しきい値" />
-                <TextBlock Margin="0,2,0,0"
-                           Foreground="{DynamicResource TextMuted}"
-                           Text="0.01以上1.00未満" />
-            </StackPanel>
-            <local:NumericUpDownControl x:Name="ThresholdNumericUpDown" Grid.Column="1" />
-        </Grid>
+            <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="110" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,8,0">
+                    <TextBlock Text="発話判定しきい値" />
+                    <TextBlock Margin="0,2,0,0"
+                               Foreground="{DynamicResource TextMuted}"
+                               Text="0.01以上1.00未満" />
+                </StackPanel>
+                <local:NumericUpDownControl x:Name="ThresholdNumericUpDown" Grid.Column="1" />
+            </Grid>
 
-        <WrapPanel Margin="0,8,0,0">
-            <Button Content="発話検出の詳細設定..."
-                    Margin="0,0,8,0"
-                    HorizontalAlignment="Left"
-                    Click="OnAdvancedSettingsClick" />
-            <Button Content="既定値に戻す"
-                    HorizontalAlignment="Left"
-                    Click="OnResetDefaultsClick" />
-        </WrapPanel>
+            <WrapPanel Margin="0,8,0,0">
+                <Button Content="発話検出の詳細設定..."
+                        Margin="0,0,8,0"
+                        HorizontalAlignment="Left"
+                        Click="OnAdvancedSettingsClick" />
+                <Button Content="既定値に戻す"
+                        HorizontalAlignment="Left"
+                        Click="OnResetDefaultsClick" />
+            </WrapPanel>
+        </StackPanel>
     </StackPanel>
 </UserControl>
