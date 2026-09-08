@@ -3,30 +3,34 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              MinWidth="280">
     <StackPanel Margin="0,14,0,0">
-        <TextBlock Text="発話検出" FontWeight="SemiBold" />
+        <TextBlock Text="無音部分を除外" FontWeight="SemiBold" />
+        <TextBlock Margin="0,4,0,0"
+                   Foreground="{DynamicResource TextMuted}"
+                   TextWrapping="Wrap"
+                   Text="文字起こし前に音声のある部分を検出し、無音と判定された部分を文字起こし対象から除外します。録音ファイル自体は変更されません。" />
 
         <StackPanel Margin="0,8,0,0">
             <RadioButton x:Name="SileroModeRadioButton"
                          GroupName="VadMode"
                          Style="{DynamicResource CommonLabeledRadioButtonStyle}"
-                         Content="Silero VAD（精度優先・推奨）"
+                         Content="Silero VAD（高精度・推奨）"
                          Checked="OnVadModeChanged" />
             <RadioButton x:Name="VolumeBasedModeRadioButton"
                          Margin="0,6,0,0"
                          GroupName="VadMode"
                          Style="{DynamicResource CommonLabeledRadioButtonStyle}"
-                         Content="音量ベースVAD（メモリ使用量優先）"
+                         Content="音量ベース（省メモリ）"
                          Checked="OnVadModeChanged" />
         </StackPanel>
 
         <TextBlock Margin="0,7,0,0"
                    Foreground="{DynamicResource TextMuted}"
                    TextWrapping="Wrap"
-                   Text="Silero VADは長時間の音声でメモリ使用量が増える場合があります。メモリ使用量を抑えたい場合は音量ベースVADを選択してください。" />
+                   Text="Silero VADは長時間の音声でメモリ使用量が増える場合があります。メモリ使用量を抑えたい場合は音量ベースを選択してください。" />
         <TextBlock Margin="0,4,0,0"
                    Foreground="{DynamicResource TextMuted}"
                    TextWrapping="Wrap"
-                   Text="Silero VADを選択していてモデルを利用できない場合は、音量ベースVADへ自動的に切り替わります。" />
+                   Text="Silero VADを選択していてモデルを利用できない場合は、音量ベースへ自動的に切り替わります。" />
 
         <StackPanel x:Name="SileroSettingsPanel">
             <Border Margin="0,8,0,0"
@@ -78,7 +82,7 @@
             </Border>
 
             <WrapPanel Margin="0,8,0,0">
-                <Button Content="発話検出の詳細設定..."
+                <Button Content="無音部分の除外を詳細設定..."
                         Margin="0,0,8,0"
                         HorizontalAlignment="Left"
                         Click="OnAdvancedSettingsClick" />
