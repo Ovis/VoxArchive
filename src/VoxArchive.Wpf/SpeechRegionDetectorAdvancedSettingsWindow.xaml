@@ -6,66 +6,168 @@
         Width="430"
         Height="410"
         ResizeMode="NoResize"
-        WindowStartupLocation="CenterOwner">
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        WindowStyle="None"
+        WindowStartupLocation="CenterOwner"
+        Background="#0A0D12"
+        FontFamily="Yu Gothic UI"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <SolidColorBrush x:Key="PanelBg" Color="#121821" />
+        <SolidColorBrush x:Key="PanelBorder" Color="#283242" />
+        <SolidColorBrush x:Key="ControlBg" Color="#1A2330" />
+        <SolidColorBrush x:Key="ControlBorder" Color="#314055" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#F3F6FA" />
+        <SolidColorBrush x:Key="TextMuted" Color="#99A7BD" />
 
-        <StackPanel>
-            <TextBlock Text="Silero VAD 詳細設定" FontSize="16" FontWeight="SemiBold" />
-            <TextBlock Margin="0,4,0,12"
-                       Foreground="{DynamicResource TextMuted}"
-                       TextWrapping="Wrap"
-                       Text="ここでの変更は、親の設定画面で「保存」を押すまで永続化されません。" />
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        </Style>
 
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="150" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Background" Value="{StaticResource ControlBg}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
 
-                <StackPanel Grid.Row="0" VerticalAlignment="Center">
-                    <TextBlock Text="発話判定しきい値" />
-                    <TextBlock Margin="0,2,0,0"
-                               Foreground="{DynamicResource TextMuted}"
-                               Text="0.01以上1.00未満" />
-                </StackPanel>
-                <local:NumericUpDownControl x:Name="ThresholdNumericUpDown"
-                                            Grid.Row="0"
-                                            Grid.Column="1"
-                                            Margin="0,0,0,8" />
+        <Style TargetType="Button" BasedOn="{StaticResource CommonButtonStyle}" />
 
-                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="最小発話時間" />
-                <local:NumericUpDownControl x:Name="MinimumSpeechNumericUpDown" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" />
+        <Style x:Key="TitleBarCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CommonButtonStyle}">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#3A4A60" />
+            <Setter Property="Foreground" Value="#D9E2F0" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+    </Window.Resources>
 
-                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="最小無音時間" />
-                <local:NumericUpDownControl x:Name="MinimumSilenceNumericUpDown" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" />
+    <Border Background="#0A0D12"
+            BorderBrush="{StaticResource PanelBorder}"
+            BorderThickness="1"
+            CornerRadius="10">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="28" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="前方パディング" />
-                <local:NumericUpDownControl x:Name="PrePaddingNumericUpDown" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" />
+            <Border Grid.Row="0"
+                    Background="#10161F"
+                    CornerRadius="10,10,0,0"
+                    MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+                <Grid Margin="10,0,6,0">
+                    <TextBlock Text="発話検出の詳細設定"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMuted}"
+                               VerticalAlignment="Center" />
+                    <Button HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource TitleBarCloseButtonStyle}"
+                            Content="&#xE711;"
+                            ToolTip="閉じる"
+                            Click="OnTitleBarCloseButtonClick" />
+                </Grid>
+            </Border>
 
-                <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="後方パディング" />
-                <local:NumericUpDownControl x:Name="PostPaddingNumericUpDown" Grid.Row="4" Grid.Column="1" />
-            </Grid>
+            <Border Grid.Row="1"
+                    Margin="12"
+                    Padding="16"
+                    Background="{StaticResource PanelBg}"
+                    BorderBrush="{StaticResource PanelBorder}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-            <Button Margin="0,14,0,0"
-                    HorizontalAlignment="Left"
-                    Content="既定値に戻す"
-                    Click="OnResetDefaultsClick" />
-        </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="Silero VAD 詳細設定"
+                                   FontSize="16"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Margin="0,4,0,14"
+                                   Foreground="{StaticResource TextMuted}"
+                                   TextWrapping="Wrap"
+                                   Text="ここでの変更は、親の設定画面で「保存」を押すまで永続化されません。" />
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Width="90" Margin="0,0,8,0" Content="OK" IsDefault="True" Click="OnOkClick" />
-            <Button Width="90" Content="キャンセル" IsCancel="True" />
-        </StackPanel>
-    </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="160" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                                <TextBlock Text="発話判定しきい値" />
+                                <TextBlock Margin="0,2,0,0"
+                                           Foreground="{StaticResource TextMuted}"
+                                           Text="0.01以上1.00未満" />
+                            </StackPanel>
+                            <local:NumericUpDownControl x:Name="ThresholdNumericUpDown"
+                                                        Grid.Row="0"
+                                                        Grid.Column="1"
+                                                        Margin="0,0,0,8" />
+
+                            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="最小発話時間" />
+                            <local:NumericUpDownControl x:Name="MinimumSpeechNumericUpDown"
+                                                        Grid.Row="1"
+                                                        Grid.Column="1"
+                                                        Margin="0,0,0,8" />
+
+                            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="最小無音時間" />
+                            <local:NumericUpDownControl x:Name="MinimumSilenceNumericUpDown"
+                                                        Grid.Row="2"
+                                                        Grid.Column="1"
+                                                        Margin="0,0,0,8" />
+
+                            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="前方パディング" />
+                            <local:NumericUpDownControl x:Name="PrePaddingNumericUpDown"
+                                                        Grid.Row="3"
+                                                        Grid.Column="1"
+                                                        Margin="0,0,0,8" />
+
+                            <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="後方パディング" />
+                            <local:NumericUpDownControl x:Name="PostPaddingNumericUpDown"
+                                                        Grid.Row="4"
+                                                        Grid.Column="1" />
+                        </Grid>
+
+                        <Button Margin="0,14,0,0"
+                                HorizontalAlignment="Left"
+                                Content="既定値に戻す"
+                                Click="OnResetDefaultsClick" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,16,0,0">
+                        <Button Width="90"
+                                Margin="0,0,8,0"
+                                Content="OK"
+                                IsDefault="True"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Click="OnOkClick" />
+                        <Button Width="90"
+                                Content="キャンセル"
+                                IsCancel="True" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
 </Window>
