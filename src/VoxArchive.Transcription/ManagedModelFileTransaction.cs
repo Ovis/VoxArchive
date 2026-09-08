@@ -5,7 +5,7 @@ namespace VoxArchive.Transcription;
 /// </summary>
 /// <remarks>
 /// Silero/ReazonSpeechはSHA-256ではなく実際のnative load成功を利用可能条件とするため、
-/// 検証内容は呼び出し側へ委譲する。既存の正常モデルはvalidation成功まで一切置き換えない。
+/// 検証内容は呼び出し側へ委譲する。既存の正常モデルは新モデルが正式配置でも利用可能と確認できるまで維持する。
 /// </remarks>
 public sealed class ManagedModelFileTransaction(HttpClient httpClient)
 {
@@ -23,14 +23,16 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
     /// <param name="temporaryRootDirectory">VoxArchiveが所有する同一ファイルシステム上の一時領域</param>
     /// <param name="validateStagingAsync">staging上のモデルを実際にloadして利用可否を確認する処理</param>
     /// <param name="progress">取得・検証状態の通知先</param>
-    /// <param name="cancellationToken">downloadは即時キャンセルし、validation中は終了後にcommitを抑止する</param>
+    /// <param name="cancellationToken">downloadは即時キャンセルし、native validation中は終了後にcommitを抑止する</param>
+    /// <param name="validateCommittedAsync">正式配置へrenameしたモデルを最終確認する処理。失敗時は旧モデルへrollbackする</param>
     public async Task<string> DownloadValidateCommitAsync(
         IReadOnlyList<ManagedModelDownloadFile> files,
         string destinationDirectory,
         string temporaryRootDirectory,
         Func<string, Task> validateStagingAsync,
         IProgress<ManagedModelTransactionProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<string, Task>? validateCommittedAsync = null)
     {
         ArgumentNullException.ThrowIfNull(files);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationDirectory);
@@ -45,9 +47,7 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
         Directory.CreateDirectory(stagingDirectory);
 
         long transferred = 0;
-        var totalBytes = files.All(x => x.ExpectedSizeBytes.HasValue)
-            ? files.Sum(x => x.ExpectedSizeBytes!.Value)
-            : (long?)null;
+        var totalBytes = await TryResolveTotalBytesAsync(files, cancellationToken);
 
         try
         {
@@ -119,18 +119,21 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
             var destinationParent = Path.GetDirectoryName(destinationDirectory);
             if (!string.IsNullOrWhiteSpace(destinationParent)) Directory.CreateDirectory(destinationParent);
 
-            // 既存正常モデルは新stagingのvalidation成功まで残す。確定時だけ同一ファイルシステム上でrenameする。
+            // staging上で利用可能でも、正式パス固有の問題でloadできない可能性がある。
+            // その場合に既存正常モデルを失わないようbackupは正式配置側の最終validation成功まで保持する。
             if (Directory.Exists(destinationDirectory)) Directory.Move(destinationDirectory, backupDirectory);
             try
             {
                 Directory.Move(stagingDirectory, destinationDirectory);
+                if (validateCommittedAsync is not null)
+                {
+                    await validateCommittedAsync(destinationDirectory);
+                }
+                cancellationToken.ThrowIfCancellationRequested();
             }
             catch
             {
-                if (Directory.Exists(backupDirectory) && !Directory.Exists(destinationDirectory))
-                {
-                    Directory.Move(backupDirectory, destinationDirectory);
-                }
+                RollbackCommittedDirectory(destinationDirectory, backupDirectory, temporaryRootDirectory);
                 throw;
             }
 
@@ -179,6 +182,67 @@ public sealed class ManagedModelFileTransaction(HttpClient httpClient)
             var name = Path.GetFileName(directory);
             if (!IsOwnedTemporaryDirectoryName(name)) continue;
             TryDeleteDirectory(directory);
+        }
+    }
+
+    private async Task<long?> TryResolveTotalBytesAsync(
+        IReadOnlyList<ManagedModelDownloadFile> files,
+        CancellationToken cancellationToken)
+    {
+        long total = 0;
+        foreach (var file in files)
+        {
+            if (file.ExpectedSizeBytes is { } expected)
+            {
+                total = checked(total + expected);
+                continue;
+            }
+
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Head, file.SourceUrl);
+                using var response = await httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
+                if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is not { } contentLength)
+                {
+                    return null;
+                }
+
+                total = checked(total + contentLength);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                // Content-Length取得は進捗表示の補助情報であり、失敗してもモデル取得自体を止めない。
+                return null;
+            }
+        }
+
+        return total;
+    }
+
+    private void RollbackCommittedDirectory(
+        string destinationDirectory,
+        string backupDirectory,
+        string temporaryRootDirectory)
+    {
+        // 失敗した新モデルを正式パスから先に隔離する。直接recursive deleteして途中失敗すると
+        // 旧モデルを正式パスへ戻せないため、safe deleteと同じrename境界を利用する。
+        if (Directory.Exists(destinationDirectory))
+        {
+            var failedDirectory = Path.Combine(temporaryRootDirectory, $"delete-{Guid.NewGuid():N}");
+            Directory.Move(destinationDirectory, failedDirectory);
+            TryDeleteDirectory(failedDirectory);
+        }
+
+        if (Directory.Exists(backupDirectory) && !Directory.Exists(destinationDirectory))
+        {
+            Directory.Move(backupDirectory, destinationDirectory);
         }
     }
 
