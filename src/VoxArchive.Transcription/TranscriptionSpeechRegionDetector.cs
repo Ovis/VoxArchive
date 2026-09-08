@@ -6,7 +6,7 @@ namespace VoxArchive.Transcription;
 /// <summary>
 /// 前処理済み音声から既存VAD規則で発話区間を検出する
 /// </summary>
-public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
+public sealed class TranscriptionSpeechRegionDetector : IDiagnosticSpeechRegionDetector
 {
     private const double FrameMilliseconds = 30d;
     private const double MinSpeechMilliseconds = 250d;
@@ -23,6 +23,13 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         IPreparedTranscriptionAudio audio,
         SpeechRegionDetectorSettingsSnapshot settings,
         CancellationToken cancellationToken = default)
+        => (await DetectWithDiagnosticsAsync(audio, settings, cancellationToken)).SpeechRegions;
+
+    /// <inheritdoc />
+    public async Task<SpeechRegionDetectionDiagnosticResult> DetectWithDiagnosticsAsync(
+        IPreparedTranscriptionAudio audio,
+        SpeechRegionDetectorSettingsSnapshot settings,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audio);
         ArgumentNullException.ThrowIfNull(settings);
@@ -33,11 +40,19 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         var detected = await Task.Run(() => Detect(stream, cancellationToken), cancellationToken);
 
         // Durationから再計算するとresamplingの末尾丸めで1sampleずれる可能性があるため、
-        // Prepared Audioが保持する実sample数で最終範囲をclampする。
-        return ClampToSampleCount(detected, audio.SampleCount);
+        // Prepared Audioが保持する実sample数でraw/finalの双方をclampする。
+        var speechRegions = ClampToSampleCount(detected.SpeechRegions, audio.SampleCount);
+        var rawRegions = ClampRawToSampleCount(detected.RawRegions, audio.SampleCount);
+        return new SpeechRegionDetectionDiagnosticResult(
+            speechRegions,
+            new SpeechRegionDetectionDiagnosticTrace(
+                "VolumeBasedVad",
+                rawRegions,
+                FallbackUsed: false,
+                FallbackReason: null));
     }
 
-    private static IReadOnlyList<SpeechRegion> Detect(Stream stream, CancellationToken cancellationToken)
+    private static VolumeVadDetectionResult Detect(Stream stream, CancellationToken cancellationToken)
     {
         using var reader = new WaveFileReader(stream);
         ISampleProvider sampleProvider = reader.ToSampleProvider();
@@ -47,9 +62,14 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
             : 0L);
         if (sampleProvider.WaveFormat.Channels != 1)
         {
-            return totalSamples > 0
-                ? [CreateRegion(0, 0, totalSamples, [new AudioSampleRange(0, totalSamples)], [0])]
-                : [];
+            if (totalSamples <= 0)
+            {
+                return new VolumeVadDetectionResult([], []);
+            }
+
+            return new VolumeVadDetectionResult(
+                [CreateRegion(0, 0, totalSamples, [new AudioSampleRange(0, totalSamples)], [0])],
+                [new SpeechRegionDetectionRawRegion(0, 0, totalSamples)]);
         }
 
         var frameSamples = Math.Max(1, (int)Math.Round(sampleRate * (FrameMilliseconds / 1000d)));
@@ -76,7 +96,10 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
             frameLengths.Add(read);
         }
 
-        if (dbFrames.Count == 0) return [];
+        if (dbFrames.Count == 0)
+        {
+            return new VolumeVadDetectionResult([], []);
+        }
 
         var noiseFloorDb = Percentile(dbFrames, NoiseFloorPercentile);
         var speechThresholdDb = Math.Max(MinimumThresholdDb, noiseFloorDb + ThresholdOffsetDb);
@@ -114,17 +137,22 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         }
 
         if (inSpeech) AddSpeechRangeIfValid(ranges, speechStart, dbFrames.Count - 1, minSpeechFrames);
-        if (ranges.Count == 0) return [];
+        if (ranges.Count == 0)
+        {
+            return new VolumeVadDetectionResult([], []);
+        }
 
         var frameStarts = new long[frameLengths.Count + 1];
         for (var i = 0; i < frameLengths.Count; i++) frameStarts[i + 1] = frameStarts[i] + frameLengths[i];
 
+        var rawRegions = new List<SpeechRegionDetectionRawRegion>(ranges.Count);
         var padded = new List<DetectedRange>(ranges.Count);
         for (var i = 0; i < ranges.Count; i++)
         {
             var range = ranges[i];
             var coreStart = frameStarts[range.StartFrame];
             var coreEnd = frameStarts[Math.Min(range.EndFrame + 1, frameStarts.Length - 1)];
+            rawRegions.Add(new SpeechRegionDetectionRawRegion(i, coreStart, coreEnd));
             padded.Add(new DetectedRange(
                 Math.Max(0, coreStart - paddingSamples),
                 Math.Min(totalSamples, coreEnd + paddingSamples),
@@ -160,7 +188,7 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
                 result.Add(CreateRegion(i, range.StartSample, range.EndSample, range.CoreRanges, range.SourceRawSpeechRegionIds));
             }
         }
-        return result;
+        return new VolumeVadDetectionResult(result, rawRegions);
     }
 
     private static IReadOnlyList<SpeechRegion> ClampToSampleCount(IReadOnlyList<SpeechRegion> regions, long sampleCount)
@@ -181,6 +209,21 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         return result;
     }
 
+    private static IReadOnlyList<SpeechRegionDetectionRawRegion> ClampRawToSampleCount(
+        IReadOnlyList<SpeechRegionDetectionRawRegion> regions,
+        long sampleCount)
+    {
+        if (sampleCount <= 0 || regions.Count == 0) return [];
+        return regions
+            .Select(region => region with
+            {
+                StartSample = Math.Clamp(region.StartSample, 0L, sampleCount),
+                EndSample = Math.Clamp(region.EndSample, 0L, sampleCount)
+            })
+            .Where(region => region.EndSample > region.StartSample)
+            .ToArray();
+    }
+
     private static SpeechRegion CreateRegion(int id, long startSample, long endSample, IReadOnlyList<AudioSampleRange> coreRanges, IReadOnlyList<int> sourceRawSpeechRegionIds)
         => new(id, startSample, endSample, coreRanges, sourceRawSpeechRegionIds);
 
@@ -198,5 +241,13 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         return ordered[index];
     }
 
-    private sealed record DetectedRange(long StartSample, long EndSample, IReadOnlyList<AudioSampleRange> CoreRanges, IReadOnlyList<int> SourceRawSpeechRegionIds);
+    private sealed record VolumeVadDetectionResult(
+        IReadOnlyList<SpeechRegion> SpeechRegions,
+        IReadOnlyList<SpeechRegionDetectionRawRegion> RawRegions);
+
+    private sealed record DetectedRange(
+        long StartSample,
+        long EndSample,
+        IReadOnlyList<AudioSampleRange> CoreRanges,
+        IReadOnlyList<int> SourceRawSpeechRegionIds);
 }
