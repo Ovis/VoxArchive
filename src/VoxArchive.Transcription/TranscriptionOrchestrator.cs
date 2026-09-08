@@ -336,8 +336,10 @@ public sealed class TranscriptionOrchestrator(
                 OverallMilliseconds = overallMilliseconds,
                 AudioPreparationMilliseconds = audioPreparationMilliseconds,
                 VadMilliseconds = vadMilliseconds,
-                ChunkGenerationMilliseconds = 0,
-                AsrMilliseconds = asrMilliseconds,
+                // Engine内部でchunkingとRecognizer呼び出しを分離計測できる場合はその値を採用する。
+                // 診断traceを持たないEngineでは従来どおりrecognition stage全体をASR時間として扱う。
+                ChunkGenerationMilliseconds = engineDiagnostic?.ChunkGenerationMilliseconds ?? 0,
+                AsrMilliseconds = engineDiagnostic?.AsrMilliseconds ?? asrMilliseconds,
                 SpeakerLabelingMilliseconds = speakerLabelingMilliseconds,
                 CanonicalAndOutputMilliseconds = canonicalAndOutputMilliseconds
             },
