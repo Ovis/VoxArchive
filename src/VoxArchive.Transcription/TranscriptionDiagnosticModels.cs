@@ -16,7 +16,7 @@ public sealed record TranscriptionDiagnosticDocument
     public string Status { get; init; } = "success";
     public string? FailedStage { get; init; }
     public required TranscriptionDiagnosticSource Source { get; init; }
-    public JsonElement? Settings { get; init; }
+    public TranscriptionDiagnosticSettings? Settings { get; init; }
     public TranscriptionDiagnosticVad? Vad { get; init; }
     public IReadOnlyList<TranscriptionDiagnosticRecognitionChunk> RecognitionChunks { get; init; } = [];
     public IReadOnlyList<TranscriptionDiagnosticAsrResult> AsrResults { get; init; } = [];
@@ -31,7 +31,27 @@ public sealed record TranscriptionDiagnosticSource(
     long FileSizeBytes,
     long DurationSamples,
     int SampleRate,
-    string PreparedAudioSha256);
+    string? PreparedAudioSha256);
+
+/// <summary>
+/// Job開始時に固定され、実際の文字起こし結果へ影響する設定snapshotを保持する
+/// </summary>
+/// <remarks>
+/// Engine/VAD固有設定のJSONはCommonで解釈せずopaqueのまま保持する。
+/// 物理モデルパスや出力形式など、認識結果そのものへ影響しない実行時情報は含めない。
+/// </remarks>
+public sealed record TranscriptionDiagnosticSettings
+{
+    public string EngineId { get; init; } = string.Empty;
+    public string? ModelId { get; init; }
+    public int? EngineSettingsSchemaVersion { get; init; }
+    public JsonElement? EngineSettings { get; init; }
+    public string? PreferredLanguage { get; init; }
+    public int VadSettingsSchemaVersion { get; init; }
+    public JsonElement? VadSettings { get; init; }
+    public double SpeakerGainDb { get; init; }
+    public double MicrophoneGainDb { get; init; }
+}
 
 /// <summary>VADの実行結果とfallback情報を保持する</summary>
 public sealed record TranscriptionDiagnosticVad
