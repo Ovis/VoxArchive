@@ -15,7 +15,7 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
     private const double MergeGapMilliseconds = 300d;
     private const int AnalysisFrameCapacity = 4096;
     private const double NoiseFloorPercentile = 0.2d;
-    private const double MinimumThresholdDb = -50d;
+    private const double MinimumThresholdDb = -50dB;
     private const double ThresholdOffsetDb = 12d;
 
     /// <inheritdoc />
@@ -32,8 +32,9 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         await using var stream = await audio.OpenReadAsync(cancellationToken);
         var detected = await Task.Run(() => Detect(stream, cancellationToken), cancellationToken);
 
-        var maximumSample = Math.Max(0L, (long)Math.Floor(audio.Duration.TotalSeconds * audio.Format.SampleRate));
-        return ClampToSampleCount(detected, maximumSample);
+        // Durationから再計算するとresamplingの末尾丸めで1sampleずれる可能性があるため、
+        // Prepared Audioが保持する実sample数で最終範囲をclampする。
+        return ClampToSampleCount(detected, audio.SampleCount);
     }
 
     private static IReadOnlyList<SpeechRegion> Detect(Stream stream, CancellationToken cancellationToken)
@@ -41,7 +42,9 @@ public sealed class TranscriptionSpeechRegionDetector : ISpeechRegionDetector
         using var reader = new WaveFileReader(stream);
         ISampleProvider sampleProvider = reader.ToSampleProvider();
         var sampleRate = sampleProvider.WaveFormat.SampleRate;
-        var totalSamples = Math.Max(0L, (long)Math.Floor(reader.TotalTime.TotalSeconds * sampleRate));
+        var totalSamples = Math.Max(0L, reader.WaveFormat.BlockAlign > 0
+            ? reader.Length / reader.WaveFormat.BlockAlign
+            : 0L);
         if (sampleProvider.WaveFormat.Channels != 1)
         {
             return totalSamples > 0
