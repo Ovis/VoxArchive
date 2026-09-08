@@ -67,6 +67,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<TranscriptionDocumentStore>();
         services.AddSingleton<TranscriptionExportService>();
         services.AddSingleton<TranscriptionArtifactService>();
+        services.AddSingleton<TranscriptionDiagnosticWriter>();
 
         // Whisper固有の実装・capabilityはWhisper project内に閉じ込める。
         services.AddSingleton<WhisperRecognitionChunker>();
