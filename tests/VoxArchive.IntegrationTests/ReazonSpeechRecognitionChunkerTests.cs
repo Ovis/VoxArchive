@@ -19,8 +19,10 @@ public sealed class ReazonSpeechRecognitionChunkerTests
         Fill(samples, 24.4d, 24.8d, 0f);
         var audio = new MemoryPreparedAudio(samples);
         var region = CreateRegion(samples.Length);
+        var sut = new ReazonSpeechRecognitionChunker();
 
-        var chunks = await new ReazonSpeechRecognitionChunker().CreateChunksAsync(audio, [region]);
+        var diagnostic = await sut.CreateChunksWithDiagnosticsAsync(audio, [region]);
+        var chunks = diagnostic.Chunks;
 
         Assert.That(chunks, Has.Count.EqualTo(2));
         Assert.Multiple(() =>
@@ -29,6 +31,7 @@ public sealed class ReazonSpeechRecognitionChunkerTests
             Assert.That(chunks[1].StartSample, Is.EqualTo(chunks[0].EndSample));
             Assert.That(chunks[0].Length, Is.LessThanOrEqualTo(Samples(25d)));
             Assert.That(chunks[1].Length, Is.LessThanOrEqualTo(Samples(25d)));
+            Assert.That(diagnostic.Traces.Select(x => x.SplitReason), Is.EqualTo(new[] { "silence", "region-end" }));
         });
     }
 
@@ -40,8 +43,10 @@ public sealed class ReazonSpeechRecognitionChunkerTests
         Fill(samples, 24.38d, 24.45d, 0.40f);
         var audio = new MemoryPreparedAudio(samples);
         var region = CreateRegion(samples.Length);
+        var sut = new ReazonSpeechRecognitionChunker();
 
-        var chunks = await new ReazonSpeechRecognitionChunker().CreateChunksAsync(audio, [region]);
+        var diagnostic = await sut.CreateChunksWithDiagnosticsAsync(audio, [region]);
+        var chunks = diagnostic.Chunks;
 
         Assert.That(chunks, Has.Count.EqualTo(2));
         Assert.Multiple(() =>
@@ -49,6 +54,7 @@ public sealed class ReazonSpeechRecognitionChunkerTests
             Assert.That(chunks[0].EndSample, Is.InRange(Samples(24.35d), Samples(24.48d)));
             Assert.That(chunks[1].StartSample, Is.EqualTo(chunks[0].EndSample));
             Assert.That(chunks.All(x => x.Length <= Samples(25d)), Is.True);
+            Assert.That(diagnostic.Traces.Select(x => x.SplitReason), Is.EqualTo(new[] { "forced-rms", "region-end" }));
         });
     }
 
@@ -60,8 +66,10 @@ public sealed class ReazonSpeechRecognitionChunkerTests
         Fill(samples, 13.35d, 13.48d, 0.30f);
         var audio = new MemoryPreparedAudio(samples);
         var region = CreateRegion(samples.Length);
+        var sut = new ReazonSpeechRecognitionChunker();
 
-        var chunks = await new ReazonSpeechRecognitionChunker().CreateChunksAsync(audio, [region]);
+        var diagnostic = await sut.CreateChunksWithDiagnosticsAsync(audio, [region]);
+        var chunks = diagnostic.Chunks;
 
         Assert.That(chunks, Has.Count.EqualTo(2));
         Assert.Multiple(() =>
@@ -70,6 +78,7 @@ public sealed class ReazonSpeechRecognitionChunkerTests
             Assert.That(chunks[1].StartSample, Is.EqualTo(chunks[0].EndSample));
             Assert.That(chunks.All(x => x.Length >= Samples(3d)), Is.True);
             Assert.That(chunks.All(x => x.Length <= Samples(25d)), Is.True);
+            Assert.That(diagnostic.Traces.Select(x => x.SplitReason), Is.EqualTo(new[] { "tail-redistribution", "region-end" }));
         });
     }
 
