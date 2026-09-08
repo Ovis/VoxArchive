@@ -11,7 +11,7 @@ namespace VoxArchive.Transcription.SileroVad;
 /// このクラスはSilero単体の検出だけを担当する。モデル利用可否の判定、音量ベースVADへのfallback、
 /// 連続失敗によるセッション抑制は上位の選択detectorで扱い、正常な0件結果をfallbackと混同しない。
 /// </remarks>
-public sealed class SileroVadDetector(string modelPath) : ISpeechRegionDetector
+public sealed class SileroVadDetector(string modelPath) : IDiagnosticSpeechRegionDetector
 {
     private const int RequiredSampleRate = 16_000;
     private const int WindowSize = 512;
@@ -19,6 +19,13 @@ public sealed class SileroVadDetector(string modelPath) : ISpeechRegionDetector
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<SpeechRegion>> DetectAsync(
+        IPreparedTranscriptionAudio audio,
+        SpeechRegionDetectorSettingsSnapshot settings,
+        CancellationToken cancellationToken = default)
+        => (await DetectWithDiagnosticsAsync(audio, settings, cancellationToken)).SpeechRegions;
+
+    /// <inheritdoc />
+    public async Task<SpeechRegionDetectionDiagnosticResult> DetectWithDiagnosticsAsync(
         IPreparedTranscriptionAudio audio,
         SpeechRegionDetectorSettingsSnapshot settings,
         CancellationToken cancellationToken = default)
@@ -91,7 +98,17 @@ public sealed class SileroVadDetector(string modelPath) : ISpeechRegionDetector
         }
 
         // Prepared Audioが保持する実sample数を使い、Durationからの再計算誤差をVAD境界へ持ち込まない。
-        return SileroVadRegionBuilder.Build(rawRegions, audio.SampleCount, audio.Format.SampleRate, options);
+        var speechRegions = SileroVadRegionBuilder.Build(rawRegions, audio.SampleCount, audio.Format.SampleRate, options);
+        var diagnosticRawRegions = rawRegions
+            .Select((range, index) => new SpeechRegionDetectionRawRegion(index, range.StartSample, range.EndSample))
+            .ToArray();
+        return new SpeechRegionDetectionDiagnosticResult(
+            speechRegions,
+            new SpeechRegionDetectionDiagnosticTrace(
+                "SileroVad",
+                diagnosticRawRegions,
+                FallbackUsed: false,
+                FallbackReason: null));
     }
 
     /// <summary>
