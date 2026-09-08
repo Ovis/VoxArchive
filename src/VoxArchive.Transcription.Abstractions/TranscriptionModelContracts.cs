@@ -39,6 +39,19 @@ public sealed record TranscriptionModelInspection(
     TranscriptionModelInspectionLevel Level);
 
 /// <summary>
+/// native loadを伴うreadiness判定結果をProviderがcacheしている場合に、その結果だけを副作用なく参照する契約
+/// </summary>
+/// <remarks>
+/// CommonのModelManagerはcache miss時だけglobal usage blockを取得してnative validationを実行する。
+/// これにより2件目以降のJob Admissionは既存Jobと並行できる一方、初回native loadとモデル管理操作の競合を防ぐ。
+/// </remarks>
+public interface ITranscriptionModelReadinessCache
+{
+    /// <summary>指定モデルのreadinessが既に確定している場合だけtrueを返す</summary>
+    bool TryGetCachedReadiness(TranscriptionModelId modelId, out bool isReady);
+}
+
+/// <summary>
 /// モデル取得全体の転送・検証進捗を表す
 /// </summary>
 public sealed record TranscriptionModelTransferProgress(
