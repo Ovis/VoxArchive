@@ -37,34 +37,59 @@ public sealed class TranscriptionModelManager(
             return provider.IsReady(key.ModelId);
         }
 
-        if (readinessCache.TryGetCachedReadiness(key.ModelId, out var cached))
+        TranscriptionModelUsageBlock? usageBlock = null;
+        lock (_gate)
         {
-            return cached;
+            // 同一モデルを取得中ならAdmissionはfalseを受け取り、既存download待機経路へ進む。
+            // transaction中のReazonSpeech cacheを参照・再生成せず、native validationを二重起動しない。
+            if (_activeDownload?.Key == key)
+            {
+                return false;
+            }
+
+            if (readinessCache.TryGetCachedReadiness(key.ModelId, out var cached))
+            {
+                return cached;
+            }
+
+            // cache missのnative readiness確認とモデル取得開始の競合を原子的に防ぐため、
+            // Managerのgateを保持したままUsageTrackerのglobal blockを取得する。
+            usageBlock = usageTracker.BlockNewReservations("モデル利用可能性確認");
         }
 
-        // ReazonSpeechの初回readiness確認はnative OfflineRecognizerの生成を伴う。
-        // cache miss時だけ新規Job reservationを一時停止し、モデル管理操作や既存Jobと競合する状態で初回loadを始めない。
-        using var usageBlock = usageTracker.BlockNewReservations("モデル利用可能性確認");
-        return provider.IsReady(key.ModelId);
+        using (usageBlock)
+        {
+            return provider.IsReady(key.ModelId);
+        }
     }
 
     /// <summary>指定レベルでモデル配置状態を確認する</summary>
     public TranscriptionModelInspection Inspect(TranscriptionModelKey key, TranscriptionModelInspectionLevel level)
     {
-        if (level != TranscriptionModelInspectionLevel.Hash)
+        var provider = GetProvider(key.EngineId);
+        if (level == TranscriptionModelInspectionLevel.Hash)
         {
-            return GetProvider(key.EngineId).Inspect(key.ModelId, level);
+            BeginExclusiveOperation("再確認", key);
+            try
+            {
+                return provider.Inspect(key.ModelId, level);
+            }
+            finally
+            {
+                EndExclusiveOperation();
+            }
         }
 
-        BeginExclusiveOperation("再確認", key);
-        try
+        if (provider is not ITranscriptionModelReadinessCache readinessCache
+            || readinessCache.TryGetCachedReadiness(key.ModelId, out _))
         {
-            return GetProvider(key.EngineId).Inspect(key.ModelId, level);
+            return provider.Inspect(key.ModelId, level);
         }
-        finally
-        {
-            EndExclusiveOperation();
-        }
+
+        // ReazonSpeech ProviderのInspect契約はnative loadまで含む。
+        // その契約を弱めず、cache missの初回InspectだけModelManager側でglobal blockを取得する。
+        using var usageBlock = usageTracker.BlockNewReservations("モデル利用可能性確認");
+        return provider.Inspect(key.ModelId, level);
     }
 
     /// <summary>readyなモデルの物理配置を取得する</summary>
