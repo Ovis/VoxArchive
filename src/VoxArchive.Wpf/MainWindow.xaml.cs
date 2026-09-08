@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private const uint ModNoRepeat = 0x4000;
 
     private readonly ITranscriptionApplicationService _transcriptionApplicationService;
+    private readonly ITranscriptionModelManagementApplicationService _transcriptionModelManagementApplicationService;
     private readonly ISpeechRegionDetectorModelApplicationService _speechRegionDetectorModelApplicationService;
     private MainViewModel? _viewModel;
     private HwndSource? _hwndSource;
@@ -34,9 +35,11 @@ public partial class MainWindow : Window
     /// <summary>メインWindowを初期化する</summary>
     public MainWindow(
         ITranscriptionApplicationService transcriptionApplicationService,
+        ITranscriptionModelManagementApplicationService transcriptionModelManagementApplicationService,
         ISpeechRegionDetectorModelApplicationService speechRegionDetectorModelApplicationService)
     {
         _transcriptionApplicationService = transcriptionApplicationService;
+        _transcriptionModelManagementApplicationService = transcriptionModelManagementApplicationService;
         _speechRegionDetectorModelApplicationService = speechRegionDetectorModelApplicationService;
         InitializeComponent();
         InitializeTrayIcon();
@@ -222,11 +225,12 @@ public partial class MainWindow : Window
     private async Task ExitFromTrayAsync()
     {
         var activeDownload = _transcriptionApplicationService.GetActiveModelDownload();
+        var activeAsrModelOperation = _transcriptionModelManagementApplicationService.GetActiveOperation();
         var activeVadModelOperation = _speechRegionDetectorModelApplicationService.GetActiveOperation();
-        if (activeDownload is not null || activeVadModelOperation is not null)
+        if (activeDownload is not null || activeAsrModelOperation is not null || activeVadModelOperation is not null)
         {
             ShowFromTray();
-            var message = BuildActiveModelOperationExitMessage(activeDownload, activeVadModelOperation);
+            var message = BuildActiveModelOperationExitMessage(activeDownload, activeAsrModelOperation, activeVadModelOperation);
             var result = ModernDialog.Show(
                 this,
                 message,
@@ -240,8 +244,9 @@ public partial class MainWindow : Window
             }
 
             // Close後のOnExitまで待つと確認と実際の停止に時間差が生じるため、明示終了では先にApplication-owned処理を収束させる。
-            // native validationは強制停止せず完了を待ち、事前にcancelされたTokenによって公式モデルへのcommitだけを抑止する。
+            // downloadはcancelし、ASR再確認・削除とnative validationは強制停止せず安全に完了するまで待つ。
             await _transcriptionApplicationService.CancelActiveModelDownloadAndWaitAsync();
+            await _transcriptionModelManagementApplicationService.WaitForActiveOperationAsync();
             await _speechRegionDetectorModelApplicationService.CancelActiveOperationAndWaitAsync();
         }
 
@@ -257,11 +262,17 @@ public partial class MainWindow : Window
 
     private static string BuildActiveModelOperationExitMessage(
         TranscriptionModelDownloadInfo? activeDownload,
+        TranscriptionModelManagementOperationInfo? activeAsrModelOperation,
         SpeechRegionDetectorModelOperationInfo? activeVadModelOperation)
     {
         if (activeDownload is not null)
         {
             return $"{activeDownload.EngineId} / {activeDownload.ModelDisplayName} のモデルを取得中です。\n取得を中止してVoxArchiveを終了しますか？";
+        }
+
+        if (activeAsrModelOperation is not null)
+        {
+            return $"{activeAsrModelOperation.EngineId} / {activeAsrModelOperation.ModelId} のモデル{activeAsrModelOperation.OperationName}を実行中です。\n安全に処理が完了するまで待ってからVoxArchiveを終了しますか？";
         }
 
         if (activeVadModelOperation is null)
