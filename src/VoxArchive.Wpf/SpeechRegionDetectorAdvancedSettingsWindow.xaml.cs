@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -71,5 +72,18 @@ public partial class SpeechRegionDetectorAdvancedSettingsWindow : Window
             PostPaddingMilliseconds = checked((int)PostPaddingNumericUpDown.Value)
         };
         DialogResult = true;
+    }
+
+    private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState == MouseButtonState.Pressed)
+        {
+            DragMove();
+        }
+    }
+
+    private void OnTitleBarCloseButtonClick(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
     }
 }
