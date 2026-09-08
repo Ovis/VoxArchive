@@ -1,9 +1,10 @@
+using VoxArchive.Transcription;
 using VoxArchive.Transcription.ReazonSpeech;
 
 namespace VoxArchive.IntegrationTests;
 
 /// <summary>
-/// ReazonSpeechモデル定義が固定revisionのprecision別必要ファイルだけを指すことを確認する
+/// ReazonSpeechモデル定義が固定revisionのprecision別必要ファイルだけを指し、物理package IDをUI向けcatalogへ公開しないことを確認する
 /// </summary>
 public sealed class ReazonSpeechModelCatalogTests
 {
@@ -30,6 +31,24 @@ public sealed class ReazonSpeechModelCatalogTests
             "encoder-epoch-99-avg-1.int8.onnx",
             "decoder-epoch-99-avg-1.onnx",
             "joiner-epoch-99-avg-1.int8.onnx");
+    }
+
+    [Test]
+    public void ProviderCatalog_ExposesOnlyLogicalJapaneseModel()
+    {
+        var provider = new ReazonSpeechModelProvider(
+            new ManagedModelFileTransaction(new HttpClient()));
+
+        var models = provider.GetAvailableModels();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(models, Has.Count.EqualTo(1));
+            Assert.That(models[0].ModelId, Is.EqualTo(ReazonSpeechModelCatalog.JapaneseModelId));
+            Assert.That(models.Select(x => x.ModelId.Value), Does.Not.Contain(ReazonSpeechModelCatalog.JapaneseFp32PackageId.Value));
+            Assert.That(models.Select(x => x.ModelId.Value), Does.Not.Contain(ReazonSpeechModelCatalog.JapaneseInt8PackageId.Value));
+            Assert.That(models.Select(x => x.ModelId.Value), Does.Not.Contain(ReazonSpeechModelCatalog.JapaneseInt8Fp32PackageId.Value));
+        });
     }
 
     private static void AssertPackage(
