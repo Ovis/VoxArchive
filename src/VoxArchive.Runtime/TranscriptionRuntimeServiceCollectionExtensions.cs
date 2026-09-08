@@ -99,6 +99,9 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<ReazonSpeechAdvancedSettingsCapability>();
         services.AddSingleton<ITranscriptionEngineAdvancedSettingsCapability>(
             sp => sp.GetRequiredService<ReazonSpeechAdvancedSettingsCapability>());
+        services.AddSingleton<ReazonSpeechModelOperationCapability>();
+        services.AddSingleton<ITranscriptionModelOperationCapability>(
+            sp => sp.GetRequiredService<ReazonSpeechModelOperationCapability>());
 
         services.AddSingleton(sp => new TranscriptionEngineRegistry(
         [
@@ -131,6 +134,7 @@ public static class TranscriptionRuntimeServiceCollectionExtensions
         services.AddSingleton<TranscriptionJobQueue>();
         services.AddSingleton<ITranscriptionEngineSettingsService, TranscriptionEngineSettingsService>();
         services.AddSingleton<ITranscriptionEngineAdvancedSettingsService, TranscriptionEngineAdvancedSettingsService>();
+        services.AddSingleton<ITranscriptionModelOperationResolverService, TranscriptionModelOperationResolverService>();
         services.AddSingleton<ITranscriptionApplicationService, TranscriptionApplicationService>();
         services.AddSingleton<ISpeechRegionDetectorModelApplicationService, SpeechRegionDetectorModelApplicationService>();
         return services;
