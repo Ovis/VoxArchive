@@ -110,21 +110,14 @@ public sealed class ReazonSpeechModelProvider :
         {
             if (level == TranscriptionModelInspectionLevel.Hash)
             {
-                // ReazonSpeechではSHA-256を利用可能判定に使わない。Hash levelは明示的な再確認として
-                // cached validationを破棄し、ModelManagerがglobal blockを保持した状態でnative loadを必ず再実行する。
+                // ReazonSpeechではSHA-256を利用可能判定に使わない。Hash levelは明示再確認としてcacheを破棄する。
+                // Provider単体のInspect契約はnative loadまで含むため、呼び出し側のModelManagerがglobal排他を担当する。
                 InvalidateValidation(package.PackageId);
-                state = IsReady(package.PackageId)
-                    ? TranscriptionModelPackageState.Installed
-                    : TranscriptionModelPackageState.Corrupt;
             }
-            else if (TryGetCachedReadiness(package.PackageId, out var cachedReady))
-            {
-                // 通常の配置確認ではcache済みnative validation結果だけを反映する。
-                // cache miss時にここでnative loadすると、Applicationの状態確認がModelManagerの排他経路を迂回してしまう。
-                state = cachedReady
-                    ? TranscriptionModelPackageState.Installed
-                    : TranscriptionModelPackageState.Corrupt;
-            }
+
+            state = IsReady(package.PackageId)
+                ? TranscriptionModelPackageState.Installed
+                : TranscriptionModelPackageState.Corrupt;
         }
 
         return new TranscriptionModelInspection(state, level);
@@ -143,10 +136,9 @@ public sealed class ReazonSpeechModelProvider :
             return BuildInstallation(package, GetInstallationDirectory(package));
         }
 
-        // 再取得中はModelManager側がglobal usage blockを保持している。
-        // cacheを削除するとAdmissionのreadiness確認が新たなnative loadを試みてblockへ衝突するため、
-        // 操作中だけ明示的なfalseをcacheし、既存download待機経路へ流す。
-        lock (_validationGate) _validationCache[package.PackageId.Value] = false;
+        // transaction中に旧cacheを利用可能判定へ使わない。Admission側はModelManagerのactive download判定から
+        // 同一モデルの既存download待機経路へ進むため、ここでcacheを無効化しても別native loadは開始されない。
+        InvalidateValidation(package.PackageId);
 
         try
         {
@@ -182,7 +174,7 @@ public sealed class ReazonSpeechModelProvider :
         }
         catch
         {
-            // rollbackで旧モデルが復旧している可能性があるためfalseを固定せず、次回readiness確認で再検証させる。
+            // rollbackで旧モデルが復旧している可能性があるため、次回readiness確認で再検証させる。
             InvalidateValidation(package.PackageId);
             throw;
         }
