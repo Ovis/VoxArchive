@@ -46,7 +46,8 @@ public sealed record AsrResultDiagnosticTrace(
     string? RawText,
     JsonElement? TimestampTrace = null,
     bool Discarded = false,
-    string? DiscardReason = null);
+    string? DiscardReason = null,
+    long ElapsedMilliseconds = 0);
 
 /// <summary>
 /// ASR EngineがCommonへ返すEngine非依存の詳細診断traceを保持する
