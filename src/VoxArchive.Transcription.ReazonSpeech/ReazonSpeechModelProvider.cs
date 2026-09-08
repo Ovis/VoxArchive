@@ -143,36 +143,49 @@ public sealed class ReazonSpeechModelProvider :
             return BuildInstallation(package, GetInstallationDirectory(package));
         }
 
-        InvalidateValidation(package.PackageId);
-        var adapter = progress is null
-            ? null
-            : new Progress<ManagedModelTransactionProgress>(x =>
-                progress.Report(new TranscriptionModelTransferProgress(
-                    x.BytesReceived,
-                    x.TotalBytes ?? 0,
-                    x.CurrentFileName,
-                    x.IsValidating)));
-        var directory = await _transaction.DownloadValidateCommitAsync(
-            package.Files,
-            GetInstallationDirectory(package),
-            GetTemporaryRootDirectory(),
-            staging =>
-            {
-                ValidateLoad(package, staging);
-                return Task.CompletedTask;
-            },
-            adapter,
-            cancellationToken,
-            committed =>
-            {
-                // stagingで成功しても正式パス固有の問題でloadできない場合があるため、
-                // transactionが旧モデルのbackupを保持している間に正式配置からもnative loadする。
-                ValidateLoad(package, committed);
-                return Task.CompletedTask;
-            });
+        // 再取得中はModelManager側がglobal usage blockを保持している。
+        // cacheを削除するとAdmissionのreadiness確認が新たなnative loadを試みてblockへ衝突するため、
+        // 操作中だけ明示的なfalseをcacheし、既存download待機経路へ流す。
+        lock (_validationGate) _validationCache[package.PackageId.Value] = false;
 
-        lock (_validationGate) _validationCache[package.PackageId.Value] = true;
-        return BuildInstallation(package, directory);
+        try
+        {
+            var adapter = progress is null
+                ? null
+                : new Progress<ManagedModelTransactionProgress>(x =>
+                    progress.Report(new TranscriptionModelTransferProgress(
+                        x.BytesReceived,
+                        x.TotalBytes ?? 0,
+                        x.CurrentFileName,
+                        x.IsValidating)));
+            var directory = await _transaction.DownloadValidateCommitAsync(
+                package.Files,
+                GetInstallationDirectory(package),
+                GetTemporaryRootDirectory(),
+                staging =>
+                {
+                    ValidateLoad(package, staging);
+                    return Task.CompletedTask;
+                },
+                adapter,
+                cancellationToken,
+                committed =>
+                {
+                    // stagingで成功しても正式パス固有の問題でloadできない場合があるため、
+                    // transactionが旧モデルのbackupを保持している間に正式配置からもnative loadする。
+                    ValidateLoad(package, committed);
+                    return Task.CompletedTask;
+                });
+
+            lock (_validationGate) _validationCache[package.PackageId.Value] = true;
+            return BuildInstallation(package, directory);
+        }
+        catch
+        {
+            // rollbackで旧モデルが復旧している可能性があるためfalseを固定せず、次回readiness確認で再検証させる。
+            InvalidateValidation(package.PackageId);
+            throw;
+        }
     }
 
     /// <inheritdoc />
