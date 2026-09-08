@@ -39,6 +39,7 @@ public sealed class TranscriptionOrchestrator(
         IPreparedTranscriptionAudio? preparedAudio = null;
         IReadOnlyList<SpeechRegion>? speechRegions = null;
         SpeechRegionDetectionDiagnosticTrace? vadTrace = null;
+        TranscriptionEngineDiagnosticTrace? engineDiagnostic = null;
         TranscriptionDiagnosticSource? diagnosticSource = null;
 
         try
@@ -99,6 +100,7 @@ public sealed class TranscriptionOrchestrator(
                     request.EngineOptions,
                     new TranscriptionEngineExecutionContext(request.DiagnosticsEnabled)),
                 cancellationToken);
+            engineDiagnostic = engineResult.Diagnostics;
             stageStopwatch.Stop();
             asrMilliseconds = stageStopwatch.ElapsedMilliseconds;
             LogStage(request, "recognition", "completed", pipelineStopwatch.ElapsedMilliseconds);
@@ -143,6 +145,7 @@ public sealed class TranscriptionOrchestrator(
                     diagnosticSource ?? BuildFallbackDiagnosticSource(request.SourceRecordingPath, preparedAudio),
                     speechRegions,
                     vadTrace,
+                    engineDiagnostic,
                     finishedAt,
                     status: "success",
                     failedStage: null,
@@ -180,6 +183,7 @@ public sealed class TranscriptionOrchestrator(
                         diagnosticSource ?? BuildFallbackDiagnosticSource(request.SourceRecordingPath, preparedAudio, engine.AudioRequirements),
                         speechRegions,
                         vadTrace,
+                        engineDiagnostic,
                         DateTimeOffset.Now,
                         status: "failed",
                         failedStage,
@@ -267,6 +271,7 @@ public sealed class TranscriptionOrchestrator(
         TranscriptionDiagnosticSource source,
         IReadOnlyList<SpeechRegion>? speechRegions,
         SpeechRegionDetectionDiagnosticTrace? vadTrace,
+        TranscriptionEngineDiagnosticTrace? engineDiagnostic,
         DateTimeOffset timestamp,
         string status,
         string? failedStage,
@@ -314,6 +319,18 @@ public sealed class TranscriptionOrchestrator(
                     FallbackReason = vadTrace?.FallbackReason,
                     ElapsedMilliseconds = vadMilliseconds
                 },
+            RecognitionChunks = engineDiagnostic?.RecognitionChunks
+                .Select(trace => new TranscriptionDiagnosticRecognitionChunk
+                {
+                    RecognitionChunkId = trace.RecognitionChunkId,
+                    SpeechRegionId = trace.SpeechRegionId,
+                    StartSample = trace.StartSample,
+                    EndSample = trace.EndSample,
+                    SplitReason = trace.SplitReason,
+                    SplitDetails = CloneIfDefined(trace.SplitDetails),
+                    ElapsedMilliseconds = 0
+                })
+                .ToArray() ?? [],
             Timings = new TranscriptionDiagnosticTimings
             {
                 OverallMilliseconds = overallMilliseconds,
