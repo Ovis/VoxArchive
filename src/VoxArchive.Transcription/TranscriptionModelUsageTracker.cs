@@ -63,15 +63,6 @@ public sealed class TranscriptionModelUsageTracker
         }
     }
 
-    /// <summary>いずれかの文字起こしJobがモデル利用権を保持しているか確認する</summary>
-    public bool AnyInUse()
-    {
-        lock (_gate)
-        {
-            return _counts.Values.Any(count => count > 0);
-        }
-    }
-
     internal void Release(TranscriptionModelKey key)
     {
         lock (_gate)
