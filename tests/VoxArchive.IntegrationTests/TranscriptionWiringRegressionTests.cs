@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using VoxArchive.Application;
+using VoxArchive.Application.Abstractions;
+using VoxArchive.Domain;
 using VoxArchive.Runtime;
 using VoxArchive.Transcription;
 using VoxArchive.Transcription.Abstractions;
@@ -10,7 +13,7 @@ using VoxArchive.Transcription.Whisper;
 namespace VoxArchive.IntegrationTests;
 
 /// <summary>
-/// PR #27で追加した実装がProductionのDI・排他経路へ実際に接続されていることを確認する
+/// PR #27で追加した実装がProductionのDI・Admission・排他経路へ実際に接続されていることを確認する
 /// </summary>
 public sealed class TranscriptionWiringRegressionTests
 {
@@ -35,6 +38,59 @@ public sealed class TranscriptionWiringRegressionTests
             // ChunkerはEngine固有の具象責務として登録し、削除した共通Interfaceを経由しない。
             Assert.That(provider.GetRequiredService<WhisperRecognitionChunker>(), Is.Not.Null);
             Assert.That(provider.GetRequiredService<ReazonSpeechRecognitionChunker>(), Is.Not.Null);
+        });
+    }
+
+    [Test]
+    public async Task Admission_VolumeBasedSetting_ReachesProductionVadSelectorSnapshot()
+    {
+        var registration = new TranscriptionEngineRegistration(
+            new FakeEngine(),
+            new FakeSettingsProvider());
+        var registry = new TranscriptionEngineRegistry([registration]);
+        var usageTracker = new TranscriptionModelUsageTracker();
+        var service = new TranscriptionJobAdmissionService(
+            registry,
+            new TranscriptionModelManager(registry, usageTracker),
+            usageTracker);
+        var options = new RecordingOptions
+        {
+            Transcription = new TranscriptionSettings
+            {
+                Enabled = true,
+                DefaultEngine = EngineId.Value,
+                PreferredLanguage = "ja",
+                SileroVad = new SileroVadSettings
+                {
+                    Mode = SpeechRegionDetectorMode.VolumeBased,
+                    Threshold = 0.61d
+                },
+                Engines = new Dictionary<string, TranscriptionEngineSettings>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [EngineId.Value] = new()
+                    {
+                        SchemaVersion = 1,
+                        Settings = JsonSerializer.SerializeToElement(new { })
+                    }
+                }
+            }
+        };
+
+        var result = await service.AdmitAsync(
+            "recording.flac",
+            options,
+            TranscriptionTrigger.Manual);
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.That(result.Job, Is.Not.Null);
+        using var job = result.Job!;
+        var snapshot = job.Request.SpeechRegionDetectorSettings;
+
+        Assert.Multiple(() =>
+        {
+            // Domain設定がAdmissionでsnapshot化され、そのsnapshotを本番selectorがVolumeBasedとして解釈できることまで1本で確認する。
+            Assert.That(SileroPreferredSpeechRegionDetector.UseVolumeBasedDetector(snapshot), Is.True);
+            Assert.That(snapshot.Settings.GetProperty(nameof(SileroVadSettings.Threshold)).GetDouble(), Is.EqualTo(0.61d));
         });
     }
 
