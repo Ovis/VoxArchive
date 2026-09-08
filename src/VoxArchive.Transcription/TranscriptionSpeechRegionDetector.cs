@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NAudio.Wave;
 using VoxArchive.Transcription.Abstractions;
 
@@ -49,7 +50,8 @@ public sealed class TranscriptionSpeechRegionDetector : IDiagnosticSpeechRegionD
                 "VolumeBasedVad",
                 rawRegions,
                 FallbackUsed: false,
-                FallbackReason: null));
+                FallbackReason: null,
+                EffectiveSettings: BuildEffectiveSettings()));
     }
 
     private static VolumeVadDetectionResult Detect(Stream stream, CancellationToken cancellationToken)
@@ -190,6 +192,19 @@ public sealed class TranscriptionSpeechRegionDetector : IDiagnosticSpeechRegionD
         }
         return new VolumeVadDetectionResult(result, rawRegions);
     }
+
+    private static JsonElement BuildEffectiveSettings()
+        => JsonSerializer.SerializeToElement(new
+        {
+            frameMilliseconds = FrameMilliseconds,
+            minimumSpeechMilliseconds = MinSpeechMilliseconds,
+            minimumSilenceMilliseconds = MinSilenceMilliseconds,
+            speechPaddingMilliseconds = SpeechPaddingMilliseconds,
+            mergeGapMilliseconds = MergeGapMilliseconds,
+            noiseFloorPercentile = NoiseFloorPercentile,
+            minimumThresholdDb = MinimumThresholdDb,
+            thresholdOffsetDb = ThresholdOffsetDb
+        });
 
     private static IReadOnlyList<SpeechRegion> ClampToSampleCount(IReadOnlyList<SpeechRegion> regions, long sampleCount)
     {
