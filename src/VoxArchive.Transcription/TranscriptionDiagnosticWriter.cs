@@ -22,7 +22,12 @@ public sealed class TranscriptionDiagnosticWriter
     {
     }
 
-    internal TranscriptionDiagnosticWriter(
+    /// <summary>
+    /// 指定したログディレクトリを使用するwriterを生成する
+    /// </summary>
+    /// <param name="logger">診断JSON保存失敗を通常ログへ記録するlogger</param>
+    /// <param name="logsDirectory">診断JSONを保存するディレクトリ。nullまたは空の場合は既定ログディレクトリを使用する</param>
+    public TranscriptionDiagnosticWriter(
         ILogger<TranscriptionDiagnosticWriter> logger,
         string? logsDirectory)
     {
