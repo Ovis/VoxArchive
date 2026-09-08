@@ -252,6 +252,8 @@ public sealed class TranscriptionModelManager(
                 if (!ReferenceEquals(_activeDownload, active)) return;
                 active.BytesReceived = value.BytesReceived;
                 active.TotalBytes = value.TotalBytes;
+                active.CurrentFileName = value.CurrentFileName;
+                active.IsValidating = value.IsValidating;
             }
             active.ExternalProgress?.Report(value);
             RaiseStateChanged();
@@ -365,6 +367,8 @@ public sealed class TranscriptionModelManager(
         public Task<TranscriptionModelInstallation> Completion { get; set; } = null!;
         public long BytesReceived { get; set; }
         public long TotalBytes { get; set; }
+        public string? CurrentFileName { get; set; }
+        public bool IsValidating { get; set; }
         public int WaiterCount { get; set; }
         public bool IsCancelling { get; set; }
 
@@ -375,7 +379,9 @@ public sealed class TranscriptionModelManager(
                 BytesReceived,
                 TotalBytes,
                 WaiterCount,
-                IsCancelling);
+                IsCancelling,
+                CurrentFileName,
+                IsValidating);
     }
 }
 
@@ -386,8 +392,13 @@ public sealed record TranscriptionModelDownloadSnapshot(
     long BytesReceived,
     long TotalBytes,
     int WaiterCount,
-    bool IsCancelling)
+    bool IsCancelling,
+    string? CurrentFileName = null,
+    bool IsValidating = false)
 {
+    /// <summary>総容量不明時にtrueを返す</summary>
+    public bool IsIndeterminate => TotalBytes <= 0;
+
     /// <summary>0～100の進捗率を取得する</summary>
     public double Percent => TotalBytes <= 0 ? 0d : Math.Clamp(BytesReceived * 100d / TotalBytes, 0d, 100d);
 }
