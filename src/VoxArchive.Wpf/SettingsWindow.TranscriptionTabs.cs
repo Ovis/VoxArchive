@@ -299,10 +299,14 @@ public partial class SettingsWindow
         }
 
         var displayName = GetModelDisplayName(engineId, modelId);
+        var isReazonSpeech = string.Equals(engineId, ReazonSpeechEngineId, StringComparison.OrdinalIgnoreCase);
         var engineName = string.Equals(engineId, WhisperEngineId, StringComparison.OrdinalIgnoreCase) ? "Whisper" : "ReazonSpeech";
+        var deleteScopeNotice = isReazonSpeech
+            ? "\n\nReazonSpeechでは、現在選択中のprecisionだけでなく、ローカルに保存されている fp32 / int8 / int8-fp32 の全モデルセットを削除します。"
+            : string.Empty;
         var result = ModernDialog.Show(
             this,
-            $"{engineName} / {displayName} のローカルモデルファイルを削除します。\nモデルの選択設定は維持され、再度利用するにはモデル取得が必要です。",
+            $"{engineName} / {displayName} のローカルモデルファイルを削除します。\nモデルの選択設定は維持され、再度利用するにはモデル取得が必要です。{deleteScopeNotice}",
             "モデル削除",
             MessageBoxButton.OKCancel,
             MessageBoxImage.Warning,
