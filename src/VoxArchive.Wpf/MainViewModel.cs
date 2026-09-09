@@ -335,7 +335,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public double WindowHeight => 100;
     public Visibility NormalMainControlsVisibility => IsMiniMode ? Visibility.Collapsed : Visibility.Visible;
     public Visibility MiniMainControlsVisibility => IsMiniMode ? Visibility.Visible : Visibility.Collapsed;
-    public string WindowModeGlyph => IsMiniMode ? "\uE73F" : "\uE740";
+    public string WindowModeGlyph => IsMiniMode ? "\uE740" : "\uE73F";
     public string WindowModeToolTip => IsMiniMode ? "通常モード" : "ミニモード";
     public bool IsStoppedOrError => _recordingService.CurrentState is RecordingState.Stopped or RecordingState.Error;
     public bool IsDeviceSelectionEnabled => IsStoppedOrError;
