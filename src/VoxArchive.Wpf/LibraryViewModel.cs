@@ -130,8 +130,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         SeekForwardCommand = new DelegateCommand(SeekForwardAsync, () => SelectedItem is not null);
         SaveMonoMixCommand = new DelegateCommand(SaveMonoMixAsync, CanSaveMonoMix);
         ResetPlaybackSpeedCommand = new DelegateCommand(ResetPlaybackSpeedAsync, CanResetPlaybackSpeed);
-
-
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -188,6 +186,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             }
         }
     }
+
     public string EditableFileName
     {
         get => _editableFileName;
@@ -284,7 +283,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         set => SetField(ref _selectedSeekStepOption, value);
     }
 
-
     public PlaybackSpeedOption? SelectedPlaybackSpeedOption
     {
         get => _selectedPlaybackSpeedOption;
@@ -300,6 +298,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             RaiseCommands();
         }
     }
+
     public bool MixToMonoPlayback
     {
         get => _mixToMonoPlayback;
@@ -350,7 +349,12 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         await RefreshAsync();
     }
 
-    private async Task RefreshAsync()
+    private Task RefreshAsync()
+    {
+        return RefreshAsync(SelectedItem?.FilePath);
+    }
+
+    private async Task RefreshAsync(string? selectedFilePath)
     {
         try
         {
@@ -359,6 +363,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             {
                 item.PropertyChanged -= OnItemPropertyChanged;
             }
+
             var list = await _catalogService.GetAllAsync();
             Items.Clear();
             foreach (var item in list)
@@ -367,9 +372,11 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                 item.PropertyChanged += OnItemPropertyChanged;
             }
 
-            if (SelectedItem is not null)
+            // Items.Clear() によりWPF側から SelectedItem=null が書き戻されるため、
+            // 一覧更新前に退避したパスを使って同じ録音ファイルを再選択する。
+            if (!string.IsNullOrWhiteSpace(selectedFilePath))
             {
-                SelectedItem = Items.FirstOrDefault(x => x.FilePath == SelectedItem.FilePath);
+                SelectedItem = Items.FirstOrDefault(x => string.Equals(x.FilePath, selectedFilePath, StringComparison.OrdinalIgnoreCase));
             }
 
             UpdateAllItemsCheckedState();
@@ -528,7 +535,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-
     private bool CanSaveTitle()
     {
         if (SelectedItem is null)
@@ -540,6 +546,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         var original = (SelectedItem.Title ?? string.Empty).Trim();
         return !string.Equals(current, original, StringComparison.Ordinal);
     }
+
     private async Task RenameAsync()
     {
         if (SelectedItem is null)
@@ -556,8 +563,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             UnloadPlaybackForFileMutation();
             var newPath = await _catalogService.RenameAsync(SelectedItem.FilePath, EditableFileName);
-            await RefreshAsync();
-            SelectedItem = Items.FirstOrDefault(x => x.FilePath == newPath);
+            // リネーム後は旧パスが一覧に存在しないため、新しいパスを選択復元対象として渡す。
+            await RefreshAsync(newPath);
             StatusText = "ファイル名を変更しました。";
         }
         catch (IOException ex)
@@ -582,7 +589,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-
     private bool CanRename()
     {
         if (SelectedItem is null)
@@ -594,6 +600,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         var original = (SelectedItem.FileName ?? string.Empty).Trim();
         return !string.Equals(current, original, StringComparison.Ordinal);
     }
+
     private async Task DeleteFileAsync()
     {
         if (SelectedItem is null)
@@ -674,10 +681,12 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             return;
         }
+
         if (!await EnsureFileExistsOrPromptRemoveAsync("Explorer表示", SelectedItem.FilePath))
         {
             return;
         }
+
         try
         {
             var args = $"/select,\"{SelectedItem.FilePath}\"";
@@ -691,6 +700,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             StatusText = $"Explorer起動失敗: {ex.Message}";
         }
     }
+
     private Task OpenTranscriptionFileAsync()
     {
         if (SelectedItem is null)
@@ -717,8 +727,10 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             StatusText = $"文字起こしファイルを開けませんでした: {ex.Message}";
         }
+
         return Task.CompletedTask;
     }
+
     private bool CanOpenTranscriptionFile()
     {
         if (SelectedItem is null)
@@ -728,22 +740,26 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         return _transcriptionService.FindCanonicalResultPath(SelectedItem.FilePath, _optionsProvider()) is not null;
     }
+
     private bool CanTranscribe()
     {
         if (SelectedItem is null)
         {
             return false;
         }
+
         var options = _optionsProvider();
         return !IsTranscribingForPath(SelectedItem.FilePath)
             && options.Transcription.Enabled
             && _transcriptionService.FindCanonicalResultPath(SelectedItem.FilePath, options) is null;
     }
+
     public void NotifyOptionsChanged()
     {
         TranscribeCommand.RaiseCanExecuteChanged();
         OpenTranscriptionFileCommand.RaiseCanExecuteChanged();
     }
+
     private async Task TranscribeAsync()
     {
         try
@@ -780,6 +796,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             {
                 AppNotificationHub.Notify("VoxArchive", $"文字起こし開始: {Path.GetFileName(SelectedItem.FilePath)}", System.Windows.Forms.ToolTipIcon.Info);
             }
+
             StatusText = "文字起こしジョブをキューへ追加しました。";
         }
         catch (Exception ex)
@@ -807,6 +824,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             RaiseCommands();
         });
     }
+
     private void OnTranscriptionJobStateChanged(object? sender, ApplicationTranscriptionJobStateChangedEventArgs e)
     {
         var key = NormalizePathKey(e.AudioFilePath);
@@ -911,8 +929,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-
-
     private bool CanResetPlaybackSpeed()
     {
         var rate = SelectedPlaybackSpeedOption?.Rate ?? 1.0;
@@ -929,6 +945,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         return Task.CompletedTask;
     }
+
     private bool CanSaveMonoMix()
     {
         return SelectedItem is not null && !_isSavingMonoMix;
@@ -1002,6 +1019,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             RaiseCommands();
         }
     }
+
     private async Task<bool> EnsureFileExistsOrPromptRemoveAsync(string actionName, string filePath)
     {
         if (File.Exists(filePath))
@@ -1040,7 +1058,6 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-
     private async Task RemoveFromCatalogAndRefreshAsync(string filePath)
     {
         try
@@ -1054,6 +1071,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
             StatusText = $"一覧削除失敗: {ex.Message}";
         }
     }
+
     private List<LibraryRecordingItem> GetCheckedItems()
     {
         return Items.Where(x => x.IsChecked).ToList();
@@ -1285,13 +1303,10 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             item.PropertyChanged -= OnItemPropertyChanged;
         }
+
         _positionTimer.Stop();
         _playbackService.PlaybackStopped -= OnPlaybackStopped;
         _playbackService.Dispose();
         _catalogSession.Dispose();
     }
 }
-
-
-
-
