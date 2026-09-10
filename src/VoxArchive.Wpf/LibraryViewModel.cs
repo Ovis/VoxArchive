@@ -350,7 +350,12 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         await RefreshAsync();
     }
 
-    private async Task RefreshAsync()
+    private Task RefreshAsync()
+    {
+        return RefreshAsync(SelectedItem?.FilePath);
+    }
+
+    private async Task RefreshAsync(string? selectedFilePath)
     {
         try
         {
@@ -367,9 +372,11 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
                 item.PropertyChanged += OnItemPropertyChanged;
             }
 
-            if (SelectedItem is not null)
+            // Items.Clear() によりWPF側から SelectedItem=null が書き戻されるため、
+            // 一覧更新前に退避したパスを使って同じ録音ファイルを再選択する。
+            if (!string.IsNullOrWhiteSpace(selectedFilePath))
             {
-                SelectedItem = Items.FirstOrDefault(x => x.FilePath == SelectedItem.FilePath);
+                SelectedItem = Items.FirstOrDefault(x => string.Equals(x.FilePath, selectedFilePath, StringComparison.OrdinalIgnoreCase));
             }
 
             UpdateAllItemsCheckedState();
@@ -556,8 +563,8 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         {
             UnloadPlaybackForFileMutation();
             var newPath = await _catalogService.RenameAsync(SelectedItem.FilePath, EditableFileName);
-            await RefreshAsync();
-            SelectedItem = Items.FirstOrDefault(x => x.FilePath == newPath);
+            // リネーム後は旧パスが一覧に存在しないため、新しいパスを選択復元対象として渡す。
+            await RefreshAsync(newPath);
             StatusText = "ファイル名を変更しました。";
         }
         catch (IOException ex)
