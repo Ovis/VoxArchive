@@ -14,6 +14,7 @@ public interface IRecordingPlaybackService : IDisposable
     void Play();
     void Pause();
     void Stop();
+    void Unload();
     void Seek(TimeSpan position);
     void SetGains(double leftDb, double rightDb);
     void SetMixToMono(bool enabled);
