@@ -517,6 +517,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
+            UnloadPlaybackForFileMutation();
             await _catalogService.UpdateTitleAsync(SelectedItem.FilePath, title);
             await RefreshAsync();
             StatusText = "タイトルを更新しました。";
@@ -553,6 +554,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
+            UnloadPlaybackForFileMutation();
             var newPath = await _catalogService.RenameAsync(SelectedItem.FilePath, EditableFileName);
             await RefreshAsync();
             SelectedItem = Items.FirstOrDefault(x => x.FilePath == newPath);
@@ -618,6 +620,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
+            UnloadPlaybackForFileMutation();
             await _catalogService.DeleteFileAsync(SelectedItem.FilePath);
             await RefreshAsync();
             StatusText = "ファイルを削除しました。";
@@ -1118,6 +1121,7 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
+            UnloadPlaybackForFileMutation();
             foreach (var item in checkedItems)
             {
                 await _catalogService.DeleteFileAsync(item.FilePath);
@@ -1190,6 +1194,18 @@ public sealed class LibraryViewModel : INotifyPropertyChanged, IDisposable
         _positionTimer.Stop();
         IsPlaying = false;
         PlaybackButtonText = "再生";
+    }
+
+    private void UnloadPlaybackForFileMutation()
+    {
+        // タイトル更新・リネーム・削除では実ファイルへ書き込むため、再生停止だけでなく
+        // AudioFileReaderが保持しているファイルハンドルも操作前に解放する。
+        _playbackService.Unload();
+        StopPlaybackState();
+        SeekSeconds = 0;
+        DurationSeconds = 0;
+        UpdatePositionText();
+        RaiseCommands();
     }
 
     private void RaiseCommands()
