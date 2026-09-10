@@ -25,8 +25,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
     public void Load(string filePath)
     {
-        Stop();
-        DisposeCore();
+        Unload();
 
         _reader = new AudioFileReader(filePath);
         _gainProvider = new StereoGainSampleProvider(_reader);
@@ -61,6 +60,14 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
         }
 
         _timeStretchProvider?.Clear();
+    }
+
+    public void Unload()
+    {
+        // ファイルを変更・削除する操作では再生停止だけではAudioFileReaderがファイルを保持し続けるため、
+        // 再生リソースも破棄してファイルハンドルを確実に解放する。
+        Stop();
+        DisposeCore();
     }
 
     public void Seek(TimeSpan position)
