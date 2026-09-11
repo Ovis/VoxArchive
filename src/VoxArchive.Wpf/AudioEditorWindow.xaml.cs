@@ -172,7 +172,8 @@ public partial class AudioEditorWindow : Window
         try
         {
             _viewModel.StatusText = "書き出し用ピーク解析とレンダリングを実行しています...";
-            var app = (App)Application.Current;
+            // VoxArchive.Application 名前空間との名前解決競合を避けるため、WPF Application を完全修飾する。
+            var app = (App)System.Windows.Application.Current;
             var holder = app.Services.GetRequiredService<RecordingRuntimeContextHolder>();
             var ffmpegPath = holder.Context?.DefaultOptions.FfmpegExecutablePath;
             var result = await _exportService.ExportAsync(
