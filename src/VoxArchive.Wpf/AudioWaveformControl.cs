@@ -6,25 +6,31 @@ using VoxArchive.Domain;
 namespace VoxArchive.Wpf;
 
 /// <summary>
-/// Audio Editor向けの全体波形表示と元音声時間軸上の範囲選択を提供する。
+/// Audio Editor向けの全体波形表示、Playhead、元音声時間軸上の範囲選択を提供する。
 /// </summary>
 public sealed class AudioWaveformControl : FrameworkElement
 {
+    private const double DragThreshold = 4d;
     private static readonly Brush BackgroundBrush = new SolidColorBrush(Color.FromRgb(15, 23, 35));
     private static readonly Brush TrackBrush = new SolidColorBrush(Color.FromRgb(67, 148, 255));
     private static readonly Brush CenterLineBrush = new SolidColorBrush(Color.FromRgb(48, 65, 88));
     private static readonly Brush CutBrush = new SolidColorBrush(Color.FromArgb(110, 181, 58, 72));
     private static readonly Brush SelectionBrush = new SolidColorBrush(Color.FromArgb(85, 91, 155, 255));
+    private static readonly Pen PlayheadPen = new(new SolidColorBrush(Color.FromRgb(255, 200, 76)), 1.5d);
     private static readonly Pen PlayAreaBorderPen = new(new SolidColorBrush(Color.FromRgb(45, 63, 86)), 1d);
 
     private AudioWaveformAnalysisResult? _analysis;
     private IReadOnlyList<AudioCutRange> _cuts = Array.Empty<AudioCutRange>();
     private TimeSpan? _selectionStart;
     private TimeSpan? _selectionEnd;
+    private TimeSpan _playhead;
+    private bool _pointerDown;
     private bool _selecting;
+    private Point _pointerDownPoint;
     private TimeSpan _selectionAnchor;
 
     public event EventHandler<AudioWaveformSelectionChangedEventArgs>? SelectionChanged;
+    public event EventHandler<AudioWaveformSeekRequestedEventArgs>? SeekRequested;
 
     public AudioWaveformControl()
     {
@@ -40,12 +46,14 @@ public sealed class AudioWaveformControl : FrameworkElement
         AudioWaveformAnalysisResult? analysis,
         IReadOnlyList<AudioCutRange>? cuts,
         TimeSpan? selectionStart,
-        TimeSpan? selectionEnd)
+        TimeSpan? selectionEnd,
+        TimeSpan playhead)
     {
         _analysis = analysis;
         _cuts = cuts ?? Array.Empty<AudioCutRange>();
         _selectionStart = selectionStart;
         _selectionEnd = selectionEnd;
+        _playhead = playhead;
         InvalidateVisual();
     }
 
@@ -63,6 +71,7 @@ public sealed class AudioWaveformControl : FrameworkElement
         DrawWaveforms(drawingContext);
         DrawCutRanges(drawingContext);
         DrawSelection(drawingContext);
+        DrawPlayhead(drawingContext);
     }
 
     private void DrawWaveforms(DrawingContext dc)
@@ -112,25 +121,40 @@ public sealed class AudioWaveformControl : FrameworkElement
         dc.DrawRectangle(SelectionBrush, null, new Rect(x1, 0, Math.Max(1d, x2 - x1), ActualHeight));
     }
 
+    private void DrawPlayhead(DrawingContext dc)
+    {
+        var x = TimeToX(_playhead);
+        dc.DrawLine(PlayheadPen, new Point(x, 0), new Point(x, ActualHeight));
+    }
+
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
         if (_analysis is null || _analysis.Duration <= TimeSpan.Zero) return;
         Focus();
         CaptureMouse();
-        _selecting = true;
-        _selectionAnchor = XToTime(e.GetPosition(this).X);
-        _selectionStart = _selectionAnchor;
-        _selectionEnd = _selectionAnchor;
-        InvalidateVisual();
+        _pointerDown = true;
+        _selecting = false;
+        _pointerDownPoint = e.GetPosition(this);
+        _selectionAnchor = XToTime(_pointerDownPoint.X);
         e.Handled = true;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (!_selecting || e.LeftButton != MouseButtonState.Pressed) return;
-        var current = XToTime(e.GetPosition(this).X);
+        if (!_pointerDown || e.LeftButton != MouseButtonState.Pressed) return;
+
+        var point = e.GetPosition(this);
+        if (!_selecting && Math.Abs(point.X - _pointerDownPoint.X) >= DragThreshold)
+        {
+            _selecting = true;
+            _selectionStart = _selectionAnchor;
+            _selectionEnd = _selectionAnchor;
+        }
+
+        if (!_selecting) return;
+        var current = XToTime(point.X);
         _selectionStart = current < _selectionAnchor ? current : _selectionAnchor;
         _selectionEnd = current < _selectionAnchor ? _selectionAnchor : current;
         InvalidateVisual();
@@ -140,14 +164,29 @@ public sealed class AudioWaveformControl : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
-        if (!_selecting) return;
+        if (!_pointerDown) return;
+
         var current = XToTime(e.GetPosition(this).X);
-        _selectionStart = current < _selectionAnchor ? current : _selectionAnchor;
-        _selectionEnd = current < _selectionAnchor ? _selectionAnchor : current;
-        _selecting = false;
+        _pointerDown = false;
         ReleaseMouseCapture();
-        InvalidateVisual();
-        SelectionChanged?.Invoke(this, new AudioWaveformSelectionChangedEventArgs(_selectionStart.Value, _selectionEnd.Value, true));
+
+        if (_selecting)
+        {
+            _selectionStart = current < _selectionAnchor ? current : _selectionAnchor;
+            _selectionEnd = current < _selectionAnchor ? _selectionAnchor : current;
+            _selecting = false;
+            InvalidateVisual();
+            SelectionChanged?.Invoke(this, new AudioWaveformSelectionChangedEventArgs(_selectionStart.Value, _selectionEnd.Value, true));
+        }
+        else
+        {
+            _selectionStart = null;
+            _selectionEnd = null;
+            _playhead = current;
+            InvalidateVisual();
+            SeekRequested?.Invoke(this, new AudioWaveformSeekRequestedEventArgs(current));
+        }
+
         e.Handled = true;
     }
 
@@ -170,4 +209,9 @@ public sealed class AudioWaveformSelectionChangedEventArgs(TimeSpan start, TimeS
     public TimeSpan Start { get; } = start;
     public TimeSpan End { get; } = end;
     public bool IsFinal { get; } = isFinal;
+}
+
+public sealed class AudioWaveformSeekRequestedEventArgs(TimeSpan position) : EventArgs
+{
+    public TimeSpan Position { get; } = position;
 }
