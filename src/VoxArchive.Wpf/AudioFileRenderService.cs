@@ -117,7 +117,7 @@ public static class AudioFileRenderService
                 plan,
                 channelMode,
                 appliedMasterGainDb,
-                samples => writer.WriteSamples(samples),
+                samples => writer.WriteSamples(samples.ToArray(), 0, samples.Length),
                 cancellationToken);
         }
         catch
