@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace VoxArchive.Wpf;
 
@@ -14,9 +15,6 @@ public static class AudioEditorWindowManager
 {
     private static readonly Dictionary<string, AudioEditorWindow> Windows = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// 指定録音のEditorを開く。既に開いている場合は既存Windowを前面へ出す。
-    /// </summary>
     public static void Open(Window owner, LibraryRecordingItem item)
     {
         ArgumentNullException.ThrowIfNull(owner);
@@ -34,6 +32,15 @@ public static class AudioEditorWindowManager
             return;
         }
 
+        // VoxArchive.Application 名前空間との名前解決競合を避けるため、WPF Application を完全修飾する。
+        var app = (App)System.Windows.Application.Current;
+        var exportCoordinator = app.Services.GetRequiredService<AudioExportCoordinator>();
+        if (exportCoordinator.IsExporting)
+        {
+            ModernDialog.Show(owner, "別の音声を書き出し中のため、新しいAudio Editorは開けません。", "音声編集", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         var key = Path.GetFullPath(item.FilePath);
         if (Windows.TryGetValue(key, out var existing) && existing.IsLoaded)
         {
@@ -45,7 +52,8 @@ public static class AudioEditorWindowManager
             return;
         }
 
-        var window = new AudioEditorWindow(item) { Owner = owner };
+        var playback = app.Services.GetRequiredService<IRecordingPlaybackService>();
+        var window = new AudioEditorWindow(item, playback, exportCoordinator) { Owner = owner };
         Windows[key] = window;
         window.Closed += (_, _) => Windows.Remove(key);
         window.Show();
