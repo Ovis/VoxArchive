@@ -84,7 +84,7 @@ public sealed class AudioRenderingPipelineTests
             new AudioChannelEditState(6.020599913279624d),
             new AudioChannelEditState(0d, true)
         };
-        Span<float> output = stackalloc float[2];
+        var output = new float[2];
 
         var channels = AudioFrameProcessor.ProcessFrame(
             [0.75f, 0.5f],
@@ -108,7 +108,7 @@ public sealed class AudioRenderingPipelineTests
             AudioChannelEditState.Default,
             AudioChannelEditState.Default
         };
-        Span<float> output = stackalloc float[1];
+        var output = new float[1];
 
         AudioFrameProcessor.ProcessFrame(
             [0.8f, 0.8f],
@@ -127,7 +127,7 @@ public sealed class AudioRenderingPipelineTests
             AudioChannelEditState.Default,
             AudioChannelEditState.Default
         };
-        Span<float> output = stackalloc float[1];
+        var output = new float[1];
 
         AudioFrameProcessor.ProcessFrame(
             [0.5f, 0.5f],
@@ -142,7 +142,7 @@ public sealed class AudioRenderingPipelineTests
     [Test]
     public void FrameProcessor_MonoInputRemainsMonoEvenInStereoMode()
     {
-        Span<float> output = stackalloc float[1];
+        var output = new float[1];
 
         var channels = AudioFrameProcessor.ProcessFrame(
             [0.25f],
@@ -238,7 +238,7 @@ public sealed class AudioRenderingPipelineTests
             new AudioChannelEditState(6.020599913279624d),
             AudioChannelEditState.Default
         };
-        Span<float> mixed = stackalloc float[1];
+        var mixed = new float[1];
         AudioFrameProcessor.ProcessFrame(
             [0.5f, 0.5f],
             mixed,
