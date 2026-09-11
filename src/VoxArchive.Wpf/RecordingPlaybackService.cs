@@ -9,11 +9,17 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
     private const double MaxPlaybackSpeed = 4.0d;
     private const int SharedOutputLatencyMilliseconds = 100;
 
+    private readonly PlaybackCoordinator _coordinator;
     private WasapiOut? _output;
     private AudioFileReader? _reader;
     private StereoGainSampleProvider? _gainProvider;
     private SoundTouchSampleProvider? _timeStretchProvider;
     private double _playbackSpeed = 1.0;
+
+    public RecordingPlaybackService(PlaybackCoordinator coordinator)
+    {
+        _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
+    }
 
     public event EventHandler? PlaybackStopped;
 
@@ -43,7 +49,14 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
     public void Play()
     {
-        _output?.Play();
+        if (_output is null)
+        {
+            return;
+        }
+
+        // 再生開始直前に所有権を取ることで、Libraryと複数Editorを跨いでも同時再生を防ぐ。
+        _coordinator.Activate(this);
+        _output.Play();
     }
 
     public void Pause()
@@ -60,6 +73,15 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
         }
 
         _timeStretchProvider?.Clear();
+        _coordinator.Release(this);
+    }
+
+    /// <summary>
+    /// 別プレイヤーが再生を開始したときだけ呼ばれる。一時停止なので再生位置は保持する。
+    /// </summary>
+    internal void PauseForArbitration()
+    {
+        _output?.Pause();
     }
 
     public void Unload()
@@ -120,11 +142,13 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
     private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
     {
+        _coordinator.Release(this);
         PlaybackStopped?.Invoke(this, EventArgs.Empty);
     }
 
     private void DisposeCore()
     {
+        _coordinator.Release(this);
         if (_output is not null)
         {
             _output.PlaybackStopped -= OnPlaybackStopped;
