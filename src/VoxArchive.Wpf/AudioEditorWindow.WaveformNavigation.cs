@@ -20,6 +20,7 @@ public partial class AudioEditorWindow
         _viewModel.PropertyChanged += OnWaveformNavigationPropertyChanged;
         _playbackTimer.Tick += OnWaveformFollowTick;
         Closed += OnWaveformNavigationClosed;
+        InitializeAuditionUi();
         if (_viewModel.Waveform is not null) InitializeWaveformNavigation();
     }
 
@@ -177,12 +178,18 @@ public partial class AudioEditorWindow
 
     private void OnWaveformCutRangeSelected(object? sender, AudioWaveformCutRangeSelectedEventArgs e)
     {
+        if (_auditionPlan is not null)
+        {
+            _previewService.Stop();
+            ClearAuditionMode();
+        }
         _viewModel.SelectCutRange(e.Range);
         if (e.Range.HasValue) _viewModel.ClearSelection();
     }
 
     private void OnWaveformTimelineEditStarted(object? sender, EventArgs e)
     {
+        CancelAuditionForTimelineEdit();
         if (_previewService.IsPlaying) _previewService.Pause();
     }
 
@@ -191,12 +198,18 @@ public partial class AudioEditorWindow
         CutStartInput.Text = AudioEditorViewModel.FormatTime(e.Start);
         CutEndInput.Text = AudioEditorViewModel.FormatTime(e.End);
         if (!e.IsFinal) return;
+        CancelAuditionForTimelineEdit();
         _previewService.Pause();
         _viewModel.UpdateSelectedCutRange(e.Start, e.End);
     }
 
     private void OnCutRangeListSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_auditionPlan is not null)
+        {
+            _previewService.Stop();
+            ClearAuditionMode();
+        }
         SyncSelectedCutInputs();
         ApplyWaveformViewportState();
     }
@@ -209,12 +222,14 @@ public partial class AudioEditorWindow
 
     private void OnSelectionStartFromPlayheadClick(object sender, RoutedEventArgs e)
     {
+        CancelAuditionForTimelineEdit();
         _previewService.Pause();
         _viewModel.SetSelectionStart(_playhead);
     }
 
     private void OnSelectionEndFromPlayheadClick(object sender, RoutedEventArgs e)
     {
+        CancelAuditionForTimelineEdit();
         _previewService.Pause();
         _viewModel.SetSelectionEnd(_playhead);
     }
@@ -224,6 +239,7 @@ public partial class AudioEditorWindow
         if (e.Key != Key.Enter || sender is not TextBox box) return;
         if (TryParseEditorTime(box.Text, out var value))
         {
+            CancelAuditionForTimelineEdit();
             _previewService.Pause();
             if (Equals(box.Tag, "start")) _viewModel.SetSelectionStart(value);
             else _viewModel.SetSelectionEnd(value);
@@ -248,6 +264,7 @@ public partial class AudioEditorWindow
             SyncSelectedCutInputs();
             return;
         }
+        CancelAuditionForTimelineEdit();
         _previewService.Pause();
         _viewModel.UpdateSelectedCutRange(start, end);
     }
@@ -255,6 +272,7 @@ public partial class AudioEditorWindow
     private void OnCutHeadClick(object sender, RoutedEventArgs e)
     {
         if (_playhead <= TimeSpan.Zero) return;
+        CancelAuditionForTimelineEdit();
         _previewService.Pause();
         _viewModel.ClearSelection();
         _viewModel.CutFromStartTo(_playhead);
@@ -263,6 +281,7 @@ public partial class AudioEditorWindow
     private void OnCutTailClick(object sender, RoutedEventArgs e)
     {
         if (_playhead >= _viewModel.SourceDuration) return;
+        CancelAuditionForTimelineEdit();
         _previewService.Pause();
         _viewModel.ClearSelection();
         _viewModel.CutFromPositionToEnd(_playhead);
