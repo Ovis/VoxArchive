@@ -1,8 +1,11 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using VoxArchive.Domain;
@@ -14,29 +17,46 @@ namespace VoxArchive.Wpf;
 /// </summary>
 public partial class AudioEditorWindow : Window
 {
+    private static readonly TimeSpan PlaybackPositionInterval = TimeSpan.FromMilliseconds(33);
+
     private readonly AudioEditorViewModel _viewModel;
     private readonly AudioEditorPreviewService _previewService;
     private readonly AudioEditorExportService _exportService;
+    private readonly AudioExportCoordinator _exportCoordinator;
+    private readonly AudioSourceFileGuard _sourceGuard;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly DispatcherTimer _playbackTimer;
+    private CancellationTokenSource? _exportCancellation;
     private bool _analysisStarted;
     private bool _isExporting;
+    private bool _closeAfterExportCancellation;
+    private bool _suppressSoloEvents;
     private string? _lastExportDirectory;
+    private TimeSpan _playhead;
+    private int? _soloChannel;
 
     public AudioEditorWindow(
         LibraryRecordingItem item,
         IRecordingPlaybackService playbackService,
-        AudioExportCoordinator exportCoordinator)
+        AudioExportCoordinator exportCoordinator,
+        RecordingCatalogService catalogService)
     {
         InitializeComponent();
         _viewModel = new AudioEditorViewModel(item);
         _previewService = new AudioEditorPreviewService(playbackService);
-        _exportService = new AudioEditorExportService(exportCoordinator);
+        _exportCoordinator = exportCoordinator ?? throw new ArgumentNullException(nameof(exportCoordinator));
+        _exportService = new AudioEditorExportService(exportCoordinator, catalogService);
+        _sourceGuard = new AudioSourceFileGuard(item.FilePath);
         DataContext = _viewModel;
+
+        _playbackTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = PlaybackPositionInterval };
+        _playbackTimer.Tick += OnPlaybackTimerTick;
         Loaded += OnLoaded;
         Closed += OnClosed;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.EditStateChanged += OnEditStateChanged;
-        _viewModel.CutRanges.CollectionChanged += (_, _) => RefreshWaveform();
+        _viewModel.CutRanges.CollectionChanged += OnCutRangesChanged;
+        _exportCoordinator.ExportStateChanged += OnExportStateChanged;
     }
 
     public string SourceFilePath => _viewModel.SourceFilePath;
@@ -45,16 +65,27 @@ public partial class AudioEditorWindow : Window
     {
         if (_analysisStarted) return;
         _analysisStarted = true;
+        _playbackTimer.Start();
+        UpdateExportLocks();
 
         try
         {
+            _sourceGuard.ValidateUnchanged();
             var progress = new Progress<double>(_viewModel.ReportAnalysisProgress);
             var result = await AudioWaveformAnalysisService.AnalyzeAsync(
                 _viewModel.SourceFilePath,
                 progress,
                 _lifetimeCancellation.Token);
+            _sourceGuard.ValidateUnchanged();
             _viewModel.CompleteAnalysis(result);
-            RefreshWaveform();
+            ExportChannelModeComboBox.IsEnabled = _viewModel.IsStereo;
+            if (!_viewModel.IsStereo)
+            {
+                ExportChannelModeComboBox.SelectedIndex = 0;
+                SoloChannel1CheckBox.Visibility = Visibility.Collapsed;
+                SoloChannel2CheckBox.Visibility = Visibility.Collapsed;
+            }
+            SetPlayhead(TimeSpan.Zero);
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
         {
@@ -68,8 +99,15 @@ public partial class AudioEditorWindow : Window
 
     private void OnWaveformSelectionChanged(object? sender, AudioWaveformSelectionChangedEventArgs e)
     {
+        if (!e.IsFinal && _previewService.IsPlaying) _previewService.Pause();
         _viewModel.SetSelection(e.Start, e.End);
         RefreshWaveform();
+    }
+
+    private void OnWaveformSeekRequested(object? sender, AudioWaveformSeekRequestedEventArgs e)
+    {
+        _viewModel.ClearSelection();
+        SeekToSourcePosition(e.Position, AudioSeekDirection.Forward);
     }
 
     private void OnGainSliderMouseDown(object sender, MouseButtonEventArgs e) => _viewModel.BeginGainAdjustment();
@@ -83,18 +121,30 @@ public partial class AudioEditorWindow : Window
 
         try
         {
+            _sourceGuard.ValidateUnchanged();
+            var sourcePosition = GetResolvedPlayheadForMode(_playhead, AudioSeekDirection.Forward);
             var speed = GetSelectedPlaybackSpeed();
             if (PreviewModeComboBox.SelectedIndex == 1)
             {
-                _previewService.PlayOriginal(_viewModel.SourceFilePath, speed);
+                await _previewService.PlayOriginalAsync(_viewModel.SourceFilePath, state, _soloChannel, speed, _lifetimeCancellation.Token);
+                _previewService.Seek(sourcePosition);
                 _viewModel.StatusText = $"元音声を {speed:0.0}x で再生しています。";
             }
             else
             {
                 _viewModel.StatusText = "編集後プレビューを準備しています...";
-                await _previewService.PlayEditedAsync(_viewModel.SourceFilePath, state, speed, _lifetimeCancellation.Token);
+                await _previewService.PlayEditedAsync(
+                    _viewModel.SourceFilePath,
+                    state,
+                    GetSelectedChannelMode(),
+                    _soloChannel,
+                    speed,
+                    _lifetimeCancellation.Token);
+                var mapper = GetTimelineMapper();
+                _previewService.Seek(mapper.SourceToRendered(sourcePosition));
                 _viewModel.StatusText = $"編集後音声を {speed:0.0}x で再生しています。";
             }
+            SetPlayhead(sourcePosition);
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
         {
@@ -108,12 +158,14 @@ public partial class AudioEditorWindow : Window
     private void OnPreviewPauseClick(object sender, RoutedEventArgs e)
     {
         _previewService.Pause();
+        UpdatePlayheadFromPlayback();
         _viewModel.StatusText = "プレビューを一時停止しました。";
     }
 
     private void OnPreviewStopClick(object sender, RoutedEventArgs e)
     {
         _previewService.Stop();
+        SetPlayhead(TimeSpan.Zero);
         _viewModel.StatusText = "プレビューを停止しました。";
     }
 
@@ -121,6 +173,114 @@ public partial class AudioEditorWindow : Window
     {
         if (!IsLoaded) return;
         _previewService.SetPlaybackSpeed(GetSelectedPlaybackSpeed());
+    }
+
+    private async void OnPreviewModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || !_previewService.IsPlaying) return;
+        await RestartPreviewAtCurrentPositionAsync();
+    }
+
+    private async void OnPreviewRenderSettingChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        _previewService.InvalidateMonitorPreview();
+        if (_previewService.IsPlaying) await RestartPreviewAtCurrentPositionAsync();
+    }
+
+    private async void OnSoloChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressSoloEvents || sender is not CheckBox changed) return;
+        _suppressSoloEvents = true;
+        try
+        {
+            if (changed.IsChecked == true && int.TryParse(changed.Tag?.ToString(), out var channel))
+            {
+                _soloChannel = channel;
+                if (channel == 0) SoloChannel2CheckBox.IsChecked = false;
+                else SoloChannel1CheckBox.IsChecked = false;
+            }
+            else if ((_soloChannel == 0 && changed == SoloChannel1CheckBox) || (_soloChannel == 1 && changed == SoloChannel2CheckBox))
+            {
+                _soloChannel = null;
+            }
+        }
+        finally
+        {
+            _suppressSoloEvents = false;
+        }
+
+        _previewService.InvalidateMonitorPreview();
+        if (_previewService.IsPlaying) await RestartPreviewAtCurrentPositionAsync();
+    }
+
+    private void OnSeekBackwardClick(object sender, RoutedEventArgs e)
+        => SeekRelative(TimeSpan.FromSeconds(-5), AudioSeekDirection.Backward);
+
+    private void OnSeekForwardClick(object sender, RoutedEventArgs e)
+        => SeekRelative(TimeSpan.FromSeconds(5), AudioSeekDirection.Forward);
+
+    private void SeekRelative(TimeSpan delta, AudioSeekDirection direction)
+    {
+        var target = _playhead + delta;
+        SeekToSourcePosition(target, direction);
+    }
+
+    private void OnPlayheadInputKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        if (TryParseEditorTime(PlayheadInput.Text, out var target))
+        {
+            SeekToSourcePosition(target, AudioSeekDirection.Forward);
+        }
+        else
+        {
+            PlayheadInput.Text = AudioEditorViewModel.FormatTime(_playhead);
+        }
+        e.Handled = true;
+    }
+
+    private void SeekToSourcePosition(TimeSpan target, AudioSeekDirection direction)
+    {
+        if (_viewModel.CurrentState is null) return;
+        var resolved = GetResolvedPlayheadForMode(target, direction);
+        SetPlayhead(resolved);
+        if (!_previewService.IsLoaded) return;
+
+        if (PreviewModeComboBox.SelectedIndex == 1)
+        {
+            _previewService.Seek(resolved);
+        }
+        else
+        {
+            _previewService.Seek(GetTimelineMapper().SourceToRendered(resolved, direction));
+        }
+    }
+
+    private TimeSpan GetResolvedPlayheadForMode(TimeSpan target, AudioSeekDirection direction)
+    {
+        target = target < TimeSpan.Zero ? TimeSpan.Zero : target > _viewModel.SourceDuration ? _viewModel.SourceDuration : target;
+        return PreviewModeComboBox.SelectedIndex == 1 ? target : GetTimelineMapper().ResolveSourceSeekTarget(target, direction);
+    }
+
+    private async Task RestartPreviewAtCurrentPositionAsync()
+    {
+        var sourcePosition = _playhead;
+        _previewService.Pause();
+        OnPreviewPlayClick(this, new RoutedEventArgs());
+        await Task.Yield();
+        SetPlayhead(sourcePosition);
+    }
+
+    private void OnPlaybackTimerTick(object? sender, EventArgs e) => UpdatePlayheadFromPlayback();
+
+    private void UpdatePlayheadFromPlayback()
+    {
+        if (!_previewService.IsLoaded || _viewModel.CurrentState is null) return;
+        var sourcePosition = _previewService.IsEditedMode
+            ? GetTimelineMapper().RenderedToSource(_previewService.Position)
+            : _previewService.Position;
+        SetPlayhead(sourcePosition);
     }
 
     private async void OnExportClick(object sender, RoutedEventArgs e)
@@ -162,33 +322,48 @@ public partial class AudioEditorWindow : Window
         };
         if (dialog.ShowDialog(this) != true) return;
 
-        var channelMode = !_viewModel.IsStereo || ExportChannelModeComboBox.SelectedIndex == 0
-            ? AudioRenderChannelMode.MonoMixdown
-            : AudioRenderChannelMode.Stereo;
-
         _isExporting = true;
-        OperationPanel.IsEnabled = false;
+        _exportCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+        UpdateExportLocks();
         _previewService.Pause();
         try
         {
+            _sourceGuard.ValidateUnchanged();
             _viewModel.StatusText = "書き出し用ピーク解析とレンダリングを実行しています...";
-            // VoxArchive.Application 名前空間との名前解決競合を避けるため、WPF Application を完全修飾する。
             var app = (App)System.Windows.Application.Current;
             var holder = app.Services.GetRequiredService<RecordingRuntimeContextHolder>();
             var ffmpegPath = holder.Context?.DefaultOptions.FfmpegExecutablePath;
+            var addToLibrary = format == AudioEditorExportFormat.Flac && AddToLibraryCheckBox.IsChecked == true;
             var result = await _exportService.ExportAsync(
                 _viewModel.SourceFilePath,
                 dialog.FileName,
                 state,
-                channelMode,
+                GetSelectedChannelMode(),
                 format,
+                AutoAttenuateCheckBox.IsChecked == true,
+                addToLibrary,
+                _viewModel.SourceTitle + "（編集済み）",
                 ffmpegPath,
-                _lifetimeCancellation.Token);
+                _exportCancellation.Token);
+
             _lastExportDirectory = Path.GetDirectoryName(dialog.FileName);
             _viewModel.MarkExported();
-            _viewModel.StatusText = result.AutoAttenuated
-                ? $"書き出しました。Clipping防止のためMaster {result.AppliedMasterGainDb:F2} dBを適用しました。"
-                : $"書き出しました: {dialog.FileName}";
+            var renderResult = result.RenderResult;
+            if (result.LibraryRegistrationAttempted && !result.LibraryRegistrationSucceeded)
+            {
+                _viewModel.StatusText = $"書き出しは完了しましたが、ライブラリ登録に失敗しました: {result.LibraryRegistrationError}";
+                ModernDialog.Show(this, _viewModel.StatusText, "ライブラリ登録", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            else if (renderResult.AutoAttenuated)
+            {
+                _viewModel.StatusText = $"書き出しました。Clipping防止のためMaster {renderResult.AppliedMasterGainDb:F2} dBを適用しました。";
+            }
+            else
+            {
+                _viewModel.StatusText = result.LibraryRegistrationSucceeded
+                    ? $"書き出してライブラリへ追加しました: {dialog.FileName}"
+                    : $"書き出しました: {dialog.FileName}";
+            }
         }
         catch (OperationCanceledException)
         {
@@ -201,15 +376,30 @@ public partial class AudioEditorWindow : Window
         }
         finally
         {
+            _exportCancellation?.Dispose();
+            _exportCancellation = null;
             _isExporting = false;
-            OperationPanel.IsEnabled = true;
+            UpdateExportLocks();
+            if (_closeAfterExportCancellation)
+            {
+                _closeAfterExportCancellation = false;
+                Dispatcher.BeginInvoke(Close);
+            }
         }
+    }
+
+    private void OnCancelExportClick(object sender, RoutedEventArgs e) => _exportCancellation?.Cancel();
+
+    private void OnExportFormatChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        AddToLibraryCheckBox.IsEnabled = GetSelectedExportFormat() == AudioEditorExportFormat.Flac && !_exportCoordinator.IsExporting;
     }
 
     private double GetSelectedPlaybackSpeed()
     {
         if (PlaybackSpeedComboBox.SelectedItem is ComboBoxItem { Tag: string text } &&
-            double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var speed))
+            double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var speed))
         {
             return speed;
         }
@@ -223,13 +413,50 @@ public partial class AudioEditorWindow : Window
         _ => AudioEditorExportFormat.Flac
     };
 
+    private AudioRenderChannelMode GetSelectedChannelMode()
+        => !_viewModel.IsStereo || ExportChannelModeComboBox.SelectedIndex == 0
+            ? AudioRenderChannelMode.MonoMixdown
+            : AudioRenderChannelMode.Stereo;
+
+    private AudioTimelineMapper GetTimelineMapper()
+    {
+        var state = _viewModel.CurrentState ?? throw new InvalidOperationException("編集状態が初期化されていません。");
+        var sampleRate = _viewModel.Waveform?.SampleRate ?? throw new InvalidOperationException("波形解析が完了していません。");
+        return new AudioTimelineMapper(state, sampleRate);
+    }
+
     private void OnEditStateChanged(object? sender, EventArgs e)
     {
-        // 再生中のGain/Mute操作で勝手に停止させない。次回再生時には必ず最新状態を再レンダリングする。
         if (!_previewService.IsPlaying)
         {
             _previewService.InvalidateEditedPreview();
         }
+        SetPlayhead(GetResolvedPlayheadForMode(_playhead, AudioSeekDirection.Forward));
+    }
+
+    private void OnCutRangesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_previewService.IsPlaying) _previewService.Pause();
+        _previewService.InvalidateEditedPreview();
+        SetPlayhead(GetResolvedPlayheadForMode(_playhead, AudioSeekDirection.Forward));
+    }
+
+    private void OnExportStateChanged(object? sender, EventArgs e)
+        => Dispatcher.BeginInvoke(UpdateExportLocks);
+
+    private void UpdateExportLocks()
+    {
+        if (!IsLoaded) return;
+        var locked = _exportCoordinator.IsExporting;
+        CutEditPanel.IsEnabled = !locked;
+        ChannelEditPanel.IsEnabled = !locked;
+        UndoPanel.IsEnabled = !locked;
+        ExportFormatComboBox.IsEnabled = !locked;
+        ExportChannelModeComboBox.IsEnabled = !locked && _viewModel.IsStereo;
+        AutoAttenuateCheckBox.IsEnabled = !locked;
+        AddToLibraryCheckBox.IsEnabled = !locked && GetSelectedExportFormat() == AudioEditorExportFormat.Flac;
+        ExportButton.IsEnabled = !locked;
+        CancelExportButton.IsEnabled = _isExporting;
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -243,6 +470,18 @@ public partial class AudioEditorWindow : Window
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y)
         {
             if (_viewModel.RedoCommand.CanExecute(null)) _viewModel.RedoCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Left)
+        {
+            SeekRelative(TimeSpan.FromSeconds(-5), AudioSeekDirection.Backward);
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Right)
+        {
+            SeekRelative(TimeSpan.FromSeconds(5), AudioSeekDirection.Forward);
             e.Handled = true;
             return;
         }
@@ -267,28 +506,66 @@ public partial class AudioEditorWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(AudioEditorViewModel.Waveform) or nameof(AudioEditorViewModel.SelectionStart) or nameof(AudioEditorViewModel.SelectionEnd) or nameof(AudioEditorViewModel.EditedDuration))
+        if (e.PropertyName is nameof(AudioEditorViewModel.Waveform)
+            or nameof(AudioEditorViewModel.SelectionStart)
+            or nameof(AudioEditorViewModel.SelectionEnd)
+            or nameof(AudioEditorViewModel.EditedDuration))
         {
             RefreshWaveform();
         }
     }
 
+    private void SetPlayhead(TimeSpan value)
+    {
+        value = value < TimeSpan.Zero ? TimeSpan.Zero : value > _viewModel.SourceDuration ? _viewModel.SourceDuration : value;
+        _playhead = value;
+        var text = AudioEditorViewModel.FormatTime(value);
+        PlayheadText.Text = text;
+        if (!PlayheadInput.IsKeyboardFocusWithin) PlayheadInput.Text = text;
+        RefreshWaveform();
+    }
+
     private void RefreshWaveform()
     {
-        WaveformControl.SetContent(_viewModel.Waveform, _viewModel.CutRanges.Select(x => x.Range).ToArray(), _viewModel.SelectionStart, _viewModel.SelectionEnd);
+        WaveformControl.SetContent(
+            _viewModel.Waveform,
+            _viewModel.CutRanges.Select(x => x.Range).ToArray(),
+            _viewModel.SelectionStart,
+            _viewModel.SelectionEnd,
+            _playhead);
+    }
+
+    private static bool TryParseEditorTime(string? text, out TimeSpan value)
+    {
+        value = TimeSpan.Zero;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var mainParts = text.Trim().Split(':');
+        if (mainParts.Length != 3 || !int.TryParse(mainParts[0], out var hours) || !int.TryParse(mainParts[1], out var minutes)) return false;
+        var secondParts = mainParts[2].Split('.');
+        if (secondParts.Length is < 1 or > 2 || !int.TryParse(secondParts[0], out var seconds)) return false;
+        var millisecondsText = secondParts.Length == 2 ? secondParts[1].PadRight(3, '0') : "000";
+        if (millisecondsText.Length > 3) millisecondsText = millisecondsText[..3];
+        if (!int.TryParse(millisecondsText, out var milliseconds)) return false;
+        if (hours < 0 || minutes is < 0 or > 59 || seconds is < 0 or > 59 || milliseconds is < 0 or > 999) return false;
+        value = TimeSpan.FromHours(hours) + TimeSpan.FromMinutes(minutes) + TimeSpan.FromSeconds(seconds) + TimeSpan.FromMilliseconds(milliseconds);
+        return true;
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         if (_isExporting)
         {
-            var result = ModernDialog.Show(this, "書き出し中です。キャンセルして閉じますか？", "音声編集を閉じる", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var result = ModernDialog.Show(this, "書き出しをキャンセルして閉じますか？", "音声編集を閉じる", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result != MessageBoxResult.Yes)
             {
                 e.Cancel = true;
                 return;
             }
-            _lifetimeCancellation.Cancel();
+
+            e.Cancel = true;
+            _closeAfterExportCancellation = true;
+            _exportCancellation?.Cancel();
+            return;
         }
 
         _viewModel.CommitGainAdjustment();
@@ -299,10 +576,14 @@ public partial class AudioEditorWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _playbackTimer.Stop();
         _lifetimeCancellation.Cancel();
         _previewService.Dispose();
+        _exportCancellation?.Dispose();
         _lifetimeCancellation.Dispose();
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel.EditStateChanged -= OnEditStateChanged;
+        _viewModel.CutRanges.CollectionChanged -= OnCutRangesChanged;
+        _exportCoordinator.ExportStateChanged -= OnExportStateChanged;
     }
 }

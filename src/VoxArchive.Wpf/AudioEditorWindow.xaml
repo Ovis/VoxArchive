@@ -4,9 +4,9 @@
         xmlns:local="clr-namespace:VoxArchive.Wpf"
         Title="音声編集"
         Width="1180"
-        Height="790"
+        Height="820"
         MinWidth="980"
-        MinHeight="680"
+        MinHeight="700"
         WindowStartupLocation="CenterOwner"
         FontFamily="Yu Gothic UI"
         Background="#0B1018"
@@ -32,7 +32,7 @@
 
     <Grid Margin="14">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="10"/><RowDefinition Height="245"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="10"/><RowDefinition Height="270"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Style="{StaticResource Card}">
@@ -43,6 +43,7 @@
                     <TextBlock Text="{Binding SourceFilePath}" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="現在 " Foreground="{StaticResource TextMuted}"/><TextBlock x:Name="PlayheadText" Text="00:00:00.000" FontWeight="SemiBold" Margin="0,0,16,0"/>
                     <TextBlock Text="元音声 " Foreground="{StaticResource TextMuted}"/><TextBlock Text="{Binding SourceDurationText}" Margin="0,0,16,0"/>
                     <TextBlock Text="編集後 " Foreground="{StaticResource TextMuted}"/><TextBlock Text="{Binding EditedDurationText}" FontWeight="SemiBold" Margin="0,0,16,0"/>
                     <TextBlock Text="{Binding DirtyText}" Foreground="#F0B35B"/>
@@ -52,7 +53,7 @@
 
         <Border Grid.Row="2" Style="{StaticResource Card}" Padding="10">
             <Grid>
-                <local:AudioWaveformControl x:Name="WaveformControl" MinHeight="280" SelectionChanged="OnWaveformSelectionChanged"/>
+                <local:AudioWaveformControl x:Name="WaveformControl" MinHeight="280" SelectionChanged="OnWaveformSelectionChanged" SeekRequested="OnWaveformSeekRequested"/>
                 <Border Background="#D90B1018" CornerRadius="7">
                     <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsAnalyzing}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="360">
@@ -65,10 +66,10 @@
         </Border>
 
         <Grid Grid.Row="4" IsEnabled="{Binding IsReady}">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.45*"/></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.55*"/></Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Style="{StaticResource Card}">
-                <Grid>
+                <Grid x:Name="CutEditPanel">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Text="選択・カット" FontSize="15" FontWeight="SemiBold"/>
                     <TextBlock Grid.Row="1" Text="{Binding SelectionText}" Foreground="{StaticResource TextMuted}" Margin="0,8,0,8"/>
@@ -82,44 +83,50 @@
             </Border>
 
             <Border Grid.Column="2" Style="{StaticResource Card}">
-                <Grid>
+                <Grid x:Name="ChannelEditPanel">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Text="チャンネル" FontSize="15" FontWeight="SemiBold"/>
                     <StackPanel Grid.Row="1" Margin="0,10,0,10">
                         <DockPanel><TextBlock Text="CH1 / Left" FontWeight="SemiBold"/><TextBlock Text="{Binding Channel1GainDb, StringFormat={}{0:F1} dB}" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Right"/></DockPanel>
                         <Slider Minimum="-60" Maximum="20" TickFrequency="0.5" Value="{Binding Channel1GainDb, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PreviewMouseLeftButtonDown="OnGainSliderMouseDown" PreviewMouseLeftButtonUp="OnGainSliderMouseUp"/>
-                        <CheckBox Content="Mute" IsChecked="{Binding Channel1Muted, Mode=TwoWay}" Margin="0,4,0,0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0"><CheckBox Content="Mute" IsChecked="{Binding Channel1Muted, Mode=TwoWay}" Margin="0,0,16,0"/><CheckBox x:Name="SoloChannel1CheckBox" Content="Solo" Tag="0" Checked="OnSoloChanged" Unchecked="OnSoloChanged"/></StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Row="2" Margin="0,0,0,8">
                         <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding IsStereo}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
                         <DockPanel><TextBlock Text="CH2 / Right" FontWeight="SemiBold"/><TextBlock Text="{Binding Channel2GainDb, StringFormat={}{0:F1} dB}" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Right"/></DockPanel>
                         <Slider Minimum="-60" Maximum="20" TickFrequency="0.5" Value="{Binding Channel2GainDb, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PreviewMouseLeftButtonDown="OnGainSliderMouseDown" PreviewMouseLeftButtonUp="OnGainSliderMouseUp"/>
-                        <CheckBox Content="Mute" IsChecked="{Binding Channel2Muted, Mode=TwoWay}" Margin="0,4,0,0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0"><CheckBox Content="Mute" IsChecked="{Binding Channel2Muted, Mode=TwoWay}" Margin="0,0,16,0"/><CheckBox x:Name="SoloChannel2CheckBox" Content="Solo" Tag="1" Checked="OnSoloChanged" Unchecked="OnSoloChanged"/></StackPanel>
                     </StackPanel>
-                    <TextBlock Grid.Row="3" Text="Gain / Mute は波形表示自体には反映しません。" TextWrapping="Wrap" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                    <TextBlock Grid.Row="3" Text="Solo はモニター専用で、書き出し・Undo・Dirtyには影響しません。" TextWrapping="Wrap" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                 </Grid>
             </Border>
 
             <Border Grid.Column="4" Style="{StaticResource Card}">
                 <StackPanel x:Name="OperationPanel">
                     <TextBlock Text="操作" FontSize="15" FontWeight="SemiBold"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,10"><Button Content="元に戻す  Ctrl+Z" Command="{Binding UndoCommand}"/><Button Content="やり直し  Ctrl+Y" Command="{Binding RedoCommand}" Margin="0"/></StackPanel>
+                    <StackPanel x:Name="UndoPanel" Orientation="Horizontal" Margin="0,8,0,8"><Button Content="元に戻す  Ctrl+Z" Command="{Binding UndoCommand}"/><Button Content="やり直し  Ctrl+Y" Command="{Binding RedoCommand}" Margin="0"/></StackPanel>
 
                     <TextBlock Text="プレビュー" FontWeight="SemiBold"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,8">
-                        <ComboBox x:Name="PreviewModeComboBox" Width="92" SelectedIndex="0"><ComboBoxItem Content="編集後"/><ComboBoxItem Content="元音声"/></ComboBox>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
+                        <ComboBox x:Name="PreviewModeComboBox" Width="92" SelectedIndex="0" SelectionChanged="OnPreviewModeChanged"><ComboBoxItem Content="編集後"/><ComboBoxItem Content="元音声"/></ComboBox>
                         <ComboBox x:Name="PlaybackSpeedComboBox" Width="78" SelectedIndex="1" SelectionChanged="OnPlaybackSpeedChanged"><ComboBoxItem Content="0.5x" Tag="0.5"/><ComboBoxItem Content="1.0x" Tag="1.0"/><ComboBoxItem Content="1.5x" Tag="1.5"/><ComboBoxItem Content="2.0x" Tag="2.0"/></ComboBox>
                         <Button Content="再生" Click="OnPreviewPlayClick" Style="{StaticResource PrimaryButton}"/><Button Content="一時停止" Click="OnPreviewPauseClick"/><Button Content="停止" Click="OnPreviewStopClick" Margin="0"/>
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="-5秒" Click="OnSeekBackwardClick"/><Button Content="+5秒" Click="OnSeekForwardClick"/><TextBox x:Name="PlayheadInput" Width="112" Height="30" Text="00:00:00.000" VerticalContentAlignment="Center" KeyDown="OnPlayheadInputKeyDown" ToolTip="Enterで現在位置へSeek"/>
+                    </StackPanel>
 
                     <TextBlock Text="書き出し" FontWeight="SemiBold"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,8">
-                        <ComboBox x:Name="ExportFormatComboBox" Width="88" SelectedIndex="2"><ComboBoxItem Content="WAV"/><ComboBoxItem Content="MP3"/><ComboBoxItem Content="FLAC"/></ComboBox>
-                        <ComboBox x:Name="ExportChannelModeComboBox" Width="130" SelectedIndex="0"><ComboBoxItem Content="Mono Mixdown"/><ComboBoxItem Content="Stereo"/></ComboBox>
-                        <Button x:Name="ExportButton" Content="書き出し..." Click="OnExportClick" Style="{StaticResource PrimaryButton}" Margin="0"/>
+                    <StackPanel x:Name="ExportSettingsPanel">
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
+                            <ComboBox x:Name="ExportFormatComboBox" Width="88" SelectedIndex="2" SelectionChanged="OnExportFormatChanged"><ComboBoxItem Content="WAV"/><ComboBoxItem Content="MP3"/><ComboBoxItem Content="FLAC"/></ComboBox>
+                            <ComboBox x:Name="ExportChannelModeComboBox" Width="130" SelectedIndex="0" SelectionChanged="OnPreviewRenderSettingChanged"><ComboBoxItem Content="Mono Mixdown"/><ComboBoxItem Content="Stereo"/></ComboBox>
+                            <Button x:Name="ExportButton" Content="書き出し..." Click="OnExportClick" Style="{StaticResource PrimaryButton}"/><Button x:Name="CancelExportButton" Content="キャンセル" Click="OnCancelExportClick" IsEnabled="False" Margin="0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4"><CheckBox x:Name="AutoAttenuateCheckBox" Content="Clipping時にMaster自動減衰 (-0.1 dBFS)" IsChecked="True" Margin="0,0,16,0"/><CheckBox x:Name="AddToLibraryCheckBox" Content="FLACをライブラリに追加" IsChecked="True"/></StackPanel>
                     </StackPanel>
-                    <TextBlock Text="書き出し時は実ピークを解析し、必要な場合のみ -0.1 dBFS を目標にMaster減衰します。" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
-                    <TextBlock Text="ドラッグで範囲選択 / Ctrl+Z Undo / Ctrl+Y Redo / Esc 選択解除" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                    <TextBlock Text="Mono Mixdown / Stereo 設定は編集後プレビューにも反映します。" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
+                    <TextBlock Text="Space 再生 / ←→ ±5秒 / Ctrl+Z Undo / Ctrl+Y Redo / Esc 選択解除" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
                 </StackPanel>
             </Border>
         </Grid>

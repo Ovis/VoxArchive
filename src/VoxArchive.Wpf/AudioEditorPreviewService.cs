@@ -7,14 +7,17 @@ namespace VoxArchive.Wpf;
 /// Audio EditorのOriginal / Edited Previewを管理する。
 /// </summary>
 /// <remarks>
-/// Edited Previewは共通Rendering Pipelineで一時WAVを生成して再生する。
-/// これによりCut/Crossfade/Gain/Muteの順序を最終書き出しと一致させる。
+/// Edited PreviewとSolo確認は共通Rendering Pipelineで一時WAVを生成して再生する。
+/// Soloは監視状態だけから一時的なMuteを組み立て、編集状態そのものは変更しない。
 /// </remarks>
 public sealed class AudioEditorPreviewService : IDisposable
 {
     private readonly IRecordingPlaybackService _playback;
-    private string? _editedPreviewPath;
+    private string? _renderedPreviewPath;
     private AudioEditState? _renderedState;
+    private AudioRenderChannelMode _renderedChannelMode;
+    private int? _renderedSoloChannel;
+    private bool _renderedOriginal;
     private bool _isEditedMode = true;
 
     public AudioEditorPreviewService(IRecordingPlaybackService playback)
@@ -23,58 +26,74 @@ public sealed class AudioEditorPreviewService : IDisposable
     }
 
     public bool IsPlaying => _playback.IsPlaying;
+    public bool IsLoaded => _playback.IsLoaded;
     public TimeSpan Position => _playback.Position;
     public TimeSpan Duration => _playback.Duration;
     public bool IsEditedMode => _isEditedMode;
 
-    public async Task PlayEditedAsync(string sourceFilePath, AudioEditState state, double speed, CancellationToken cancellationToken = default)
+    public async Task PlayEditedAsync(
+        string sourceFilePath,
+        AudioEditState state,
+        AudioRenderChannelMode channelMode,
+        int? soloChannel,
+        double speed,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (!state.HasOutputAudio)
+        if (!state.HasOutputAudio && soloChannel is null)
         {
             throw new InvalidOperationException("編集後音声が空、または全チャンネルが無音のため再生できません。");
         }
 
-        if (_renderedState is null || !_renderedState.Equals(state) || string.IsNullOrWhiteSpace(_editedPreviewPath) || !File.Exists(_editedPreviewPath))
-        {
-            _playback.Unload();
-            DeleteEditedPreview();
-            var path = Path.Combine(Path.GetTempPath(), $"voxarchive-editor-preview-{Guid.NewGuid():N}.wav");
-            await AudioFileRenderService.RenderWaveAsync(
-                sourceFilePath,
-                path,
-                state,
-                AudioRenderChannelMode.Stereo,
-                masterGainDb: 0d,
-                cancellationToken);
-            _editedPreviewPath = path;
-            _renderedState = state;
-        }
+        var previewState = ApplySolo(state, soloChannel);
+        var previewMode = soloChannel.HasValue ? AudioRenderChannelMode.MonoMixdown : channelMode;
+        await EnsureRenderedPreviewAsync(sourceFilePath, previewState, previewMode, soloChannel, isOriginal: false, cancellationToken);
 
         if (!_isEditedMode || !_playback.IsLoaded)
         {
-            _playback.Load(_editedPreviewPath!);
+            _playback.Load(_renderedPreviewPath!);
         }
 
         _isEditedMode = true;
-        _playback.SetPlaybackSpeed(speed);
-        _playback.SetGains(0d, 0d);
-        _playback.SetMixToMono(false);
-        _playback.Play();
+        ConfigureAndPlay(speed);
     }
 
-    public void PlayOriginal(string sourceFilePath, double speed)
+    public async Task PlayOriginalAsync(
+        string sourceFilePath,
+        AudioEditState state,
+        int? soloChannel,
+        double speed,
+        CancellationToken cancellationToken = default)
     {
-        if (_isEditedMode || !_playback.IsLoaded)
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (soloChannel is null)
         {
-            _playback.Load(sourceFilePath);
+            if (_isEditedMode || !_playback.IsLoaded || _renderedOriginal)
+            {
+                _playback.Load(sourceFilePath);
+            }
+        }
+        else
+        {
+            var originalState = new AudioEditState(
+                state.SourceDuration,
+                state.ChannelCount,
+                channelStates: Enumerable.Range(0, state.ChannelCount)
+                    .Select(index => new AudioChannelEditState(0d, index != soloChannel.Value))
+                    .ToArray());
+            await EnsureRenderedPreviewAsync(
+                sourceFilePath,
+                originalState,
+                AudioRenderChannelMode.MonoMixdown,
+                soloChannel,
+                isOriginal: true,
+                cancellationToken);
+            _playback.Load(_renderedPreviewPath!);
         }
 
         _isEditedMode = false;
-        _playback.SetPlaybackSpeed(speed);
-        _playback.SetGains(0d, 0d);
-        _playback.SetMixToMono(false);
-        _playback.Play();
+        ConfigureAndPlay(speed);
     }
 
     public void Pause() => _playback.Pause();
@@ -88,30 +107,97 @@ public sealed class AudioEditorPreviewService : IDisposable
     public void InvalidateEditedPreview()
     {
         _renderedState = null;
-        if (_isEditedMode)
+        if (_isEditedMode && _playback.IsLoaded)
         {
             _playback.Unload();
         }
-        DeleteEditedPreview();
+        DeleteRenderedPreview();
     }
 
-    private void DeleteEditedPreview()
+    public void InvalidateMonitorPreview()
     {
-        if (string.IsNullOrWhiteSpace(_editedPreviewPath)) return;
+        _renderedState = null;
+        DeleteRenderedPreview();
+    }
+
+    private async Task EnsureRenderedPreviewAsync(
+        string sourceFilePath,
+        AudioEditState state,
+        AudioRenderChannelMode channelMode,
+        int? soloChannel,
+        bool isOriginal,
+        CancellationToken cancellationToken)
+    {
+        var cacheValid = _renderedState is not null
+            && _renderedState.Equals(state)
+            && _renderedChannelMode == channelMode
+            && _renderedSoloChannel == soloChannel
+            && _renderedOriginal == isOriginal
+            && !string.IsNullOrWhiteSpace(_renderedPreviewPath)
+            && File.Exists(_renderedPreviewPath);
+        if (cacheValid) return;
+
+        _playback.Unload();
+        DeleteRenderedPreview();
+        var path = Path.Combine(Path.GetTempPath(), $"voxarchive-editor-preview-{Guid.NewGuid():N}.wav");
+        await AudioFileRenderService.RenderWaveAsync(
+            sourceFilePath,
+            path,
+            state,
+            channelMode,
+            masterGainDb: 0d,
+            cancellationToken: cancellationToken,
+            autoAttenuate: false);
+        _renderedPreviewPath = path;
+        _renderedState = state;
+        _renderedChannelMode = channelMode;
+        _renderedSoloChannel = soloChannel;
+        _renderedOriginal = isOriginal;
+    }
+
+    private void ConfigureAndPlay(double speed)
+    {
+        _playback.SetPlaybackSpeed(speed);
+        _playback.SetGains(0d, 0d);
+        _playback.SetMixToMono(false);
+        _playback.Play();
+    }
+
+    private static AudioEditState ApplySolo(AudioEditState state, int? soloChannel)
+    {
+        if (!soloChannel.HasValue) return state;
+        if (soloChannel < 0 || soloChannel >= state.ChannelCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(soloChannel));
+        }
+
+        var result = state;
+        for (var i = 0; i < state.ChannelCount; i++)
+        {
+            if (i == soloChannel.Value) continue;
+            var channel = result.Channels[i];
+            result = result.WithChannelState(i, new AudioChannelEditState(channel.GainDb, true));
+        }
+        return result;
+    }
+
+    private void DeleteRenderedPreview()
+    {
+        if (string.IsNullOrWhiteSpace(_renderedPreviewPath)) return;
         try
         {
-            if (File.Exists(_editedPreviewPath)) File.Delete(_editedPreviewPath);
+            if (File.Exists(_renderedPreviewPath)) File.Delete(_renderedPreviewPath);
         }
         catch
         {
             // Preview一時ファイルの削除失敗はEditorの終了を妨げない。
         }
-        _editedPreviewPath = null;
+        _renderedPreviewPath = null;
     }
 
     public void Dispose()
     {
         _playback.Dispose();
-        DeleteEditedPreview();
+        DeleteRenderedPreview();
     }
 }

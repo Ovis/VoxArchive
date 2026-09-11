@@ -53,7 +53,8 @@ public static class AudioEditorWindowManager
         }
 
         var playback = app.Services.GetRequiredService<IRecordingPlaybackService>();
-        var window = new AudioEditorWindow(item, playback, exportCoordinator) { Owner = owner };
+        var catalog = app.Services.GetRequiredService<RecordingCatalogService>();
+        var window = new AudioEditorWindow(item, playback, exportCoordinator, catalog) { Owner = owner };
         Windows[key] = window;
         window.Closed += (_, _) => Windows.Remove(key);
         window.Show();
