@@ -14,6 +14,7 @@ namespace VoxArchive.Wpf;
 public static class AudioFileRenderService
 {
     private const int ReadBufferFrames = 4096;
+    private delegate void SampleEmitter(ReadOnlySpan<float> samples);
 
     public sealed record RenderResult(
         int SampleRate,
@@ -96,7 +97,6 @@ public static class AudioFileRenderService
                 cancellationToken);
         }
 
-        // 自動処理は利用者指定のMaster Gainより音量を上げず、必要な場合だけ追加減衰する。
         var appliedMasterGainDb = analysis.GetSafeMasterGainDb(masterGainDb);
         var outputChannels = AudioFrameProcessor.GetOutputChannelCount(inputChannels, channelMode);
         var outputFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, outputChannels);
@@ -169,7 +169,7 @@ public static class AudioFileRenderService
         AudioRenderPlan plan,
         AudioRenderChannelMode channelMode,
         double masterGainDb,
-        Action<ReadOnlySpan<float>> emit,
+        SampleEmitter emit,
         CancellationToken cancellationToken)
     {
         var outputChannels = AudioFrameProcessor.GetOutputChannelCount(reader.WaveFormat.Channels, channelMode);
@@ -234,7 +234,6 @@ public static class AudioFileRenderService
 
         if (previousTail is not null)
         {
-            // 通常は次のKeepRangeとのCrossfadeで消費される。防御的に残存時だけ出力する。
             ApplyMasterGainInPlace(previousTail, masterGainDb);
             emit(previousTail);
         }
@@ -247,7 +246,7 @@ public static class AudioFileRenderService
         long startFrame,
         long frameCount,
         double masterGainDb,
-        Action<ReadOnlySpan<float>> emit,
+        SampleEmitter emit,
         CancellationToken cancellationToken)
     {
         if (frameCount <= 0)
@@ -394,7 +393,6 @@ public static class AudioFileRenderService
         }
         catch
         {
-            // 元の例外を優先する。
         }
     }
 }
