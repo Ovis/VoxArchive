@@ -18,7 +18,7 @@ public sealed class AudioClippingAnalysis
     public bool IsClipping => _peakAbsoluteSample > 1d;
 
     /// <summary>
-    /// ピークを1.0以下へ収めるために必要なMaster Gain。減衰不要なら0dB
+    /// 解析時のピークを1.0以下へ収めるために必要なMaster Gain。減衰不要なら0dB
     /// </summary>
     public double RequiredMasterGainDb
         => IsClipping ? -20d * Math.Log10(_peakAbsoluteSample) : 0d;
@@ -39,8 +39,12 @@ public sealed class AudioClippingAnalysis
     }
 
     /// <summary>
-    /// 既存のMaster Gainに対し、Clippingを防ぐため必要な場合だけ追加減衰した値を返す
+    /// 利用者が指定したMaster Gainを尊重しつつ、Clippingする場合だけ必要な上限まで下げる
     /// </summary>
+    /// <remarks>
+    /// 解析値はMaster Gain適用前を前提とする。そのため自動補正は現在値へ減衰量を加算するのではなく、
+    /// 「現在値」と「安全な最大値」の小さい方を採用する。
+    /// </remarks>
     public double GetSafeMasterGainDb(double currentMasterGainDb = 0d)
     {
         if (double.IsNaN(currentMasterGainDb) || double.IsPositiveInfinity(currentMasterGainDb))
@@ -48,11 +52,6 @@ public sealed class AudioClippingAnalysis
             throw new ArgumentOutOfRangeException(nameof(currentMasterGainDb));
         }
 
-        if (!IsClipping)
-        {
-            return currentMasterGainDb;
-        }
-
-        return currentMasterGainDb + RequiredMasterGainDb;
+        return Math.Min(currentMasterGainDb, RequiredMasterGainDb);
     }
 }
