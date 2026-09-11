@@ -32,7 +32,8 @@ public static class AudioEditorWindowManager
             return;
         }
 
-        var app = (App)Application.Current;
+        // VoxArchive.Application 名前空間との名前解決競合を避けるため、WPF Application を完全修飾する。
+        var app = (App)System.Windows.Application.Current;
         var exportCoordinator = app.Services.GetRequiredService<AudioExportCoordinator>();
         if (exportCoordinator.IsExporting)
         {
