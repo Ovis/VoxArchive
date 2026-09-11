@@ -146,7 +146,8 @@ public sealed class AudioEditorPreviewService : IDisposable
             state,
             channelMode,
             masterGainDb: 0d,
-            cancellationToken);
+            cancellationToken: cancellationToken,
+            autoAttenuate: false);
         _renderedPreviewPath = path;
         _renderedState = state;
         _renderedChannelMode = channelMode;
