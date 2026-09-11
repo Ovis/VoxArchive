@@ -108,7 +108,7 @@
 
                     <TextBlock Text="プレビュー" FontWeight="SemiBold"/>
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
-                        <ComboBox x:Name="PreviewModeComboBox" Width="92" SelectedIndex="0"><ComboBoxItem Content="編集後"/><ComboBoxItem Content="元音声"/></ComboBox>
+                        <ComboBox x:Name="PreviewModeComboBox" Width="92" SelectedIndex="0" SelectionChanged="OnPreviewModeChanged"><ComboBoxItem Content="編集後"/><ComboBoxItem Content="元音声"/></ComboBox>
                         <ComboBox x:Name="PlaybackSpeedComboBox" Width="78" SelectedIndex="1" SelectionChanged="OnPlaybackSpeedChanged"><ComboBoxItem Content="0.5x" Tag="0.5"/><ComboBoxItem Content="1.0x" Tag="1.0"/><ComboBoxItem Content="1.5x" Tag="1.5"/><ComboBoxItem Content="2.0x" Tag="2.0"/></ComboBox>
                         <Button Content="再生" Click="OnPreviewPlayClick" Style="{StaticResource PrimaryButton}"/><Button Content="一時停止" Click="OnPreviewPauseClick"/><Button Content="停止" Click="OnPreviewStopClick" Margin="0"/>
                     </StackPanel>
