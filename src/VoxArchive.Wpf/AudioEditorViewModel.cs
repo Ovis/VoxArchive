@@ -10,7 +10,7 @@ namespace VoxArchive.Wpf;
 /// </summary>
 /// <remarks>
 /// 永続化は行わず、CutRange・Gain・Muteだけを<see cref="AudioEditHistory"/>へ記録する。
-/// 波形解析データや選択範囲はUndo/Dirty対象に含めない。
+/// 波形解析、Viewport、Selection、Solo等の監視状態はUndo/Dirty対象に含めない。
 /// </remarks>
 public sealed class AudioEditorViewModel : INotifyPropertyChanged
 {
@@ -97,9 +97,14 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedCutRange, value))
             {
                 RemoveSelectedCutCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(SelectedCutStartText));
+                OnPropertyChanged(nameof(SelectedCutEndText));
             }
         }
     }
+
+    public string SelectedCutStartText => SelectedCutRange?.StartText ?? string.Empty;
+    public string SelectedCutEndText => SelectedCutRange?.EndText ?? string.Empty;
 
     public double Channel1GainDb
     {
@@ -110,10 +115,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     public double Channel2GainDb
     {
         get => IsStereo ? EffectiveState!.Channels[1].GainDb : 0d;
-        set
-        {
-            if (IsStereo) SetGain(1, value);
-        }
+        set { if (IsStereo) SetGain(1, value); }
     }
 
     public bool Channel1Muted
@@ -125,10 +127,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     public bool Channel2Muted
     {
         get => IsStereo && EffectiveState!.Channels[1].IsMuted;
-        set
-        {
-            if (IsStereo) SetMute(1, value);
-        }
+        set { if (IsStereo) SetMute(1, value); }
     }
 
     private AudioEditState? EffectiveState => _workingState ?? _history?.Current;
@@ -166,12 +165,25 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     {
         var start = first <= second ? first : second;
         var end = first <= second ? second : first;
-        var duration = SourceDuration;
-        start = start < TimeSpan.Zero ? TimeSpan.Zero : start > duration ? duration : start;
-        end = end < TimeSpan.Zero ? TimeSpan.Zero : end > duration ? duration : end;
+        start = ClampToSource(start);
+        end = ClampToSource(end);
         _selectionStart = start;
         _selectionEnd = end;
         RaiseSelectionProperties();
+    }
+
+    public void SetSelectionStart(TimeSpan value)
+    {
+        value = ClampToSource(value);
+        var end = _selectionEnd ?? value;
+        SetSelection(value, end);
+    }
+
+    public void SetSelectionEnd(TimeSpan value)
+    {
+        value = ClampToSource(value);
+        var start = _selectionStart ?? value;
+        SetSelection(start, value);
     }
 
     public void ClearSelection()
@@ -180,6 +192,39 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         _selectionEnd = null;
         RaiseSelectionProperties();
     }
+
+    public void SelectCutRange(AudioCutRange? range)
+    {
+        SelectedCutRange = range.HasValue
+            ? CutRanges.FirstOrDefault(x => x.Range.Equals(range.Value))
+            : null;
+    }
+
+    /// <summary>
+    /// 選択CutRangeの境界を更新する。正規化と自動マージはAudioEditStateへ委譲する。
+    /// </summary>
+    public AudioCutRange? UpdateSelectedCutRange(TimeSpan start, TimeSpan end)
+    {
+        if (_history is null || SelectedCutRange is null || end <= start) return null;
+        start = ClampToSource(start);
+        end = ClampToSource(end);
+        if (end <= start) return null;
+
+        var original = SelectedCutRange.Range;
+        var next = _history.Current.RemoveCutRange(original).AddCutRange(new AudioCutRange(start, end));
+        _history.Apply(next);
+        RefreshStateProperties();
+        var merged = next.CutRanges.FirstOrDefault(x => x.Start <= start && x.End >= end);
+        SelectCutRange(merged);
+        StatusText = "カット境界を変更しました。";
+        return merged;
+    }
+
+    public AudioCutRange? CutFromStartTo(TimeSpan position)
+        => AddCutRange(new AudioCutRange(TimeSpan.Zero, ClampToSource(position)), "先頭から現在位置までカットしました。");
+
+    public AudioCutRange? CutFromPositionToEnd(TimeSpan position)
+        => AddCutRange(new AudioCutRange(ClampToSource(position), SourceDuration), "現在位置から末尾までカットしました。");
 
     public void BeginGainAdjustment()
     {
@@ -192,17 +237,11 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     {
         if (!_gainAdjustmentActive || _history is null) return;
         _gainAdjustmentActive = false;
-        if (_workingState is not null)
-        {
-            _history.Apply(_workingState);
-        }
+        if (_workingState is not null) _history.Apply(_workingState);
         _workingState = null;
         RefreshStateProperties();
     }
 
-    /// <summary>
-    /// 書き出し成功時点を新しいClean baselineにする。Undo/Redo履歴自体は維持する。
-    /// </summary>
     public void MarkExported()
     {
         CommitGainAdjustment();
@@ -213,21 +252,34 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     private Task CutSelectionAsync()
     {
         if (_history is null || !HasSelection) return Task.CompletedTask;
-        var range = new AudioCutRange(_selectionStart!.Value, _selectionEnd!.Value);
-        _history.Apply(_history.Current.AddCutRange(range));
+        var start = _selectionStart!.Value;
+        var end = _selectionEnd!.Value;
+        AddCutRange(new AudioCutRange(start, end), "選択範囲をカットしました。");
         ClearSelection();
-        RefreshStateProperties();
-        StatusText = "選択範囲をカットしました。";
         return Task.CompletedTask;
+    }
+
+    private AudioCutRange? AddCutRange(AudioCutRange range, string status)
+    {
+        if (_history is null || range.End <= range.Start) return null;
+        var next = _history.Current.AddCutRange(range);
+        _history.Apply(next);
+        RefreshStateProperties();
+        var normalized = next.CutRanges.FirstOrDefault(x => x.Start <= range.Start && x.End >= range.End);
+        SelectCutRange(normalized);
+        StatusText = status;
+        return normalized;
     }
 
     private Task RemoveSelectedCutAsync()
     {
         if (_history is null || SelectedCutRange is null) return Task.CompletedTask;
-        _history.Apply(_history.Current.RemoveCutRange(SelectedCutRange.Range));
+        var restored = SelectedCutRange.Range;
+        _history.Apply(_history.Current.RemoveCutRange(restored));
         SelectedCutRange = null;
         RefreshStateProperties();
-        StatusText = "カット区間を削除しました。";
+        SetSelection(restored.Start, restored.End);
+        StatusText = "カット区間を復元しました。";
         return Task.CompletedTask;
     }
 
@@ -236,6 +288,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         if (_history?.Undo() == true)
         {
             _workingState = null;
+            SelectedCutRange = null;
             RefreshStateProperties();
             StatusText = "元に戻しました。";
         }
@@ -247,6 +300,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         if (_history?.Redo() == true)
         {
             _workingState = null;
+            SelectedCutRange = null;
             RefreshStateProperties();
             StatusText = "やり直しました。";
         }
@@ -260,14 +314,12 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         var basis = EffectiveState ?? _history.Current;
         var old = basis.Channels[channelIndex];
         var next = basis.WithChannelState(channelIndex, new AudioChannelEditState(gainDb, old.IsMuted));
-
         if (_gainAdjustmentActive)
         {
             _workingState = next;
             RefreshChannelProperties();
             return;
         }
-
         _history.Apply(next);
         RefreshStateProperties();
     }
@@ -283,14 +335,21 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
 
     private void RefreshStateProperties()
     {
+        var selected = SelectedCutRange?.Range;
         CutRanges.Clear();
         if (_history is not null)
         {
+            var index = 1;
             foreach (var range in _history.Current.CutRanges)
             {
-                CutRanges.Add(new AudioCutRangeRow(range));
+                CutRanges.Add(new AudioCutRangeRow(index++, range));
             }
         }
+        _selectedCutRange = selected.HasValue ? CutRanges.FirstOrDefault(x => x.Range.Equals(selected.Value)) : null;
+        OnPropertyChanged(nameof(SelectedCutRange));
+        OnPropertyChanged(nameof(SelectedCutStartText));
+        OnPropertyChanged(nameof(SelectedCutEndText));
+        RemoveSelectedCutCommand.RaiseCanExecuteChanged();
 
         RefreshChannelProperties();
         OnPropertyChanged(nameof(CurrentState));
@@ -325,6 +384,9 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         ClearSelectionCommand.RaiseCanExecuteChanged();
     }
 
+    private TimeSpan ClampToSource(TimeSpan value)
+        => value < TimeSpan.Zero ? TimeSpan.Zero : value > SourceDuration ? SourceDuration : value;
+
     public static string FormatTime(TimeSpan value)
         => $"{(int)value.TotalHours:00}:{value.Minutes:00}:{value.Seconds:00}.{value.Milliseconds:000}";
 
@@ -340,10 +402,10 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
-public sealed record AudioCutRangeRow(AudioCutRange Range)
+public sealed record AudioCutRangeRow(int Number, AudioCutRange Range)
 {
     public string StartText => AudioEditorViewModel.FormatTime(Range.Start);
     public string EndText => AudioEditorViewModel.FormatTime(Range.End);
     public string DurationText => AudioEditorViewModel.FormatTime(Range.Duration);
-    public string DisplayText => $"{StartText}  -  {EndText}   ({DurationText})";
+    public string DisplayText => $"#{Number}  {StartText}  -  {EndText}   ({DurationText})";
 }
