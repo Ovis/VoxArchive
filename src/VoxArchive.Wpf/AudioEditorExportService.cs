@@ -54,7 +54,14 @@ public sealed class AudioEditorExportService
         if (!string.IsNullOrWhiteSpace(outputDirectory)) Directory.CreateDirectory(outputDirectory);
 
         var tempWavePath = Path.Combine(Path.GetTempPath(), $"voxarchive-editor-export-{Guid.NewGuid():N}.wav");
-        var tempOutputPath = outputFullPath + $".{Guid.NewGuid():N}.tmp";
+        var extension = format switch
+        {
+            AudioEditorExportFormat.Wav => ".wav",
+            AudioEditorExportFormat.Mp3 => ".mp3",
+            _ => ".flac"
+        };
+        // ffmpegは出力拡張子からmuxerを選ぶため、tmp名でも最終形式の拡張子を残す。
+        var tempOutputPath = Path.Combine(outputDirectory ?? Path.GetTempPath(), $".{Path.GetFileNameWithoutExtension(outputFullPath)}.{Guid.NewGuid():N}.tmp{extension}");
         try
         {
             var analysis = await AudioFileRenderService.AnalyzeAsync(inputFullPath, state, channelMode, cancellationToken);
@@ -72,7 +79,11 @@ public sealed class AudioEditorExportService
 
             if (File.Exists(outputFullPath)) File.Delete(outputFullPath);
             File.Move(tempOutputPath, outputFullPath);
-            return renderResult;
+            return renderResult with
+            {
+                AppliedMasterGainDb = masterGainDb,
+                AutoAttenuated = masterGainDb < -0.0000001d
+            };
         }
         finally
         {
