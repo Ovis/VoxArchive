@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
+using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
@@ -37,63 +37,54 @@ public static class MonoMixdownExportService
         }
         finally
         {
-            try
-            {
-                if (File.Exists(tempWavePath))
-                {
-                    File.Delete(tempWavePath);
-                }
-            }
-            catch
-            {
-                // 一時ファイル削除失敗は出力結果に影響しないため握りつぶす。
-            }
+            TryDelete(tempWavePath);
         }
     }
 
-    public static Task ExportAsMonoWaveAsync(
+    /// <summary>
+    /// 既存Libraryのモノラル書き出しもAudio Editorと同じDSP・Clipping防止経路で処理する。
+    /// </summary>
+    public static async Task ExportAsMonoWaveAsync(
         string inputFilePath,
         string outputFilePath,
         double speakerGainDb,
         double micGainDb,
         CancellationToken cancellationToken = default)
     {
-        return Task.Run(() =>
+        AudioEditState state;
+        using (var reader = new AudioFileReader(inputFilePath))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            using var reader = new AudioFileReader(inputFilePath);
-            var channels = Math.Max(1, reader.WaveFormat.Channels);
-
-            ISampleProvider provider;
-            if (channels >= 2)
+            var channels = reader.WaveFormat.Channels;
+            if (channels is < 1 or > 2)
             {
-                var gainProvider = new StereoGainSampleProvider(reader)
-                {
-                    LeftGain = DbToLinearGain(speakerGainDb),
-                    RightGain = DbToLinearGain(micGainDb),
-                    MixToMono = true
-                };
-
-                provider = new StereoToMonoSampleProvider(gainProvider)
-                {
-                    LeftVolume = 1f,
-                    RightVolume = 0f
-                };
-            }
-            else
-            {
-                provider = new VolumeSampleProvider(reader)
-                {
-                    Volume = DbToLinearGain(speakerGainDb)
-                };
+                throw new NotSupportedException("モノラル変換はMonoまたはStereo音声のみ対応しています。");
             }
 
-            WaveFileWriter.CreateWaveFile16(outputFilePath, provider);
-        }, cancellationToken);
+            var channelStates = channels == 1
+                ? new[] { new AudioChannelEditState(speakerGainDb) }
+                : new[]
+                {
+                    new AudioChannelEditState(speakerGainDb),
+                    new AudioChannelEditState(micGainDb)
+                };
+
+            state = new AudioEditState(reader.TotalTime, channels, channelStates: channelStates);
+        }
+
+        await AudioFileRenderService.RenderWaveAsync(
+            inputFilePath,
+            outputFilePath,
+            state,
+            AudioRenderChannelMode.MonoMixdown,
+            cancellationToken: cancellationToken);
     }
 
-    private static async Task ConvertWithFfmpegAsync(string inputWavePath, string outputPath, MonoMixdownOutputFormat format, string? ffmpegExecutablePath, CancellationToken cancellationToken)
+    private static async Task ConvertWithFfmpegAsync(
+        string inputWavePath,
+        string outputPath,
+        MonoMixdownOutputFormat format,
+        string? ffmpegExecutablePath,
+        CancellationToken cancellationToken)
     {
         var codecArgs = format switch
         {
@@ -119,23 +110,51 @@ public static class MonoMixdownExportService
             throw new InvalidOperationException("Failed to start ffmpeg process.");
         }
 
-        await process.WaitForExitAsync(cancellationToken);
-        var error = await process.StandardError.ReadToEndAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            TryDelete(outputPath);
+            throw;
+        }
 
+        var error = await process.StandardError.ReadToEndAsync(CancellationToken.None);
         if (process.ExitCode != 0)
         {
+            TryDelete(outputPath);
             throw new InvalidOperationException($"ffmpeg conversion failed (exit={process.ExitCode}). {error}".Trim());
         }
     }
 
-    private static float DbToLinearGain(double db)
+    private static void TryKill(Process process)
     {
-        var linear = Math.Pow(10d, db / 20d);
-        if (linear < 0.001d)
+        try
         {
-            return 0f;
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(3000);
+            }
         }
+        catch
+        {
+        }
+    }
 
-        return (float)linear;
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+        }
     }
 }
