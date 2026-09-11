@@ -29,7 +29,7 @@ public sealed class AudioTimelineMapperTests
         Assert.Multiple(() =>
         {
             Assert.That(mapper.RenderedDuration.TotalSeconds, Is.EqualTo(19.995d).Within(0.0001));
-            Assert.That(mapper.SourceToRendered(TimeSpan.FromSeconds(20)).TotalSeconds, Is.EqualTo(10d).Within(0.0001));
+            Assert.That(mapper.SourceToRendered(TimeSpan.FromSeconds(20)).TotalSeconds, Is.EqualTo(9.995d).Within(0.0001));
             Assert.That(mapper.SourceToRendered(TimeSpan.FromSeconds(25)).TotalSeconds, Is.EqualTo(14.995d).Within(0.0001));
         });
     }
