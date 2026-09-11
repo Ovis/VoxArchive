@@ -35,7 +35,8 @@ public static class AudioFileRenderService
         AudioEditState state,
         AudioRenderChannelMode channelMode,
         double masterGainDb = 0d,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool autoAttenuate = true)
     {
         return Task.Run(() => RenderWaveCore(
             inputFilePath,
@@ -43,6 +44,7 @@ public static class AudioFileRenderService
             state,
             channelMode,
             masterGainDb,
+            autoAttenuate,
             cancellationToken), cancellationToken);
     }
 
@@ -78,6 +80,7 @@ public static class AudioFileRenderService
         AudioEditState state,
         AudioRenderChannelMode channelMode,
         double masterGainDb,
+        bool autoAttenuate,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputFilePath);
@@ -104,7 +107,9 @@ public static class AudioFileRenderService
                 cancellationToken);
         }
 
-        var appliedMasterGainDb = analysis.GetSafeMasterGainDb(masterGainDb);
+        var appliedMasterGainDb = autoAttenuate
+            ? analysis.GetSafeMasterGainDb(masterGainDb)
+            : masterGainDb;
         var outputChannels = AudioFrameProcessor.GetOutputChannelCount(inputChannels, channelMode);
         var outputFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, outputChannels);
 
@@ -142,7 +147,7 @@ public static class AudioFileRenderService
             Math.Max(0, plan.KeptFrameCount - crossfadeFrames),
             analysis.PeakAbsoluteSample,
             appliedMasterGainDb,
-            appliedMasterGainDb < masterGainDb - 0.0000001d);
+            autoAttenuate && appliedMasterGainDb < masterGainDb - 0.0000001d);
     }
 
     private static AudioFileReader OpenAndValidate(string inputFilePath, AudioEditState state)
