@@ -84,6 +84,9 @@ public partial class App : System.Windows.Application
 
                     services.AddSingleton(new RecordingCatalogService(Path.Combine(appData, "library.json")));
 
+                    // Libraryと複数Audio Editorが別々のPlaybackServiceを持っても再生自体はアプリ全体で1つに制限する。
+                    services.AddSingleton<PlaybackCoordinator>();
+                    services.AddSingleton<AudioExportCoordinator>();
                     services.AddTransient<IRecordingPlaybackService, RecordingPlaybackService>();
                     services.AddTransient<MainWindow>();
                 })
