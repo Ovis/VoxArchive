@@ -14,7 +14,7 @@ namespace VoxArchive.Wpf;
 public static class AudioFileRenderService
 {
     private const int ReadBufferFrames = 4096;
-    private delegate void SampleEmitter(ReadOnlySpan<float> samples);
+    private delegate void SampleEmitter(float[] samples, int sampleCount);
 
     public sealed record RenderResult(
         int SampleRate,
@@ -60,7 +60,14 @@ public static class AudioFileRenderService
             using var reader = OpenAndValidate(inputFilePath, state);
             var plan = AudioRenderPlan.Create(state, reader.WaveFormat.SampleRate);
             var analysis = new AudioClippingAnalysis();
-            StreamRenderedSamples(reader, state, plan, channelMode, 0d, analysis.Observe, cancellationToken);
+            StreamRenderedSamples(
+                reader,
+                state,
+                plan,
+                channelMode,
+                0d,
+                (samples, count) => analysis.Observe(samples.AsSpan(0, count)),
+                cancellationToken);
             return analysis;
         }, cancellationToken);
     }
@@ -93,7 +100,7 @@ public static class AudioFileRenderService
                 plan,
                 channelMode,
                 0d,
-                analysis.Observe,
+                (samples, count) => analysis.Observe(samples.AsSpan(0, count)),
                 cancellationToken);
         }
 
@@ -117,7 +124,7 @@ public static class AudioFileRenderService
                 plan,
                 channelMode,
                 appliedMasterGainDb,
-                samples => writer.WriteSamples(samples.ToArray(), 0, samples.Length),
+                (samples, count) => writer.WriteSamples(samples, 0, count),
                 cancellationToken);
         }
         catch
@@ -201,7 +208,7 @@ public static class AudioFileRenderService
                 var mixed = new float[head.Length];
                 AudioCrossfadeMixer.Mix(previousTail, head, mixed, outputChannels);
                 ApplyMasterGainInPlace(mixed, masterGainDb);
-                emit(mixed);
+                emit(mixed, mixed.Length);
                 previousTail = null;
                 cursor += incomingFadeFrames;
             }
@@ -235,7 +242,7 @@ public static class AudioFileRenderService
         if (previousTail is not null)
         {
             ApplyMasterGainInPlace(previousTail, masterGainDb);
-            emit(previousTail);
+            emit(previousTail, previousTail.Length);
         }
     }
 
@@ -281,7 +288,7 @@ public static class AudioFileRenderService
                 masterGainDb,
                 inputChannels,
                 outputChannels);
-            emit(output.AsSpan(0, outputSampleCount));
+            emit(output, outputSampleCount);
             remainingFrames -= readFrames;
         }
     }
