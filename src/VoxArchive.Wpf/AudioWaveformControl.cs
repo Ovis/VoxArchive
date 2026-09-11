@@ -30,6 +30,7 @@ public sealed class AudioWaveformControl : FrameworkElement
     private TimeSpan? _selectionEnd;
     private TimeSpan _playhead;
     private AudioWaveformViewport _viewport;
+    private bool _viewportInitialized;
     private bool _pointerDown;
     private bool _selecting;
     private bool _draggingBoundary;
@@ -51,26 +52,42 @@ public sealed class AudioWaveformControl : FrameworkElement
         ClipToBounds = true;
     }
 
+    /// <summary>
+    /// 既存Editorの状態更新経路。Viewportは維持し、編集状態だけを差し替える。
+    /// </summary>
     public void SetContent(
         AudioWaveformAnalysisResult? analysis,
-        AudioWaveformDetailResult? detail,
         IReadOnlyList<AudioCutRange>? cuts,
-        AudioCutRange? selectedCut,
         TimeSpan? selectionStart,
         TimeSpan? selectionEnd,
-        TimeSpan playhead,
-        AudioWaveformViewport viewport)
+        TimeSpan playhead)
     {
         _analysis = analysis;
-        _detail = detail;
         _cuts = cuts ?? Array.Empty<AudioCutRange>();
-        _selectedCut = selectedCut;
         _selectionStart = selectionStart;
         _selectionEnd = selectionEnd;
         _playhead = playhead;
-        _viewport = viewport;
+        if (analysis is not null && (!_viewportInitialized || _viewport.Duration <= TimeSpan.Zero))
+        {
+            _viewport = AudioWaveformViewport.Full(analysis.Duration);
+            _viewportInitialized = true;
+        }
         InvalidateVisual();
     }
+
+    /// <summary>
+    /// Zoom/Scrollと高解像度波形、CutRange選択状態を更新する。
+    /// </summary>
+    public void SetViewportState(AudioWaveformViewport viewport, AudioWaveformDetailResult? detail, AudioCutRange? selectedCut)
+    {
+        _viewport = viewport;
+        _viewportInitialized = true;
+        _detail = detail;
+        _selectedCut = selectedCut;
+        InvalidateVisual();
+    }
+
+    public AudioWaveformViewport CurrentViewport => _viewport;
 
     protected override void OnRender(DrawingContext dc)
     {
@@ -78,7 +95,6 @@ public sealed class AudioWaveformControl : FrameworkElement
         dc.DrawRectangle(BackgroundBrush, null, new Rect(RenderSize));
         dc.DrawRectangle(null, PlayAreaBorderPen, new Rect(0.5, 0.5, Math.Max(0, ActualWidth - 1), Math.Max(0, ActualHeight - 1)));
         if (_analysis is null || _analysis.Duration <= TimeSpan.Zero || ActualWidth <= 1 || ActualHeight <= 1) return;
-
         DrawWaveforms(dc);
         DrawCutRanges(dc);
         DrawSelection(dc);
@@ -91,7 +107,6 @@ public sealed class AudioWaveformControl : FrameworkElement
         var trackHeight = ActualHeight / channels;
         var pen = new Pen(TrackBrush, 1d);
         var detailUsable = _detail is not null && NearlySameViewport(_detail.Viewport, _viewport);
-
         for (var channel = 0; channel < channels; channel++)
         {
             var center = (channel * trackHeight) + (trackHeight / 2d);
@@ -99,26 +114,17 @@ public sealed class AudioWaveformControl : FrameworkElement
             var envelope = detailUsable ? _detail!.Envelopes[channel] : _analysis.Envelopes[channel];
             var bucketCount = Math.Min(envelope.Minimums.Length, envelope.Maximums.Length);
             if (bucketCount == 0) continue;
-
-            var firstBucket = 0;
-            var lastBucket = bucketCount - 1;
-            if (!detailUsable)
-            {
-                firstBucket = TimeToCoarseBucket(_viewport.Start, bucketCount);
-                lastBucket = TimeToCoarseBucket(_viewport.End, bucketCount);
-            }
+            var firstBucket = detailUsable ? 0 : TimeToCoarseBucket(_viewport.Start, bucketCount);
+            var lastBucket = detailUsable ? bucketCount - 1 : TimeToCoarseBucket(_viewport.End, bucketCount);
             var visibleBuckets = Math.Max(1, lastBucket - firstBucket + 1);
             var amplitudeHeight = Math.Max(1d, (trackHeight / 2d) - 8d);
-
             for (var i = 0; i < visibleBuckets; i++)
             {
                 var bucket = Math.Min(lastBucket, firstBucket + i);
                 var x = visibleBuckets == 1 ? 0d : i * ActualWidth / (visibleBuckets - 1d);
                 var min = Math.Clamp(envelope.Minimums[bucket], -1.25f, 1.25f);
                 var max = Math.Clamp(envelope.Maximums[bucket], -1.25f, 1.25f);
-                dc.DrawLine(pen,
-                    new Point(x, center - (max * amplitudeHeight)),
-                    new Point(x, center - (min * amplitudeHeight)));
+                dc.DrawLine(pen, new Point(x, center - (max * amplitudeHeight)), new Point(x, center - (min * amplitudeHeight)));
             }
         }
     }
@@ -184,7 +190,6 @@ public sealed class AudioWaveformControl : FrameworkElement
         _draggingBoundary = false;
         _pointerDownPoint = e.GetPosition(this);
         _selectionAnchor = XToTime(_pointerDownPoint.X);
-
         if (_selectedCut.HasValue)
         {
             var startX = TimeToX(_selectedCut.Value.Start);
@@ -204,7 +209,6 @@ public sealed class AudioWaveformControl : FrameworkElement
         base.OnMouseMove(e);
         if (!_pointerDown || e.LeftButton != MouseButtonState.Pressed) return;
         var point = e.GetPosition(this);
-
         if (_draggingBoundary && _selectedCut.HasValue)
         {
             var time = XToTime(point.X);
@@ -213,11 +217,12 @@ public sealed class AudioWaveformControl : FrameworkElement
             var end = _draggingStartBoundary ? original.End : time;
             if (end > start)
             {
+                _selectedCut = new AudioCutRange(start, end);
+                InvalidateVisual();
                 CutBoundaryChanged?.Invoke(this, new AudioWaveformCutBoundaryChangedEventArgs(original, start, end, false));
             }
             return;
         }
-
         if (!_selecting && Math.Abs(point.X - _pointerDownPoint.X) >= DragThreshold)
         {
             _selecting = true;
@@ -226,7 +231,6 @@ public sealed class AudioWaveformControl : FrameworkElement
             _selectionEnd = _selectionAnchor;
         }
         if (!_selecting) return;
-
         var current = XToTime(point.X);
         _selectionStart = current < _selectionAnchor ? current : _selectionAnchor;
         _selectionEnd = current < _selectionAnchor ? _selectionAnchor : current;
@@ -241,18 +245,14 @@ public sealed class AudioWaveformControl : FrameworkElement
         var current = XToTime(e.GetPosition(this).X);
         _pointerDown = false;
         ReleaseMouseCapture();
-
         if (_draggingBoundary && _selectedCut.HasValue)
         {
-            var original = _selectedCut.Value;
-            var start = _draggingStartBoundary ? current : original.Start;
-            var end = _draggingStartBoundary ? original.End : current;
+            var visual = _selectedCut.Value;
             _draggingBoundary = false;
-            if (end > start) CutBoundaryChanged?.Invoke(this, new AudioWaveformCutBoundaryChangedEventArgs(original, start, end, true));
+            CutBoundaryChanged?.Invoke(this, new AudioWaveformCutBoundaryChangedEventArgs(visual, visual.Start, visual.End, true));
             e.Handled = true;
             return;
         }
-
         if (_selecting)
         {
             _selectionStart = current < _selectionAnchor ? current : _selectionAnchor;
@@ -283,10 +283,7 @@ public sealed class AudioWaveformControl : FrameworkElement
 
     private AudioCutRange? HitTestCutRange(TimeSpan time)
     {
-        foreach (var cut in _cuts)
-        {
-            if (time >= cut.Start && time <= cut.End) return cut;
-        }
+        foreach (var cut in _cuts) if (time >= cut.Start && time <= cut.End) return cut;
         return null;
     }
 
@@ -304,8 +301,7 @@ public sealed class AudioWaveformControl : FrameworkElement
     }
 
     private static bool NearlySameViewport(AudioWaveformViewport left, AudioWaveformViewport right)
-        => Math.Abs((left.Start - right.Start).TotalMilliseconds) <= 15d
-           && Math.Abs((left.End - right.End).TotalMilliseconds) <= 15d;
+        => Math.Abs((left.Start - right.Start).TotalMilliseconds) <= 15d && Math.Abs((left.End - right.End).TotalMilliseconds) <= 15d;
 }
 
 public sealed class AudioWaveformSelectionChangedEventArgs(TimeSpan start, TimeSpan end, bool isFinal) : EventArgs
@@ -331,9 +327,9 @@ public sealed class AudioWaveformCutRangeSelectedEventArgs(AudioCutRange? range)
     public AudioCutRange? Range { get; } = range;
 }
 
-public sealed class AudioWaveformCutBoundaryChangedEventArgs(AudioCutRange original, TimeSpan start, TimeSpan end, bool isFinal) : EventArgs
+public sealed class AudioWaveformCutBoundaryChangedEventArgs(AudioCutRange visualRange, TimeSpan start, TimeSpan end, bool isFinal) : EventArgs
 {
-    public AudioCutRange Original { get; } = original;
+    public AudioCutRange VisualRange { get; } = visualRange;
     public TimeSpan Start { get; } = start;
     public TimeSpan End { get; } = end;
     public bool IsFinal { get; } = isFinal;
