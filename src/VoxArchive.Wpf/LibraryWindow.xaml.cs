@@ -39,12 +39,72 @@ public partial class LibraryWindow : System.Windows.Window
         try
         {
             await _transcriptionResultsCoordinator.InitializeAsync();
+            AttachAudioEditorEntryPoints();
             AttachTranscriptionResultsPanel();
         }
         catch
         {
             // Library本体は文字起こし結果が壊れていても利用できる必要があるため、起動失敗にはしない。
         }
+    }
+
+    /// <summary>
+    /// Library詳細欄と右クリックメニューへAudio Editor導線を追加する。
+    /// </summary>
+    /// <remarks>
+    /// 既存XAMLの編集領域は文字起こし結果パネル追加時に動的再構成されるため、
+    /// Audio Editorの導線も同じWindow責務として再構成前に挿入する。
+    /// </remarks>
+    private void AttachAudioEditorEntryPoints()
+    {
+        var detailGrid = FindDetailGrid(this);
+        var editPanel = detailGrid?.Children
+            .OfType<System.Windows.Controls.StackPanel>()
+            .FirstOrDefault(x => System.Windows.Controls.Grid.GetRow(x) == 9);
+        if (editPanel is not null && !editPanel.Children.OfType<System.Windows.Controls.Button>().Any(x => Equals(x.Content, "音声編集")))
+        {
+            var button = new System.Windows.Controls.Button
+            {
+                Content = "音声編集",
+                Margin = new System.Windows.Thickness(0, 0, 0, 10),
+                ToolTip = "Cut・Gain・Muteを編集し、別ファイルとして書き出します。"
+            };
+            if (FindResource("PrimaryButtonStyle") is System.Windows.Style style)
+            {
+                button.Style = style;
+            }
+            button.Click += OnOpenAudioEditorClick;
+            editPanel.Children.Insert(Math.Min(1, editPanel.Children.Count), button);
+        }
+
+        var recordingGrid = FindDescendants<System.Windows.Controls.DataGrid>(this)
+            .FirstOrDefault(x => x.ContextMenu is not null);
+        var contextMenu = recordingGrid?.ContextMenu;
+        if (contextMenu is not null && !contextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Any(x => Equals(x.Header, "編集して書き出し")))
+        {
+            var menuItem = new System.Windows.Controls.MenuItem { Header = "編集して書き出し" };
+            if (FindResource("LibraryMenuItemStyle") is System.Windows.Style style)
+            {
+                menuItem.Style = style;
+            }
+            menuItem.Click += OnOpenAudioEditorClick;
+            var separatorIndex = contextMenu.Items
+                .Cast<object>()
+                .Select((item, index) => (item, index))
+                .FirstOrDefault(x => x.item is System.Windows.Controls.Separator)
+                .index;
+            contextMenu.Items.Insert(separatorIndex > 0 ? separatorIndex : Math.Min(3, contextMenu.Items.Count), menuItem);
+        }
+    }
+
+    private void OnOpenAudioEditorClick(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (_viewModel.SelectedItem is null)
+        {
+            return;
+        }
+
+        AudioEditorWindowManager.Open(this, _viewModel.SelectedItem);
     }
 
     /// <summary>
