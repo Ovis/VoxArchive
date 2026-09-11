@@ -39,6 +39,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event EventHandler? EditStateChanged;
 
     public LibraryRecordingItem SourceItem { get; }
     public string SourceFilePath => SourceItem.FilePath;
@@ -59,6 +60,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     }
 
     public bool IsReady => !IsAnalyzing && _history is not null && Waveform is not null;
+    public AudioEditState? CurrentState => EffectiveState;
 
     public double AnalysisProgress
     {
@@ -69,7 +71,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     public string StatusText
     {
         get => _statusText;
-        private set => SetField(ref _statusText, value);
+        set => SetField(ref _statusText, value);
     }
 
     public bool IsDirty => _history?.IsDirty == true;
@@ -131,9 +133,6 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
 
     private AudioEditState? EffectiveState => _workingState ?? _history?.Current;
 
-    /// <summary>
-    /// 初期波形解析結果を編集セッションへ適用する。
-    /// </summary>
     public void CompleteAnalysis(AudioWaveformAnalysisResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -163,9 +162,6 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         StatusText = $"波形を解析しています... {AnalysisProgress:P0}";
     }
 
-    /// <summary>
-    /// 元音声時間軸上の選択範囲を更新する。
-    /// </summary>
     public void SetSelection(TimeSpan first, TimeSpan second)
     {
         var start = first <= second ? first : second;
@@ -185,9 +181,6 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         RaiseSelectionProperties();
     }
 
-    /// <summary>
-    /// Sliderドラッグ中のGain変更を1回のUndo単位へまとめる。
-    /// </summary>
     public void BeginGainAdjustment()
     {
         if (_history is null || _gainAdjustmentActive) return;
@@ -204,6 +197,16 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
             _history.Apply(_workingState);
         }
         _workingState = null;
+        RefreshStateProperties();
+    }
+
+    /// <summary>
+    /// 書き出し成功時点を新しいClean baselineにする。Undo/Redo履歴自体は維持する。
+    /// </summary>
+    public void MarkExported()
+    {
+        CommitGainAdjustment();
+        _history?.MarkClean();
         RefreshStateProperties();
     }
 
@@ -290,6 +293,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         }
 
         RefreshChannelProperties();
+        OnPropertyChanged(nameof(CurrentState));
         OnPropertyChanged(nameof(SourceDuration));
         OnPropertyChanged(nameof(EditedDuration));
         OnPropertyChanged(nameof(SourceDurationText));
@@ -300,6 +304,7 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         UndoCommand.RaiseCanExecuteChanged();
         RedoCommand.RaiseCanExecuteChanged();
         CutSelectionCommand.RaiseCanExecuteChanged();
+        EditStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void RefreshChannelProperties()
@@ -335,9 +340,6 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
-/// <summary>
-/// CutRange一覧表示用の軽量行モデル。
-/// </summary>
 public sealed record AudioCutRangeRow(AudioCutRange Range)
 {
     public string StartText => AudioEditorViewModel.FormatTime(Range.Start);
