@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -72,6 +73,19 @@ public sealed class AudioWaveformControl : FrameworkElement
             _viewport = AudioWaveformViewport.Full(analysis.Duration);
             _viewportInitialized = true;
         }
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 再生中のPlayheadだけを更新する。
+    /// </summary>
+    /// <remarks>
+    /// CutRangeやSelectionの再構築を避け、再生タイマーからの更新を最小限に留める。
+    /// </remarks>
+    public void SetPlayhead(TimeSpan playhead)
+    {
+        if (_playhead == playhead) return;
+        _playhead = playhead;
         InvalidateVisual();
     }
 
@@ -234,8 +248,10 @@ public sealed class AudioWaveformControl : FrameworkElement
         var current = XToTime(point.X);
         _selectionStart = current < _selectionAnchor ? current : _selectionAnchor;
         _selectionEnd = current < _selectionAnchor ? _selectionAnchor : current;
+
+        // Drag中はControl内部のvisualだけを更新する。
+        // ViewModelへMouseMoveごとに通知するとPropertyChanged経由で波形全体が再設定され、入力追従性を損なう。
         InvalidateVisual();
-        SelectionChanged?.Invoke(this, new AudioWaveformSelectionChangedEventArgs(_selectionStart.Value, _selectionEnd.Value, false));
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -275,7 +291,14 @@ public sealed class AudioWaveformControl : FrameworkElement
                 _playhead = current;
                 InvalidateVisual();
                 CutRangeSelected?.Invoke(this, new AudioWaveformCutRangeSelectedEventArgs(null));
+
+                // Smoke Test中だけ、Waveform clickからWindow側Seek処理が戻るまでの同期経路を計測する。
+                // PreviewService.Seek自体が重いのか、UI再描画側が重いのかを切り分けるための一時診断である。
+                var seekStarted = Stopwatch.GetTimestamp();
+                App.WriteAudioEditorDiagnostic($"Waveform seek requested. TargetMs={current.TotalMilliseconds:F0}");
                 SeekRequested?.Invoke(this, new AudioWaveformSeekRequestedEventArgs(current));
+                var elapsed = Stopwatch.GetElapsedTime(seekStarted);
+                App.WriteAudioEditorDiagnostic($"Waveform seek handler completed. TargetMs={current.TotalMilliseconds:F0}, HandlerElapsedMs={elapsed.TotalMilliseconds:F2}");
             }
         }
         e.Handled = true;

@@ -33,7 +33,7 @@
 
     <Grid Margin="14">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="10"/><RowDefinition Height="290"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="10"/><RowDefinition Height="320"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Style="{StaticResource Card}">
@@ -72,7 +72,7 @@
                     </StackPanel>
                 </DockPanel>
                 <Grid Grid.Row="2">
-                    <local:AudioWaveformControl x:Name="WaveformControl" MinHeight="280"
+                    <local:AudioWaveformControl x:Name="WaveformControl" MinHeight="240"
                                                 SelectionChanged="OnWaveformSelectionChanged"
                                                 SeekRequested="OnWaveformSeekRequested"
                                                 ViewportRequested="OnWaveformViewportRequested"
@@ -83,7 +83,7 @@
                         <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsAnalyzing}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="360">
                             <TextBlock Text="波形を解析しています" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding AnalysisProgress}" Height="10" Margin="0,12,0,8"/>
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding AnalysisProgress, Mode=OneWay}" Height="10" Margin="0,12,0,8"/>
                             <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -157,17 +157,21 @@
                     <StackPanel x:Name="ExportSettingsPanel">
                         <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
                             <ComboBox x:Name="ExportFormatComboBox" Width="88" SelectedIndex="2" SelectionChanged="OnExportFormatChanged"><ComboBoxItem Content="WAV"/><ComboBoxItem Content="MP3"/><ComboBoxItem Content="FLAC"/></ComboBox>
-                            <ComboBox x:Name="ExportChannelModeComboBox" Width="130" SelectedIndex="0" SelectionChanged="OnPreviewRenderSettingChanged"><ComboBoxItem Content="Mono Mixdown"/><ComboBoxItem Content="Stereo"/></ComboBox>
-                            <Button x:Name="ExportButton" Content="書き出し..." Click="OnExportClick" Style="{StaticResource PrimaryButton}"/><Button x:Name="CancelExportButton" Content="キャンセル" Click="OnCancelExportClick" IsEnabled="False" Margin="0"/>
+                            <ComboBox x:Name="ExportChannelModeComboBox" Width="126" SelectedIndex="0" SelectionChanged="OnPreviewRenderSettingChanged"><ComboBoxItem Content="Mono Mixdown"/><ComboBoxItem Content="Stereo"/></ComboBox>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4"><CheckBox x:Name="AutoAttenuateCheckBox" Content="Clipping時にMaster自動減衰 (-0.1 dBFS)" IsChecked="True" Margin="0,0,16,0"/><CheckBox x:Name="AddToLibraryCheckBox" Content="FLACをライブラリに追加" IsChecked="True"/></StackPanel>
+                        <CheckBox x:Name="AutoAttenuateCheckBox" Content="Clipping時にMaster Gainを自動減衰" IsChecked="True" Margin="0,2,0,3"/>
+                        <CheckBox x:Name="AddToLibraryCheckBox" Content="FLAC書き出し後にライブラリへ追加" IsChecked="True" Margin="0,0,0,6"/>
+                        <StackPanel Orientation="Horizontal"><Button x:Name="ExportButton" Content="書き出し..." Click="OnExportClick" Style="{StaticResource PrimaryButton}"/><Button x:Name="CancelExportButton" Content="キャンセル" Click="OnCancelExportClick" IsEnabled="False" Margin="0"/></StackPanel>
                     </StackPanel>
-                    <TextBlock Text="Mouse Wheel: Zoom / 自動追従は再生時のみ手動Viewport操作でOFF" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
-                    <TextBlock Text="Space 再生 / ←→ ±5秒 / Ctrl+Z Undo / Ctrl+Y Redo / Esc 選択解除" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <Border Grid.Row="6" Style="{StaticResource Card}" Padding="10,7"><TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMuted}" TextTrimming="CharacterEllipsis"/></Border>
+        <Border Grid.Row="6" Style="{StaticResource Card}" Padding="10">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMuted}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Grid.Column="1" Text="Esc: 選択解除 / Ctrl+Z: Undo / Ctrl+Y: Redo / Space: 再生・一時停止" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

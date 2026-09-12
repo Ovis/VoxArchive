@@ -17,7 +17,7 @@ namespace VoxArchive.Wpf;
 /// </summary>
 public partial class AudioEditorWindow : Window
 {
-    private static readonly TimeSpan PlaybackPositionInterval = TimeSpan.FromMilliseconds(33);
+    private static readonly TimeSpan PlaybackPositionInterval = TimeSpan.FromMilliseconds(100);
 
     private readonly AudioEditorViewModel _viewModel;
     private readonly AudioEditorPreviewService _previewService;
@@ -49,7 +49,9 @@ public partial class AudioEditorWindow : Window
         _sourceGuard = new AudioSourceFileGuard(item.FilePath);
         DataContext = _viewModel;
 
-        _playbackTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = PlaybackPositionInterval };
+        // 再生位置更新は入力より低い優先度で処理する。
+        // 波形全体の再描画がMouse/Keyboard入力を飢餓状態にしないことを優先する。
+        _playbackTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = PlaybackPositionInterval };
         _playbackTimer.Tick += OnPlaybackTimerTick;
         Loaded += OnLoaded;
         Closed += OnClosed;
@@ -157,16 +159,21 @@ public partial class AudioEditorWindow : Window
 
     private void OnPreviewPauseClick(object sender, RoutedEventArgs e)
     {
+        App.WriteAudioEditorDiagnostic($"Preview Pause handler entered. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
         _previewService.Pause();
         UpdatePlayheadFromPlayback();
         _viewModel.StatusText = "プレビューを一時停止しました。";
+        App.WriteAudioEditorDiagnostic($"Preview Pause handler completed. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
     }
 
     private void OnPreviewStopClick(object sender, RoutedEventArgs e)
     {
+        App.WriteAudioEditorDiagnostic($"Preview Stop handler entered. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
         _previewService.Stop();
         SetPlayhead(TimeSpan.Zero);
+        ClearAuditionMode();
         _viewModel.StatusText = "プレビューを停止しました。";
+        App.WriteAudioEditorDiagnostic($"Preview Stop handler completed. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
     }
 
     private void OnPlaybackSpeedChanged(object sender, SelectionChangedEventArgs e)
@@ -243,6 +250,10 @@ public partial class AudioEditorWindow : Window
     private void SeekToSourcePosition(TimeSpan target, AudioSeekDirection direction)
     {
         if (_viewModel.CurrentState is null) return;
+        if (_auditionPlan is not null)
+        {
+            ClearAuditionMode();
+        }
         var resolved = GetResolvedPlayheadForMode(target, direction);
         SetPlayhead(resolved);
         if (!_previewService.IsLoaded) return;
@@ -487,7 +498,15 @@ public partial class AudioEditorWindow : Window
         }
         if (e.Key == Key.Space && _viewModel.IsReady)
         {
-            OnPreviewPlayClick(this, new RoutedEventArgs());
+            App.WriteAudioEditorDiagnostic($"Space toggle entered. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
+            if (_previewService.IsPlaying)
+            {
+                OnPreviewPauseClick(this, new RoutedEventArgs());
+            }
+            else
+            {
+                OnPreviewPlayClick(this, new RoutedEventArgs());
+            }
             e.Handled = true;
             return;
         }
@@ -522,7 +541,7 @@ public partial class AudioEditorWindow : Window
         var text = AudioEditorViewModel.FormatTime(value);
         PlayheadText.Text = text;
         if (!PlayheadInput.IsKeyboardFocusWithin) PlayheadInput.Text = text;
-        RefreshWaveform();
+        WaveformControl.SetPlayhead(value);
     }
 
     private void RefreshWaveform()
