@@ -8,6 +8,8 @@ namespace VoxArchive.Wpf;
 
 public partial class AudioEditorWindow
 {
+    private static readonly TimeSpan InitialWaveformViewportDuration = TimeSpan.FromSeconds(60);
+
     private AudioWaveformDetailService? _waveformDetailService;
     private AudioWaveformDetailResult? _waveformDetail;
     private AudioWaveformViewport _waveformViewport;
@@ -55,12 +57,19 @@ public partial class AudioEditorWindow
         if (waveform is null) return;
         _waveformDetailService?.Dispose();
         _waveformDetailService = new AudioWaveformDetailService(_viewModel.SourceFilePath);
-        _waveformViewport = AudioWaveformViewport.Full(waveform.Duration);
+
+        // 長い録音を全体表示すると編集対象が圧縮されすぎるため、最初の1分を編集開始時の作業領域とする。
+        // 短い録音は従来どおり全体を表示し、「全体」操作ではいつでも全Durationへ戻せる。
+        var initialEnd = waveform.Duration <= InitialWaveformViewportDuration
+            ? waveform.Duration
+            : InitialWaveformViewportDuration;
+        _waveformViewport = AudioWaveformViewport.Normalize(TimeSpan.Zero, initialEnd, waveform.Duration);
         _waveformViewportInitialized = true;
         _waveformDetail = null;
         _followPlayhead = true;
         FollowPlayheadCheckBox.IsChecked = true;
         ApplyWaveformViewportState();
+        RequestWaveformDetailAsync();
     }
 
     private void OnWaveformViewportRequested(object? sender, AudioWaveformViewportRequestedEventArgs e)
