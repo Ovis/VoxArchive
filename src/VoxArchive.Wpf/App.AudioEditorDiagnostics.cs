@@ -48,7 +48,7 @@ public partial class App
 
             lock (AudioEditorDiagnosticLogGate)
             {
-                File.AppendAllText(path, builder.ToString(), Encoding.UTF8);
+                File.AppendAllText(path, builder.ToString(), System.Text.Encoding.UTF8);
             }
         }
         catch
