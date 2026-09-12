@@ -11,6 +11,22 @@ public enum AudioEditorExportFormat
     Flac
 }
 
+public enum AudioEditorExportStage
+{
+    Preparing,
+    PeakAnalysis,
+    Rendering,
+    Encoding,
+    Committing,
+    LibraryRegistration,
+    Completed
+}
+
+public sealed record AudioEditorExportProgress(
+    AudioEditorExportStage Stage,
+    double Progress,
+    string Message);
+
 public sealed record AudioEditorExportResult(
     AudioFileRenderService.RenderResult RenderResult,
     bool LibraryRegistrationAttempted,
@@ -22,7 +38,6 @@ public sealed record AudioEditorExportResult(
 /// </summary>
 public sealed class AudioEditorExportService
 {
-    private const double TargetPeakDbfs = -0.1d;
     private readonly AudioExportCoordinator _coordinator;
     private readonly RecordingCatalogService _catalogService;
 
@@ -31,6 +46,11 @@ public sealed class AudioEditorExportService
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _catalogService = catalogService ?? throw new ArgumentNullException(nameof(catalogService));
     }
+
+    /// <summary>
+    /// Exportの現在段階をUIへ通知する。
+    /// </summary>
+    public event Action<AudioEditorExportProgress>? ProgressChanged;
 
     public async Task<AudioEditorExportResult> ExportAsync(
         string inputFilePath,
@@ -60,6 +80,7 @@ public sealed class AudioEditorExportService
             throw new InvalidOperationException("元音声ファイルへ上書きすることはできません。");
         }
 
+        Report(AudioEditorExportStage.Preparing, 0.03d, "書き出しを準備しています...");
         if (!_coordinator.TryEnter(out var lease) || lease is null)
         {
             throw new InvalidOperationException("別の音声を書き出し中です。完了後にもう一度実行してください。");
@@ -87,8 +108,12 @@ public sealed class AudioEditorExportService
             var tempOutputPath = Path.Combine(outputDirectory ?? Path.GetTempPath(), $".{Path.GetFileNameWithoutExtension(outputFullPath)}.{Guid.NewGuid():N}.tmp{extension}");
             try
             {
+                Report(AudioEditorExportStage.PeakAnalysis, 0.12d, "実ピークを解析しています...");
                 var analysis = await AudioFileRenderService.AnalyzeAsync(inputFullPath, state, channelMode, cancellationToken);
-                var masterGainDb = autoAttenuate ? CalculateTargetMasterGainDb(analysis.PeakAbsoluteSample) : 0d;
+                var assessment = AudioPeakAssessment.FromPeak(analysis.PeakAbsoluteSample);
+                var masterGainDb = autoAttenuate ? assessment.RequiredMasterGainDb : 0d;
+
+                Report(AudioEditorExportStage.Rendering, 0.38d, "編集内容をレンダリングしています...");
                 var renderResult = await AudioFileRenderService.RenderWaveAsync(
                     inputFullPath,
                     tempWavePath,
@@ -98,9 +123,11 @@ public sealed class AudioEditorExportService
                     cancellationToken,
                     autoAttenuate: false);
 
+                Report(AudioEditorExportStage.Encoding, 0.72d, $"{format} へ変換しています...");
                 await ConvertWithFfmpegAsync(tempWavePath, tempOutputPath, format, ffmpegExecutablePath, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
 
+                Report(AudioEditorExportStage.Committing, 0.9d, "出力ファイルを確定しています...");
                 CommitOutput(tempOutputPath, outputFullPath);
                 var finalRenderResult = renderResult with
                 {
@@ -110,18 +137,22 @@ public sealed class AudioEditorExportService
 
                 if (format != AudioEditorExportFormat.Flac || !addFlacToLibrary)
                 {
+                    Report(AudioEditorExportStage.Completed, 1d, "書き出しが完了しました。");
                     return new AudioEditorExportResult(finalRenderResult, false, false, null);
                 }
 
                 try
                 {
+                    Report(AudioEditorExportStage.LibraryRegistration, 0.96d, "ライブラリへ登録しています...");
                     // UpdateTitleAsyncは未登録パスならCatalog Entryも作成するため、コピーや移動をせず出力先をそのまま登録できる。
                     await _catalogService.UpdateTitleAsync(outputFullPath, libraryTitle, cancellationToken);
+                    Report(AudioEditorExportStage.Completed, 1d, "書き出しとライブラリ登録が完了しました。");
                     return new AudioEditorExportResult(finalRenderResult, true, true, null);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     // Export成功後のLibrary登録失敗で成果物を削除しない。両者は独立した結果として扱う。
+                    Report(AudioEditorExportStage.Completed, 1d, "書き出しは完了しましたが、ライブラリ登録に失敗しました。");
                     return new AudioEditorExportResult(finalRenderResult, true, false, ex.Message);
                 }
             }
@@ -132,6 +163,9 @@ public sealed class AudioEditorExportService
             }
         }
     }
+
+    private void Report(AudioEditorExportStage stage, double progress, string message)
+        => ProgressChanged?.Invoke(new AudioEditorExportProgress(stage, Math.Clamp(progress, 0d, 1d), message));
 
     private async Task<bool> IsLibraryManagedAsync(string fullPath, CancellationToken cancellationToken)
     {
@@ -149,14 +183,6 @@ public sealed class AudioEditorExportService
         {
             File.Move(tempOutputPath, outputFullPath);
         }
-    }
-
-    private static double CalculateTargetMasterGainDb(double peakAbsoluteSample)
-    {
-        if (peakAbsoluteSample <= 0d) return 0d;
-        var targetLinear = Math.Pow(10d, TargetPeakDbfs / 20d);
-        if (peakAbsoluteSample <= targetLinear) return 0d;
-        return 20d * Math.Log10(targetLinear / peakAbsoluteSample);
     }
 
     private static async Task ConvertWithFfmpegAsync(

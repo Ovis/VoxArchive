@@ -22,6 +22,7 @@ public partial class AudioEditorWindow
         if (_auditionUiInitialized) return;
         _auditionUiInitialized = true;
 
+        InitializeExportFeedback();
         _playbackTimer.Tick += OnAuditionTimerTick;
         CutRangeList.MouseDoubleClick += OnCutRangeListMouseDoubleClick;
         Closed += OnAuditionClosed;
