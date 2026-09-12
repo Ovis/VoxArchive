@@ -44,7 +44,7 @@ public partial class AudioEditorWindow
         var channelPanels = ChannelEditPanel.Children
             .OfType<StackPanel>()
             .Where(panel => Grid.GetRow(panel) is 1 or 2)
-            .OrderBy(Grid.GetRow)
+            .OrderBy(panel => Grid.GetRow(panel))
             .ToArray();
 
         if (channelPanels.Length >= 1)
@@ -214,11 +214,11 @@ public partial class AudioEditorWindow
         }
     }
 
-    private void OnExportProgressChanged(object? sender, AudioEditorExportProgress e)
+    private void OnExportProgressChanged(AudioEditorExportProgress e)
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(() => OnExportProgressChanged(sender, e));
+            Dispatcher.BeginInvoke(() => OnExportProgressChanged(e));
             return;
         }
 
@@ -269,20 +269,6 @@ public partial class AudioEditorWindow
             _channel1GainInput.Text = _viewModel.Channel1GainDb.ToString("F1", CultureInfo.CurrentCulture);
         if (_channel2GainInput is not null && !_channel2GainInput.IsKeyboardFocusWithin)
             _channel2GainInput.Text = _viewModel.Channel2GainDb.ToString("F1", CultureInfo.CurrentCulture);
-    }
-
-    private void ResetExportProgressFeedback()
-    {
-        if (_exportProgressBar is not null)
-        {
-            _exportProgressBar.Value = 0d;
-            _exportProgressBar.Visibility = Visibility.Collapsed;
-        }
-        if (_exportProgressText is not null)
-        {
-            _exportProgressText.Text = string.Empty;
-            _exportProgressText.Visibility = Visibility.Collapsed;
-        }
     }
 
     private void OnExportFeedbackClosed(object? sender, EventArgs e)
