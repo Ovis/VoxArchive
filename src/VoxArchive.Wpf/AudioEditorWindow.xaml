@@ -33,7 +33,7 @@
 
     <Grid Margin="14">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="10"/><RowDefinition Height="290"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="10"/><RowDefinition Height="320"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Style="{StaticResource Card}">
@@ -72,7 +72,7 @@
                     </StackPanel>
                 </DockPanel>
                 <Grid Grid.Row="2">
-                    <local:AudioWaveformControl x:Name="WaveformControl" MinHeight="280"
+                    <local:AudioWaveformControl x:Name="WaveformControl" MinHeight="240"
                                                 SelectionChanged="OnWaveformSelectionChanged"
                                                 SeekRequested="OnWaveformSeekRequested"
                                                 ViewportRequested="OnWaveformViewportRequested"
