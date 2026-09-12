@@ -50,7 +50,7 @@ public sealed class AudioEditorExportService
     /// <summary>
     /// Exportの現在段階をUIへ通知する。
     /// </summary>
-    public event EventHandler<AudioEditorExportProgress>? ProgressChanged;
+    public event Action<AudioEditorExportProgress>? ProgressChanged;
 
     public async Task<AudioEditorExportResult> ExportAsync(
         string inputFilePath,
@@ -165,7 +165,7 @@ public sealed class AudioEditorExportService
     }
 
     private void Report(AudioEditorExportStage stage, double progress, string message)
-        => ProgressChanged?.Invoke(this, new AudioEditorExportProgress(stage, Math.Clamp(progress, 0d, 1d), message));
+        => ProgressChanged?.Invoke(new AudioEditorExportProgress(stage, Math.Clamp(progress, 0d, 1d), message));
 
     private async Task<bool> IsLibraryManagedAsync(string fullPath, CancellationToken cancellationToken)
     {
