@@ -32,6 +32,8 @@ public sealed class AudioWaveformDetailService : IDisposable
     {
         requestedBuckets = Math.Clamp(requestedBuckets, 256, 12_000);
         var key = CacheKey.Create(viewport, requestedBuckets);
+        CancellationTokenSource requestCancellation;
+
         lock (_gate)
         {
             if (_cache.TryGetValue(key, out var cached))
@@ -40,32 +42,43 @@ public sealed class AudioWaveformDetailService : IDisposable
                 return cached;
             }
 
+            // Viewportが連続して変わる場合、直前の解析だけを中止する。
+            // CancellationTokenSourceは各GetAsync呼び出しが自分のものを保持し、別要求のTokenを誤って参照しないようにする。
             _activeRequest?.Cancel();
-            _activeRequest?.Dispose();
-            _activeRequest = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _activeRequest = requestCancellation;
         }
-
-        CancellationToken token;
-        lock (_gate) token = _activeRequest!.Token;
 
         try
         {
-            var result = await Task.Run(() => AnalyzeRegion(viewport, requestedBuckets, token), token);
+            // Wheel Zoom/Scrollではキャンセルが通常経路になる。
+            // Task.Run自体へTokenを渡すと開始前キャンセルでも例外化するため、解析側で非例外的に打ち切る。
+            var result = await Task.Run(() => AnalyzeRegion(viewport, requestedBuckets, requestCancellation.Token));
+            if (result is null || requestCancellation.IsCancellationRequested) return null;
+
             lock (_gate)
             {
+                if (!ReferenceEquals(_activeRequest, requestCancellation)) return null;
                 _cache[key] = result;
                 Touch(key);
                 TrimCache();
             }
             return result;
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        finally
         {
-            return null;
+            lock (_gate)
+            {
+                if (ReferenceEquals(_activeRequest, requestCancellation))
+                {
+                    _activeRequest = null;
+                }
+            }
+            requestCancellation.Dispose();
         }
     }
 
-    private AudioWaveformDetailResult AnalyzeRegion(AudioWaveformViewport viewport, int bucketCount, CancellationToken cancellationToken)
+    private AudioWaveformDetailResult? AnalyzeRegion(AudioWaveformViewport viewport, int bucketCount, CancellationToken cancellationToken)
     {
         using var reader = new AudioFileReader(_filePath);
         var channels = reader.WaveFormat.Channels;
@@ -90,7 +103,9 @@ public sealed class AudioWaveformDetailService : IDisposable
         long relativeFrame = 0;
         while (relativeFrame < frameCount)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            // 高解像度波形は補助表示なので、古いViewportの解析は例外を投げず速やかに破棄する。
+            if (cancellationToken.IsCancellationRequested) return null;
+
             var wantedFrames = (int)Math.Min(4096L, frameCount - relativeFrame);
             var readSamples = reader.Read(buffer, 0, wantedFrames * channels);
             if (readSamples <= 0) break;
@@ -107,6 +122,8 @@ public sealed class AudioWaveformDetailService : IDisposable
                 }
             }
         }
+
+        if (cancellationToken.IsCancellationRequested) return null;
 
         for (var channel = 0; channel < channels; channel++)
         {
@@ -146,7 +163,6 @@ public sealed class AudioWaveformDetailService : IDisposable
         lock (_gate)
         {
             _activeRequest?.Cancel();
-            _activeRequest?.Dispose();
             _activeRequest = null;
             _cache.Clear();
             _lru.Clear();
