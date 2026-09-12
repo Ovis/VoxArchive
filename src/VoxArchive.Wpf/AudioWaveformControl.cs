@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -13,9 +14,16 @@ public sealed class AudioWaveformControl : FrameworkElement
 {
     private const double DragThreshold = 4d;
     private const double BoundaryHitWidth = 7d;
+    private const double ChannelLabelWidth = 74d;
+    private const double TimeRulerHeight = 24d;
     private static readonly Brush BackgroundBrush = new SolidColorBrush(Color.FromRgb(15, 23, 35));
-    private static readonly Brush TrackBrush = new SolidColorBrush(Color.FromRgb(67, 148, 255));
+    private static readonly Brush Channel1Brush = new SolidColorBrush(Color.FromRgb(67, 148, 255));
+    private static readonly Brush Channel2Brush = new SolidColorBrush(Color.FromRgb(65, 190, 128));
+    private static readonly Brush LabelBackgroundBrush = new SolidColorBrush(Color.FromRgb(17, 29, 43));
+    private static readonly Brush TextBrush = new SolidColorBrush(Color.FromRgb(220, 231, 246));
+    private static readonly Brush MutedTextBrush = new SolidColorBrush(Color.FromRgb(149, 167, 192));
     private static readonly Brush CenterLineBrush = new SolidColorBrush(Color.FromRgb(48, 65, 88));
+    private static readonly Brush RulerLineBrush = new SolidColorBrush(Color.FromRgb(54, 73, 98));
     private static readonly Brush CutBrush = new SolidColorBrush(Color.FromArgb(110, 181, 58, 72));
     private static readonly Brush SelectedCutBrush = new SolidColorBrush(Color.FromArgb(155, 205, 70, 84));
     private static readonly Brush SelectionBrush = new SolidColorBrush(Color.FromArgb(85, 91, 155, 255));
@@ -108,23 +116,35 @@ public sealed class AudioWaveformControl : FrameworkElement
         base.OnRender(dc);
         dc.DrawRectangle(BackgroundBrush, null, new Rect(RenderSize));
         dc.DrawRectangle(null, PlayAreaBorderPen, new Rect(0.5, 0.5, Math.Max(0, ActualWidth - 1), Math.Max(0, ActualHeight - 1)));
-        if (_analysis is null || _analysis.Duration <= TimeSpan.Zero || ActualWidth <= 1 || ActualHeight <= 1) return;
-        DrawWaveforms(dc);
-        DrawCutRanges(dc);
-        DrawSelection(dc);
-        DrawPlayhead(dc);
+        if (_analysis is null || _analysis.Duration <= TimeSpan.Zero || ActualWidth <= ChannelLabelWidth + 1 || ActualHeight <= TimeRulerHeight + 1) return;
+
+        var plot = GetPlotRect();
+        dc.DrawRectangle(LabelBackgroundBrush, null, new Rect(0, 0, ChannelLabelWidth, plot.Height));
+        dc.DrawRectangle(LabelBackgroundBrush, null, new Rect(0, plot.Bottom, ActualWidth, TimeRulerHeight));
+
+        DrawWaveforms(dc, plot);
+        DrawCutRanges(dc, plot);
+        DrawSelection(dc, plot);
+        DrawPlayhead(dc, plot);
+        DrawChannelLabels(dc, plot);
+        DrawTimeRuler(dc, plot);
     }
 
-    private void DrawWaveforms(DrawingContext dc)
+    private Rect GetPlotRect()
+        => new(ChannelLabelWidth, 0, Math.Max(1d, ActualWidth - ChannelLabelWidth), Math.Max(1d, ActualHeight - TimeRulerHeight));
+
+    private void DrawWaveforms(DrawingContext dc, Rect plot)
     {
         var channels = _analysis!.Channels;
-        var trackHeight = ActualHeight / channels;
-        var pen = new Pen(TrackBrush, 1d);
+        var trackHeight = plot.Height / channels;
         var detailUsable = _detail is not null && NearlySameViewport(_detail.Viewport, _viewport);
         for (var channel = 0; channel < channels; channel++)
         {
-            var center = (channel * trackHeight) + (trackHeight / 2d);
-            dc.DrawLine(new Pen(CenterLineBrush, 1d), new Point(0, center), new Point(ActualWidth, center));
+            var center = plot.Top + (channel * trackHeight) + (trackHeight / 2d);
+            dc.DrawLine(new Pen(CenterLineBrush, 1d), new Point(plot.Left, center), new Point(plot.Right, center));
+            if (channel > 0)
+                dc.DrawLine(new Pen(RulerLineBrush, 1d), new Point(0, plot.Top + channel * trackHeight), new Point(plot.Right, plot.Top + channel * trackHeight));
+
             var envelope = detailUsable ? _detail!.Envelopes[channel] : _analysis.Envelopes[channel];
             var bucketCount = Math.Min(envelope.Minimums.Length, envelope.Maximums.Length);
             if (bucketCount == 0) continue;
@@ -132,16 +152,59 @@ public sealed class AudioWaveformControl : FrameworkElement
             var lastBucket = detailUsable ? bucketCount - 1 : TimeToCoarseBucket(_viewport.End, bucketCount);
             var visibleBuckets = Math.Max(1, lastBucket - firstBucket + 1);
             var amplitudeHeight = Math.Max(1d, (trackHeight / 2d) - 8d);
+            var pen = new Pen(channel == 0 ? Channel1Brush : Channel2Brush, 1d);
             for (var i = 0; i < visibleBuckets; i++)
             {
                 var bucket = Math.Min(lastBucket, firstBucket + i);
-                var x = visibleBuckets == 1 ? 0d : i * ActualWidth / (visibleBuckets - 1d);
+                var x = visibleBuckets == 1 ? plot.Left : plot.Left + i * plot.Width / (visibleBuckets - 1d);
                 var min = Math.Clamp(envelope.Minimums[bucket], -1.25f, 1.25f);
                 var max = Math.Clamp(envelope.Maximums[bucket], -1.25f, 1.25f);
                 dc.DrawLine(pen, new Point(x, center - (max * amplitudeHeight)), new Point(x, center - (min * amplitudeHeight)));
             }
         }
     }
+
+    private void DrawChannelLabels(DrawingContext dc, Rect plot)
+    {
+        var channels = _analysis!.Channels;
+        var trackHeight = plot.Height / channels;
+        for (var channel = 0; channel < channels; channel++)
+        {
+            var top = plot.Top + channel * trackHeight;
+            DrawText(dc, channel == 0 ? "CH1" : "CH2", 12d, FontWeights.SemiBold, TextBrush, new Point(10, top + 12));
+            if (channels > 1)
+                DrawText(dc, channel == 0 ? "Speaker" : "Microphone", 10d, FontWeights.Normal, MutedTextBrush, new Point(10, top + 31));
+        }
+        dc.DrawLine(new Pen(RulerLineBrush, 1d), new Point(ChannelLabelWidth, 0), new Point(ChannelLabelWidth, plot.Bottom));
+    }
+
+    private void DrawTimeRuler(DrawingContext dc, Rect plot)
+    {
+        const int divisions = 6;
+        dc.DrawLine(new Pen(RulerLineBrush, 1d), new Point(plot.Left, plot.Bottom), new Point(plot.Right, plot.Bottom));
+        for (var i = 0; i <= divisions; i++)
+        {
+            var ratio = i / (double)divisions;
+            var x = plot.Left + plot.Width * ratio;
+            var time = _viewport.Start + TimeSpan.FromTicks((long)Math.Round(_viewport.Duration.Ticks * ratio));
+            dc.DrawLine(new Pen(RulerLineBrush, 1d), new Point(x, plot.Bottom), new Point(x, plot.Bottom + 5));
+            var label = FormatRulerTime(time);
+            var text = CreateText(label, 10d, FontWeights.Normal, MutedTextBrush);
+            var textX = Math.Clamp(x - text.Width / 2d, plot.Left + 2, Math.Max(plot.Left + 2, plot.Right - text.Width - 2));
+            dc.DrawText(text, new Point(textX, plot.Bottom + 6));
+        }
+    }
+
+    private static string FormatRulerTime(TimeSpan time)
+        => time.TotalHours >= 1d ? $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}" : $"{time.Minutes:00}:{time.Seconds:00}";
+
+    private void DrawText(DrawingContext dc, string value, double size, FontWeight weight, Brush brush, Point origin)
+        => dc.DrawText(CreateText(value, size, weight, brush), origin);
+
+    private FormattedText CreateText(string value, double size, FontWeight weight, Brush brush)
+        => new(value, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            new Typeface(new FontFamily("Yu Gothic UI"), FontStyles.Normal, weight, FontStretches.Normal),
+            size, brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
     private int TimeToCoarseBucket(TimeSpan time, int bucketCount)
     {
@@ -150,7 +213,7 @@ public sealed class AudioWaveformControl : FrameworkElement
         return (int)Math.Round(ratio * (bucketCount - 1));
     }
 
-    private void DrawCutRanges(DrawingContext dc)
+    private void DrawCutRanges(DrawingContext dc, Rect plot)
     {
         foreach (var cut in _cuts)
         {
@@ -158,28 +221,28 @@ public sealed class AudioWaveformControl : FrameworkElement
             var x1 = TimeToX(cut.Start);
             var x2 = TimeToX(cut.End);
             var selected = _selectedCut.HasValue && _selectedCut.Value.Equals(cut);
-            dc.DrawRectangle(selected ? SelectedCutBrush : CutBrush, null, new Rect(x1, 0, Math.Max(1d, x2 - x1), ActualHeight));
+            dc.DrawRectangle(selected ? SelectedCutBrush : CutBrush, null, new Rect(x1, plot.Top, Math.Max(1d, x2 - x1), plot.Height));
             if (selected)
             {
-                dc.DrawLine(BoundaryPen, new Point(x1, 0), new Point(x1, ActualHeight));
-                dc.DrawLine(BoundaryPen, new Point(x2, 0), new Point(x2, ActualHeight));
+                dc.DrawLine(BoundaryPen, new Point(x1, plot.Top), new Point(x1, plot.Bottom));
+                dc.DrawLine(BoundaryPen, new Point(x2, plot.Top), new Point(x2, plot.Bottom));
             }
         }
     }
 
-    private void DrawSelection(DrawingContext dc)
+    private void DrawSelection(DrawingContext dc, Rect plot)
     {
         if (!_selectionStart.HasValue || !_selectionEnd.HasValue || _selectionEnd <= _selectionStart) return;
         var x1 = TimeToX(_selectionStart.Value);
         var x2 = TimeToX(_selectionEnd.Value);
-        dc.DrawRectangle(SelectionBrush, null, new Rect(x1, 0, Math.Max(1d, x2 - x1), ActualHeight));
+        dc.DrawRectangle(SelectionBrush, null, new Rect(x1, plot.Top, Math.Max(1d, x2 - x1), plot.Height));
     }
 
-    private void DrawPlayhead(DrawingContext dc)
+    private void DrawPlayhead(DrawingContext dc, Rect plot)
     {
         if (_playhead < _viewport.Start || _playhead > _viewport.End) return;
         var x = TimeToX(_playhead);
-        dc.DrawLine(PlayheadPen, new Point(x, 0), new Point(x, ActualHeight));
+        dc.DrawLine(PlayheadPen, new Point(x, plot.Top), new Point(x, plot.Bottom));
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
@@ -197,12 +260,16 @@ public sealed class AudioWaveformControl : FrameworkElement
     {
         base.OnMouseLeftButtonDown(e);
         if (_analysis is null || _analysis.Duration <= TimeSpan.Zero) return;
+        var position = e.GetPosition(this);
+        var plot = GetPlotRect();
+        if (!plot.Contains(position)) return;
+
         Focus();
         CaptureMouse();
         _pointerDown = true;
         _selecting = false;
         _draggingBoundary = false;
-        _pointerDownPoint = e.GetPosition(this);
+        _pointerDownPoint = position;
         _selectionAnchor = XToTime(_pointerDownPoint.X);
         if (_selectedCut.HasValue)
         {
@@ -312,14 +379,16 @@ public sealed class AudioWaveformControl : FrameworkElement
 
     private double TimeToX(TimeSpan time)
     {
-        if (_viewport.Duration <= TimeSpan.Zero) return 0d;
-        return Math.Clamp((time - _viewport.Start).TotalSeconds / _viewport.Duration.TotalSeconds, 0d, 1d) * ActualWidth;
+        var plot = GetPlotRect();
+        if (_viewport.Duration <= TimeSpan.Zero) return plot.Left;
+        return plot.Left + Math.Clamp((time - _viewport.Start).TotalSeconds / _viewport.Duration.TotalSeconds, 0d, 1d) * plot.Width;
     }
 
     private TimeSpan XToTime(double x)
     {
-        if (_analysis is null || _viewport.Duration <= TimeSpan.Zero || ActualWidth <= 0) return TimeSpan.Zero;
-        var ratio = Math.Clamp(x / ActualWidth, 0d, 1d);
+        if (_analysis is null || _viewport.Duration <= TimeSpan.Zero) return TimeSpan.Zero;
+        var plot = GetPlotRect();
+        var ratio = Math.Clamp((x - plot.Left) / plot.Width, 0d, 1d);
         return _viewport.Start + TimeSpan.FromTicks((long)Math.Round(_viewport.Duration.Ticks * ratio));
     }
 
