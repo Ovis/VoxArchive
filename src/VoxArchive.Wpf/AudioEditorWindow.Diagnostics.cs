@@ -19,6 +19,7 @@ public partial class AudioEditorWindow
 {
     private bool _diagnosticsAttached;
     private DateTime _lastPlaybackDiagnosticUtc = DateTime.MinValue;
+    private int _lastAnalysisDiagnosticPercent = -1;
 
     static AudioEditorWindow()
     {
@@ -84,12 +85,23 @@ public partial class AudioEditorWindow
 
     private void OnDiagnosticViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // Playhead表示など高頻度Propertyは別の間引きログへ任せる。
         if (e.PropertyName is null) return;
+
+        if (e.PropertyName == nameof(AudioEditorViewModel.AnalysisProgress))
+        {
+            var percent = (int)Math.Floor(Math.Clamp(_viewModel.AnalysisProgress, 0d, 1d) * 100d);
+            if (percent == _lastAnalysisDiagnosticPercent) return;
+            _lastAnalysisDiagnosticPercent = percent;
+            WriteDiagnosticState($"AnalysisProgress:{percent}%");
+            return;
+        }
+
+        // 解析中StatusTextはProgress更新と同じ情報になるため二重記録しない。
+        if (e.PropertyName == nameof(AudioEditorViewModel.StatusText) && _viewModel.IsAnalyzing) return;
+
         if (e.PropertyName is nameof(AudioEditorViewModel.StatusText)
             or nameof(AudioEditorViewModel.Waveform)
             or nameof(AudioEditorViewModel.IsAnalyzing)
-            or nameof(AudioEditorViewModel.AnalysisProgress)
             or nameof(AudioEditorViewModel.SelectionStart)
             or nameof(AudioEditorViewModel.SelectionEnd)
             or nameof(AudioEditorViewModel.SelectedCutRange)
