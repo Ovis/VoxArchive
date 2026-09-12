@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace VoxArchive.Wpf;
 
@@ -9,6 +10,7 @@ public partial class LibraryWindow : System.Windows.Window
 {
     private readonly LibraryViewModel _viewModel;
     private readonly LibraryTranscriptionResultsCoordinator _transcriptionResultsCoordinator;
+    private readonly AudioExportCoordinator _exportCoordinator;
     private TranscriptionResultsWindow? _transcriptionResultsWindow;
     private System.Windows.Controls.Button? _transcribeButton;
 
@@ -18,6 +20,9 @@ public partial class LibraryWindow : System.Windows.Window
         _viewModel = viewModel;
         _transcriptionResultsCoordinator = new LibraryTranscriptionResultsCoordinator(viewModel);
         _transcriptionResultsCoordinator.State.PropertyChanged += OnTranscriptionResultsPropertyChanged;
+        var app = (App)System.Windows.Application.Current;
+        _exportCoordinator = app.Services.GetRequiredService<AudioExportCoordinator>();
+        _exportCoordinator.ExportStateChanged += OnExportStateChanged;
         DataContext = _viewModel;
         Loaded += OnLoaded;
         Closed += OnClosed;
@@ -41,6 +46,7 @@ public partial class LibraryWindow : System.Windows.Window
             await _transcriptionResultsCoordinator.InitializeAsync();
             AttachAudioEditorEntryPoints();
             AttachTranscriptionResultsPanel();
+            UpdatePersistentMutationLocks();
         }
         catch
         {
@@ -227,6 +233,59 @@ public partial class LibraryWindow : System.Windows.Window
         }
     }
 
+    private void OnExportStateChanged(object? sender, EventArgs e)
+        => Dispatcher.BeginInvoke(UpdatePersistentMutationLocks);
+
+    /// <summary>
+    /// Audio Editor書き出し中はLibraryの永続変更だけを無効化する。
+    /// 再生・Seek・閲覧・文字起こし結果表示は継続して利用できる。
+    /// </summary>
+    private void UpdatePersistentMutationLocks()
+    {
+        if (!IsLoaded) return;
+        var enabled = !_exportCoordinator.IsExporting;
+
+        foreach (var button in FindDescendants<System.Windows.Controls.Button>(this))
+        {
+            if (IsPersistentMutationCommand(button.Command))
+            {
+                button.IsEnabled = enabled;
+            }
+        }
+
+        foreach (var grid in FindDescendants<System.Windows.Controls.DataGrid>(this))
+        {
+            if (grid.ContextMenu is null) continue;
+            UpdatePersistentMutationMenuItems(grid.ContextMenu.Items, enabled);
+        }
+    }
+
+    private void UpdatePersistentMutationMenuItems(System.Windows.Controls.ItemCollection items, bool enabled)
+    {
+        foreach (var item in items.OfType<System.Windows.Controls.MenuItem>())
+        {
+            if (IsPersistentMutationCommand(item.Command))
+            {
+                item.IsEnabled = enabled;
+            }
+            if (item.HasItems)
+            {
+                UpdatePersistentMutationMenuItems(item.Items, enabled);
+            }
+        }
+    }
+
+    private bool IsPersistentMutationCommand(System.Windows.Input.ICommand? command)
+        => command is not null && (
+            ReferenceEquals(command, _viewModel.AddFileCommand) ||
+            ReferenceEquals(command, _viewModel.RemoveMissingFromListCommand) ||
+            ReferenceEquals(command, _viewModel.SaveTitleCommand) ||
+            ReferenceEquals(command, _viewModel.RenameCommand) ||
+            ReferenceEquals(command, _viewModel.DeleteFileCommand) ||
+            ReferenceEquals(command, _viewModel.RemoveFromListCommand) ||
+            ReferenceEquals(command, _viewModel.RemoveCheckedFromListCommand) ||
+            ReferenceEquals(command, _viewModel.DeleteCheckedFilesCommand));
+
     private static System.Windows.Controls.Grid? FindDetailGrid(System.Windows.DependencyObject root)
     {
         var childCount = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
@@ -249,6 +308,7 @@ public partial class LibraryWindow : System.Windows.Window
     private void OnClosed(object? sender, EventArgs e)
     {
         _transcriptionResultsWindow?.Close();
+        _exportCoordinator.ExportStateChanged -= OnExportStateChanged;
         _transcriptionResultsCoordinator.State.PropertyChanged -= OnTranscriptionResultsPropertyChanged;
         _transcriptionResultsCoordinator.Dispose();
         _viewModel.Dispose();
