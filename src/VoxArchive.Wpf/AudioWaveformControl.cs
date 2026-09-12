@@ -76,6 +76,19 @@ public sealed class AudioWaveformControl : FrameworkElement
     }
 
     /// <summary>
+    /// 再生中のPlayheadだけを更新する。
+    /// </summary>
+    /// <remarks>
+    /// CutRangeやSelectionの再構築を避け、再生タイマーからの更新を最小限に留める。
+    /// </remarks>
+    public void SetPlayhead(TimeSpan playhead)
+    {
+        if (_playhead == playhead) return;
+        _playhead = playhead;
+        InvalidateVisual();
+    }
+
+    /// <summary>
     /// Zoom/Scrollと高解像度波形、CutRange選択状態を更新する。
     /// </summary>
     public void SetViewportState(AudioWaveformViewport viewport, AudioWaveformDetailResult? detail, AudioCutRange? selectedCut)
