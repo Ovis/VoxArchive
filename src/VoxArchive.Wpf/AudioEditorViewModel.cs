@@ -118,6 +118,21 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
         set { if (IsStereo) SetGain(1, value); }
     }
 
+    /// <summary>
+    /// Slider向けの有限値。最小端は実Gainの-∞dBに対応する。
+    /// </summary>
+    public double Channel1GainSliderDb
+    {
+        get => AudioGainValue.ToSlider(Channel1GainDb);
+        set => SetGain(0, AudioGainValue.FromSlider(value));
+    }
+
+    public double Channel2GainSliderDb
+    {
+        get => AudioGainValue.ToSlider(Channel2GainDb);
+        set { if (IsStereo) SetGain(1, AudioGainValue.FromSlider(value)); }
+    }
+
     public bool Channel1Muted
     {
         get => EffectiveState?.Channels[0].IsMuted == true;
@@ -310,7 +325,11 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     private void SetGain(int channelIndex, double gainDb)
     {
         if (_history is null) return;
-        gainDb = Math.Clamp(gainDb, -60d, 20d);
+        if (!double.IsNegativeInfinity(gainDb))
+        {
+            gainDb = Math.Clamp(gainDb, AudioGainValue.MinimumFiniteDb, AudioGainValue.MaximumDb);
+        }
+
         var basis = EffectiveState ?? _history.Current;
         var old = basis.Channels[channelIndex];
         var next = basis.WithChannelState(channelIndex, new AudioChannelEditState(gainDb, old.IsMuted));
@@ -370,6 +389,8 @@ public sealed class AudioEditorViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(Channel1GainDb));
         OnPropertyChanged(nameof(Channel2GainDb));
+        OnPropertyChanged(nameof(Channel1GainSliderDb));
+        OnPropertyChanged(nameof(Channel2GainSliderDb));
         OnPropertyChanged(nameof(Channel1Muted));
         OnPropertyChanged(nameof(Channel2Muted));
     }

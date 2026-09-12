@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using VoxArchive.Domain;
 
@@ -12,6 +13,7 @@ namespace VoxArchive.Wpf;
 /// </summary>
 public partial class AudioEditorWindow
 {
+    private readonly AudioPeakAnalysisCache _peakAnalysisCache = new();
     private CancellationTokenSource? _peakFeedbackCancellation;
     private int _peakFeedbackRevision;
     private TextBlock? _peakFeedbackText;
@@ -26,6 +28,7 @@ public partial class AudioEditorWindow
         if (_exportFeedbackInitialized) return;
         _exportFeedbackInitialized = true;
 
+        _exportService.PeakAnalysisCache = _peakAnalysisCache;
         AddGainNumericInputs();
         AddExportFeedbackUi();
 
@@ -49,13 +52,29 @@ public partial class AudioEditorWindow
 
         if (channelPanels.Length >= 1)
         {
+            ConfigureGainSlider(channelPanels[0], nameof(AudioEditorViewModel.Channel1GainSliderDb));
             _channel1GainInput = AddGainNumericInput(channelPanels[0], 0);
         }
 
         if (channelPanels.Length >= 2)
         {
+            ConfigureGainSlider(channelPanels[1], nameof(AudioEditorViewModel.Channel2GainSliderDb));
             _channel2GainInput = AddGainNumericInput(channelPanels[1], 1);
         }
+    }
+
+    private static void ConfigureGainSlider(StackPanel owner, string propertyName)
+    {
+        var slider = owner.Children.OfType<Slider>().FirstOrDefault();
+        if (slider is null) return;
+
+        // WPF Slider自体はInfinityをValueに保持できないため、最小端だけViewModel側で-∞へ写像する。
+        BindingOperations.SetBinding(slider, Slider.ValueProperty, new Binding(propertyName)
+        {
+            Mode = BindingMode.TwoWay,
+            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+        });
+        slider.ToolTip = "最小端は-∞ dB、以降は0.5 dB単位です";
     }
 
     private TextBox AddGainNumericInput(StackPanel owner, int channelIndex)
@@ -76,7 +95,7 @@ public partial class AudioEditorWindow
         {
             Width = 72,
             Tag = channelIndex,
-            ToolTip = "0.1 dB単位で入力できます（-60.0～+20.0 dB）"
+            ToolTip = "0.1 dB単位、または -∞ / -inf を入力できます"
         };
         input.KeyDown += OnGainNumericInputKeyDown;
         input.LostKeyboardFocus += OnGainNumericInputLostFocus;
@@ -172,14 +191,12 @@ public partial class AudioEditorWindow
             }
 
             if (_peakFeedbackText is not null) _peakFeedbackText.Text = "編集後ピークを解析しています...";
-            var analysis = await AudioFileRenderService.AnalyzeAsync(
+            var assessment = await _peakAnalysisCache.GetOrAnalyzeAsync(
                 _viewModel.SourceFilePath,
                 state,
                 GetSelectedChannelMode(),
                 cancellationToken);
             if (revision != _peakFeedbackRevision) return;
-
-            var assessment = AudioPeakAssessment.FromPeak(analysis.PeakAbsoluteSample);
             if (_peakFeedbackText is null) return;
 
             var peakText = double.IsNegativeInfinity(assessment.PeakDbfs)
@@ -249,14 +266,13 @@ public partial class AudioEditorWindow
     private void ApplyGainNumericInput(TextBox input)
     {
         if (!int.TryParse(input.Tag?.ToString(), out var channel)) return;
-        if (!double.TryParse(input.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out var value)
-            && !double.TryParse(input.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        if (!AudioGainValue.TryParse(input.Text, CultureInfo.CurrentCulture, out var value)
+            && !AudioGainValue.TryParse(input.Text, CultureInfo.InvariantCulture, out value))
         {
             SyncGainNumericInputs();
             return;
         }
 
-        value = Math.Round(Math.Clamp(value, -60d, 20d), 1, MidpointRounding.AwayFromZero);
         _viewModel.CommitGainAdjustment();
         if (channel == 0) _viewModel.Channel1GainDb = value;
         else if (_viewModel.IsStereo) _viewModel.Channel2GainDb = value;
@@ -266,9 +282,9 @@ public partial class AudioEditorWindow
     private void SyncGainNumericInputs()
     {
         if (_channel1GainInput is not null && !_channel1GainInput.IsKeyboardFocusWithin)
-            _channel1GainInput.Text = _viewModel.Channel1GainDb.ToString("F1", CultureInfo.CurrentCulture);
+            _channel1GainInput.Text = AudioGainValue.Format(_viewModel.Channel1GainDb, CultureInfo.CurrentCulture);
         if (_channel2GainInput is not null && !_channel2GainInput.IsKeyboardFocusWithin)
-            _channel2GainInput.Text = _viewModel.Channel2GainDb.ToString("F1", CultureInfo.CurrentCulture);
+            _channel2GainInput.Text = AudioGainValue.Format(_viewModel.Channel2GainDb, CultureInfo.CurrentCulture);
     }
 
     private void OnExportFeedbackClosed(object? sender, EventArgs e)
@@ -276,6 +292,7 @@ public partial class AudioEditorWindow
         _peakFeedbackCancellation?.Cancel();
         _peakFeedbackCancellation?.Dispose();
         _peakFeedbackCancellation = null;
+        _peakAnalysisCache.Clear();
         _viewModel.EditStateChanged -= OnPeakFeedbackStateChanged;
         _viewModel.PropertyChanged -= OnExportFeedbackViewModelPropertyChanged;
         ExportChannelModeComboBox.SelectionChanged -= OnPeakFeedbackChannelModeChanged;

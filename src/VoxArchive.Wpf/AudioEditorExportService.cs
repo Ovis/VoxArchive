@@ -48,6 +48,11 @@ public sealed class AudioEditorExportService
     }
 
     /// <summary>
+    /// Editor UIが保持するピーク解析キャッシュ。同一状態ならExport時の全体再解析を省略する。
+    /// </summary>
+    public AudioPeakAnalysisCache? PeakAnalysisCache { get; set; }
+
+    /// <summary>
     /// Exportの現在段階をUIへ通知する。
     /// </summary>
     public event Action<AudioEditorExportProgress>? ProgressChanged;
@@ -108,9 +113,10 @@ public sealed class AudioEditorExportService
             var tempOutputPath = Path.Combine(outputDirectory ?? Path.GetTempPath(), $".{Path.GetFileNameWithoutExtension(outputFullPath)}.{Guid.NewGuid():N}.tmp{extension}");
             try
             {
-                Report(AudioEditorExportStage.PeakAnalysis, 0.12d, "実ピークを解析しています...");
-                var analysis = await AudioFileRenderService.AnalyzeAsync(inputFullPath, state, channelMode, cancellationToken);
-                var assessment = AudioPeakAssessment.FromPeak(analysis.PeakAbsoluteSample);
+                Report(AudioEditorExportStage.PeakAnalysis, 0.12d, "実ピークを確認しています...");
+                var assessment = PeakAnalysisCache is null
+                    ? AudioPeakAssessment.FromPeak((await AudioFileRenderService.AnalyzeAsync(inputFullPath, state, channelMode, cancellationToken)).PeakAbsoluteSample)
+                    : await PeakAnalysisCache.GetOrAnalyzeAsync(inputFullPath, state, channelMode, cancellationToken);
                 var masterGainDb = autoAttenuate ? assessment.RequiredMasterGainDb : 0d;
 
                 Report(AudioEditorExportStage.Rendering, 0.38d, "編集内容をレンダリングしています...");
