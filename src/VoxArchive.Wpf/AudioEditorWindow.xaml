@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:VoxArchive.Wpf"
         Title="音声編集"
-        Width="1220"
-        Height="860"
-        MinWidth="1020"
-        MinHeight="730"
+        Width="1320"
+        Height="900"
+        MinWidth="1080"
+        MinHeight="760"
         WindowStartupLocation="CenterOwner"
         FontFamily="Yu Gothic UI"
         Background="#0B1018"
@@ -24,6 +24,20 @@
         <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource TextPrimary}"/><Setter Property="VerticalAlignment" Value="Center"/></Style>
         <Style TargetType="Button"><Setter Property="Foreground" Value="{StaticResource TextPrimary}"/><Setter Property="Background" Value="#1B2A3C"/><Setter Property="BorderBrush" Value="#2F4664"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,5"/><Setter Property="Margin" Value="0,0,6,0"/><Setter Property="MinHeight" Value="30"/></Style>
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="#2F6FD8"/><Setter Property="BorderBrush" Value="#3C7BE2"/><Setter Property="Foreground" Value="White"/></Style>
+        <Style x:Key="ToolButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,7,0"/>
+        </Style>
+        <Style x:Key="ToolButtonPrimary" TargetType="Button" BasedOn="{StaticResource ToolButton}">
+            <Setter Property="Background" Value="#2F6FD8"/>
+            <Setter Property="BorderBrush" Value="#3C7BE2"/>
+        </Style>
         <Style TargetType="CheckBox"><Setter Property="Foreground" Value="{StaticResource TextPrimary}"/><Setter Property="VerticalAlignment" Value="Center"/></Style>
         <Style TargetType="Slider"><Setter Property="Foreground" Value="{StaticResource Accent}"/></Style>
         <Style TargetType="ComboBox"><Setter Property="Foreground" Value="#111827"/><Setter Property="Background" Value="#E8EEF7"/><Setter Property="Height" Value="30"/><Setter Property="Margin" Value="0,0,6,0"/></Style>
@@ -33,20 +47,26 @@
 
     <Grid Margin="14">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="10"/><RowDefinition Height="320"/><RowDefinition Height="10"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="300"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource Card}">
+        <Border Grid.Row="0" Style="{StaticResource Card}" Padding="12,9">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="{Binding SourceTitle}" FontSize="18" FontWeight="SemiBold"/>
-                    <TextBlock Text="{Binding SourceFilePath}" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding SourceFilePath}" Foreground="{StaticResource TextMuted}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="現在 " Foreground="{StaticResource TextMuted}"/><TextBlock x:Name="PlayheadText" Text="00:00:00.000" FontWeight="SemiBold" Margin="0,0,16,0"/>
-                    <TextBlock Text="元音声 " Foreground="{StaticResource TextMuted}"/><TextBlock Text="{Binding SourceDurationText}" Margin="0,0,16,0"/>
-                    <TextBlock Text="編集後 " Foreground="{StaticResource TextMuted}"/><TextBlock Text="{Binding EditedDurationText}" FontWeight="SemiBold" Margin="0,0,16,0"/>
+                    <TextBlock Text="現在 " Foreground="{StaticResource TextMuted}"/><TextBlock x:Name="PlayheadText" Text="00:00:00.000" FontWeight="SemiBold" Margin="0,0,18,0"/>
+                    <TextBlock Text="元音声 " Foreground="{StaticResource TextMuted}"/><TextBlock Text="{Binding SourceDurationText}" Margin="0,0,18,0"/>
+                    <TextBlock Text="編集後 " Foreground="{StaticResource TextMuted}"/><TextBlock Text="{Binding EditedDurationText}" FontWeight="SemiBold" Margin="0,0,18,0"/>
                     <TextBlock Text="{Binding DirtyText}" Foreground="#F0B35B"/>
                 </StackPanel>
             </Grid>
@@ -54,25 +74,16 @@
 
         <Border Grid.Row="2" Style="{StaticResource Card}" Padding="10">
             <Grid>
-                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="7"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                <DockPanel Grid.Row="0">
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                        <Button Content="＋" ToolTip="Zoom In" Click="OnWaveformZoomInClick"/>
-                        <Button Content="－" ToolTip="Zoom Out" Click="OnWaveformZoomOutClick"/>
-                        <Button Content="全体" Click="OnWaveformShowAllClick"/>
-                        <Button Content="選択へ" Click="OnWaveformZoomSelectionClick"/>
-                        <Button Content="再生位置周辺" Click="OnWaveformZoomPlayheadClick"/>
-                        <Button Content="◀" ToolTip="左へスクロール" Click="OnWaveformScrollLeftClick"/>
-                        <Button Content="▶" ToolTip="右へスクロール" Click="OnWaveformScrollRightClick"/>
-                        <Button Content="再生位置へ移動" Click="OnWaveformGoToPlayheadClick"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                        <CheckBox x:Name="FollowPlayheadCheckBox" Content="自動追従" IsChecked="True" Checked="OnFollowPlayheadChanged" Unchecked="OnFollowPlayheadChanged" Margin="10,0,0,0"/>
-                        <TextBlock x:Name="ViewportText" Foreground="{StaticResource TextMuted}" Margin="12,0,0,0"/>
-                    </StackPanel>
-                </DockPanel>
-                <Grid Grid.Row="2">
-                    <local:AudioWaveformControl x:Name="WaveformControl" MinHeight="240"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <local:AudioWaveformControl x:Name="WaveformControl" MinHeight="235"
                                                 SelectionChanged="OnWaveformSelectionChanged"
                                                 SeekRequested="OnWaveformSeekRequested"
                                                 ViewportRequested="OnWaveformViewportRequested"
@@ -88,36 +99,89 @@
                         </StackPanel>
                     </Border>
                 </Grid>
+
+                <Grid Grid.Row="2" IsEnabled="{Binding IsReady}">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="16"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="16"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Button Style="{StaticResource ToolButton}" Content="|◀" ToolTip="先頭へ" Click="OnPreviewStopClick"/>
+                        <Button Style="{StaticResource ToolButton}" Content="−5" ToolTip="5秒戻る" Click="OnSeekBackwardClick"/>
+                        <Button Style="{StaticResource ToolButtonPrimary}" Content="▶" ToolTip="再生 / 一時停止（Space）" Click="OnPreviewPlayClick"/>
+                        <Button Style="{StaticResource ToolButton}" Content="■" ToolTip="停止" Click="OnPreviewStopClick"/>
+                        <Button Style="{StaticResource ToolButton}" Content="+5" ToolTip="5秒進む" Click="OnSeekForwardClick"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button Style="{StaticResource ToolButton}" Content="[" ToolTip="現在位置を開始点に設定" Click="OnSelectionStartFromPlayheadClick"/>
+                        <Button Style="{StaticResource ToolButton}" Content="]" ToolTip="現在位置を終了点に設定" Click="OnSelectionEndFromPlayheadClick"/>
+                        <Button Style="{StaticResource ToolButtonPrimary}" Content="✂" ToolTip="選択範囲をカット" Command="{Binding CutSelectionCommand}"/>
+                        <Button Style="{StaticResource ToolButton}" Content="×" ToolTip="選択解除" Command="{Binding ClearSelectionCommand}"/>
+                        <Button Style="{StaticResource ToolButton}" Content="▷" ToolTip="選択範囲を再生" Click="OnAuditionSelectionClick"/>
+                        <Button Style="{StaticResource ToolButton}" Content="◈" ToolTip="選択中カットの境界を確認" Click="OnAuditionBoundaryClick"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="4" Orientation="Horizontal">
+                        <Button Style="{StaticResource ToolButton}" Content="−" ToolTip="ズームアウト" Click="OnWaveformZoomOutClick"/>
+                        <Button Style="{StaticResource ToolButton}" Content="＋" ToolTip="ズームイン" Click="OnWaveformZoomInClick"/>
+                        <Button Style="{StaticResource ToolButton}" Content="↔" ToolTip="全体表示" Click="OnWaveformShowAllClick"/>
+                        <Button Style="{StaticResource ToolButton}" Content="⌖" ToolTip="再生位置周辺を表示" Click="OnWaveformZoomPlayheadClick"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
+                        <CheckBox x:Name="FollowPlayheadCheckBox" Content="自動追従" IsChecked="True" Checked="OnFollowPlayheadChanged" Unchecked="OnFollowPlayheadChanged" Margin="0,0,10,0"/>
+                        <TextBlock x:Name="ViewportText" Foreground="{StaticResource TextMuted}"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="4" IsEnabled="{Binding IsReady}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="132"/><ColumnDefinition Width="24"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="132"/><ColumnDefinition Width="24"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="132"/><ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="開始点" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0"/>
+                    <TextBox Grid.Column="1" x:Name="SelectionStartInput" Text="00:00:00.000" KeyDown="OnSelectionTimeInputKeyDown" Tag="start"/>
+                    <TextBlock Grid.Column="3" Text="終了点" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0"/>
+                    <TextBox Grid.Column="4" x:Name="SelectionEndInput" Text="00:00:00.000" KeyDown="OnSelectionTimeInputKeyDown" Tag="end"/>
+                    <TextBlock Grid.Column="6" Text="選択範囲" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0"/>
+                    <TextBlock Grid.Column="7" Text="{Binding SelectionText}" FontWeight="SemiBold"/>
+                    <StackPanel Grid.Column="9" Orientation="Horizontal">
+                        <Button Content="選択へ" ToolTip="選択範囲を拡大表示" Click="OnWaveformZoomSelectionClick"/>
+                        <Button Content="◀" ToolTip="左へスクロール" Click="OnWaveformScrollLeftClick"/>
+                        <Button Content="▶" ToolTip="右へスクロール" Click="OnWaveformScrollRightClick" Margin="0"/>
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 
         <Grid Grid.Row="4" IsEnabled="{Binding IsReady}">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="1.25*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.05*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.55*"/></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.05*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.55*"/></Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Style="{StaticResource Card}">
                 <Grid x:Name="CutEditPanel">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="選択・カット" FontSize="15" FontWeight="SemiBold"/>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,7,0,5">
-                        <TextBox x:Name="SelectionStartInput" Width="108" Text="00:00:00.000" KeyDown="OnSelectionTimeInputKeyDown" Tag="start"/>
-                        <TextBox x:Name="SelectionEndInput" Width="108" Text="00:00:00.000" KeyDown="OnSelectionTimeInputKeyDown" Tag="end" Margin="5,0,0,0"/>
-                        <Button Content="開始←現在" Click="OnSelectionStartFromPlayheadClick" Margin="5,0,0,0"/>
-                        <Button Content="終了←現在" Click="OnSelectionEndFromPlayheadClick" Margin="0"/>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="選択・カット" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <ListBox x:Name="CutRangeList" Grid.Row="1" ItemsSource="{Binding CutRanges}" SelectedItem="{Binding SelectedCutRange, Mode=TwoWay}" DisplayMemberPath="DisplayText" SelectionChanged="OnCutRangeListSelectionChanged" Background="#0F1723" Foreground="{StaticResource TextPrimary}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"/>
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="選択したカットを削除" Command="{Binding RemoveSelectedCutCommand}"/>
+                        <Button Grid.Column="2" Content="その他 ▼" ToolTip="先頭→現在 / 現在→末尾などの補助操作" ContextMenuService.Placement="Top">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="先頭から現在位置までをカット" Click="OnCutHeadClick"/>
+                                    <MenuItem Header="現在位置から末尾までをカット" Click="OnCutTailClick"/>
+                                    <Separator/>
+                                    <MenuItem Header="選択中カットの元音声を再生" Click="OnAuditionCutOriginalClick"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
+                    </Grid>
+                    <StackPanel Visibility="Collapsed">
+                        <TextBox x:Name="CutStartInput" KeyDown="OnCutTimeInputKeyDown" Tag="start"/>
+                        <TextBox x:Name="CutEndInput" KeyDown="OnCutTimeInputKeyDown" Tag="end"/>
+                        <Button Content="境界適用" Click="OnApplyCutBoundaryClick"/>
                     </StackPanel>
-                    <TextBlock Grid.Row="2" Text="{Binding SelectionText}" Foreground="{StaticResource TextMuted}" Margin="0,0,0,5"/>
-                    <ListBox x:Name="CutRangeList" Grid.Row="3" ItemsSource="{Binding CutRanges}" SelectedItem="{Binding SelectedCutRange, Mode=TwoWay}" DisplayMemberPath="DisplayText" SelectionChanged="OnCutRangeListSelectionChanged" Background="#0F1723" Foreground="{StaticResource TextPrimary}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"/>
-                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,6,0,5">
-                        <TextBox x:Name="CutStartInput" Width="108" KeyDown="OnCutTimeInputKeyDown" Tag="start" ToolTip="選択Cutの開始時刻"/>
-                        <TextBox x:Name="CutEndInput" Width="108" KeyDown="OnCutTimeInputKeyDown" Tag="end" Margin="5,0,0,0" ToolTip="選択Cutの終了時刻"/>
-                        <Button Content="境界適用" Click="OnApplyCutBoundaryClick" Margin="5,0,0,0"/>
-                    </StackPanel>
-                    <WrapPanel Grid.Row="5">
-                        <Button Content="選択範囲をカット" Command="{Binding CutSelectionCommand}" Style="{StaticResource PrimaryButton}"/>
-                        <Button Content="選択解除" Command="{Binding ClearSelectionCommand}"/>
-                        <Button Content="カット削除" Command="{Binding RemoveSelectedCutCommand}"/>
-                        <Button Content="先頭→現在をカット" Click="OnCutHeadClick"/>
-                        <Button Content="現在→末尾をカット" Click="OnCutTailClick" Margin="0"/>
-                    </WrapPanel>
                 </Grid>
             </Border>
 
@@ -142,22 +206,21 @@
 
             <Border Grid.Column="4" Style="{StaticResource Card}">
                 <StackPanel x:Name="OperationPanel">
-                    <TextBlock Text="操作" FontSize="15" FontWeight="SemiBold"/>
-                    <StackPanel x:Name="UndoPanel" Orientation="Horizontal" Margin="0,8,0,8"><Button Content="元に戻す  Ctrl+Z" Command="{Binding UndoCommand}"/><Button Content="やり直し  Ctrl+Y" Command="{Binding RedoCommand}" Margin="0"/></StackPanel>
-                    <TextBlock Text="プレビュー" FontWeight="SemiBold"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
-                        <ComboBox x:Name="PreviewModeComboBox" Width="92" SelectedIndex="0" SelectionChanged="OnPreviewModeChanged"><ComboBoxItem Content="編集後"/><ComboBoxItem Content="元音声"/></ComboBox>
+                    <DockPanel>
+                        <TextBlock Text="操作・書き出し" FontSize="15" FontWeight="SemiBold"/>
+                        <StackPanel x:Name="UndoPanel" Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="↶" ToolTip="元に戻す Ctrl+Z" Command="{Binding UndoCommand}"/><Button Content="↷" ToolTip="やり直し Ctrl+Y" Command="{Binding RedoCommand}" Margin="0"/></StackPanel>
+                    </DockPanel>
+                    <TextBlock Text="プレビュー設定" FontWeight="SemiBold" Margin="0,9,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,7">
+                        <ComboBox x:Name="PreviewModeComboBox" Width="100" SelectedIndex="0" SelectionChanged="OnPreviewModeChanged"><ComboBoxItem Content="編集後"/><ComboBoxItem Content="元音声"/></ComboBox>
                         <ComboBox x:Name="PlaybackSpeedComboBox" Width="78" SelectedIndex="1" SelectionChanged="OnPlaybackSpeedChanged"><ComboBoxItem Content="0.5x" Tag="0.5"/><ComboBoxItem Content="1.0x" Tag="1.0"/><ComboBoxItem Content="1.5x" Tag="1.5"/><ComboBoxItem Content="2.0x" Tag="2.0"/></ComboBox>
-                        <Button Content="再生" Click="OnPreviewPlayClick" Style="{StaticResource PrimaryButton}"/><Button Content="一時停止" Click="OnPreviewPauseClick"/><Button Content="停止" Click="OnPreviewStopClick" Margin="0"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Content="-5秒" Click="OnSeekBackwardClick"/><Button Content="+5秒" Click="OnSeekForwardClick"/><TextBox x:Name="PlayheadInput" Width="112" Text="00:00:00.000" KeyDown="OnPlayheadInputKeyDown" ToolTip="Enterで現在位置へSeek"/>
+                        <TextBox x:Name="PlayheadInput" Width="112" Text="00:00:00.000" KeyDown="OnPlayheadInputKeyDown" ToolTip="Enterで現在位置へSeek"/>
                     </StackPanel>
                     <TextBlock Text="書き出し" FontWeight="SemiBold"/>
                     <StackPanel x:Name="ExportSettingsPanel">
                         <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
-                            <ComboBox x:Name="ExportFormatComboBox" Width="88" SelectedIndex="2" SelectionChanged="OnExportFormatChanged"><ComboBoxItem Content="WAV"/><ComboBoxItem Content="MP3"/><ComboBoxItem Content="FLAC"/></ComboBox>
-                            <ComboBox x:Name="ExportChannelModeComboBox" Width="126" SelectedIndex="0" SelectionChanged="OnPreviewRenderSettingChanged"><ComboBoxItem Content="Mono Mixdown"/><ComboBoxItem Content="Stereo"/></ComboBox>
+                            <ComboBox x:Name="ExportFormatComboBox" Width="94" SelectedIndex="2" SelectionChanged="OnExportFormatChanged"><ComboBoxItem Content="WAV"/><ComboBoxItem Content="MP3"/><ComboBoxItem Content="FLAC"/></ComboBox>
+                            <ComboBox x:Name="ExportChannelModeComboBox" Width="132" SelectedIndex="0" SelectionChanged="OnPreviewRenderSettingChanged"><ComboBoxItem Content="Mono Mixdown"/><ComboBoxItem Content="Stereo"/></ComboBox>
                         </StackPanel>
                         <CheckBox x:Name="AutoAttenuateCheckBox" Content="Clipping時にMaster Gainを自動減衰" IsChecked="True" Margin="0,2,0,3"/>
                         <CheckBox x:Name="AddToLibraryCheckBox" Content="FLAC書き出し後にライブラリへ追加" IsChecked="True" Margin="0,0,0,6"/>
