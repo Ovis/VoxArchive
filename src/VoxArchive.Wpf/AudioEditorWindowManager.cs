@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
@@ -21,46 +22,91 @@ public static class AudioEditorWindowManager
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(item);
 
-        if (!File.Exists(item.FilePath))
-        {
-            ModernDialog.Show(owner, "元音声ファイルが見つかりません。", "音声編集", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        if (!string.Equals(Path.GetExtension(item.FilePath), ".flac", StringComparison.OrdinalIgnoreCase))
-        {
-            ModernDialog.Show(owner, "音声編集の入力はFLACファイルのみ対応しています。", "音声編集", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        // VoxArchive.Application 名前空間との名前解決競合を避けるため、WPF Application を完全修飾する。
+        // 起動直後のクラッシュ原因切り分け用の一時診断ログ。
+        // 原因特定後、この詳細ログはPR内で削除する。
         var app = (App)System.Windows.Application.Current;
-        var exportCoordinator = app.Services.GetRequiredService<AudioExportCoordinator>();
-        var runtimeHolder = app.Services.GetRequiredService<RecordingRuntimeContextHolder>();
-        var recordingState = runtimeHolder.Context?.RecordingService.CurrentState ?? RecordingState.Stopped;
-        var unavailableReason = AudioEditorAvailability.GetUnavailableReason(recordingState, exportCoordinator.IsExporting);
-        if (unavailableReason is not null)
-        {
-            ModernDialog.Show(owner, unavailableReason, "音声編集", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
+        var loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
+        var logger = loggerFactory.CreateLogger("AudioEditorLaunch");
+        logger.LogInformation(
+            "Audio Editor open requested. File={FilePath}, Exists={Exists}, Extension={Extension}, Channels={Channels}, SampleRate={SampleRate}, DurationMs={DurationMs}",
+            item.FilePath,
+            File.Exists(item.FilePath),
+            Path.GetExtension(item.FilePath),
+            item.Channels,
+            item.SampleRate,
+            item.DurationMilliseconds);
 
-        var key = Path.GetFullPath(item.FilePath);
-        if (Windows.TryGetValue(key, out var existing) && existing.IsLoaded)
+        try
         {
-            if (existing.WindowState == WindowState.Minimized)
+            if (!File.Exists(item.FilePath))
             {
-                existing.WindowState = WindowState.Normal;
+                logger.LogWarning("Audio Editor open rejected because source file does not exist. File={FilePath}", item.FilePath);
+                ModernDialog.Show(owner, "元音声ファイルが見つかりません。", "音声編集", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
-            existing.Activate();
-            return;
-        }
 
-        var playback = app.Services.GetRequiredService<IRecordingPlaybackService>();
-        var catalog = app.Services.GetRequiredService<RecordingCatalogService>();
-        var window = new AudioEditorWindow(item, playback, exportCoordinator, catalog) { Owner = owner };
-        Windows[key] = window;
-        window.Closed += (_, _) => Windows.Remove(key);
-        window.Show();
+            if (!string.Equals(Path.GetExtension(item.FilePath), ".flac", StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogWarning("Audio Editor open rejected because source is not FLAC. File={FilePath}", item.FilePath);
+                ModernDialog.Show(owner, "音声編集の入力はFLACファイルのみ対応しています。", "音声編集", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            logger.LogInformation("Resolving Audio Editor application services.");
+            var exportCoordinator = app.Services.GetRequiredService<AudioExportCoordinator>();
+            var runtimeHolder = app.Services.GetRequiredService<RecordingRuntimeContextHolder>();
+            var recordingState = runtimeHolder.Context?.RecordingService.CurrentState ?? RecordingState.Stopped;
+            logger.LogInformation(
+                "Audio Editor availability check. RecordingState={RecordingState}, IsExporting={IsExporting}, RuntimeContextAvailable={RuntimeContextAvailable}",
+                recordingState,
+                exportCoordinator.IsExporting,
+                runtimeHolder.Context is not null);
+
+            var unavailableReason = AudioEditorAvailability.GetUnavailableReason(recordingState, exportCoordinator.IsExporting);
+            if (unavailableReason is not null)
+            {
+                logger.LogInformation("Audio Editor open rejected by availability guard. Reason={Reason}", unavailableReason);
+                ModernDialog.Show(owner, unavailableReason, "音声編集", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var key = Path.GetFullPath(item.FilePath);
+            logger.LogInformation("Audio Editor normalized source path. Key={Key}, ExistingWindowCount={WindowCount}", key, Windows.Count);
+            if (Windows.TryGetValue(key, out var existing) && existing.IsLoaded)
+            {
+                logger.LogInformation("Existing Audio Editor found. Activating existing window. Key={Key}", key);
+                if (existing.WindowState == WindowState.Minimized)
+                {
+                    existing.WindowState = WindowState.Normal;
+                }
+                existing.Activate();
+                return;
+            }
+
+            logger.LogInformation("Resolving playback/catalog services for new Audio Editor.");
+            var playback = app.Services.GetRequiredService<IRecordingPlaybackService>();
+            var catalog = app.Services.GetRequiredService<RecordingCatalogService>();
+            var windowLogger = app.Services.GetRequiredService<ILogger<AudioEditorWindow>>();
+
+            logger.LogInformation("Constructing AudioEditorWindow. Key={Key}", key);
+            var window = new AudioEditorWindow(item, playback, exportCoordinator, catalog, windowLogger) { Owner = owner };
+            logger.LogInformation("AudioEditorWindow constructed. Key={Key}, IsLoaded={IsLoaded}", key, window.IsLoaded);
+
+            Windows[key] = window;
+            window.Closed += (_, _) =>
+            {
+                logger.LogInformation("AudioEditorWindow closed. Removing window registry entry. Key={Key}", key);
+                Windows.Remove(key);
+            };
+
+            logger.LogInformation("Calling AudioEditorWindow.Show(). Key={Key}", key);
+            window.Show();
+            logger.LogInformation("AudioEditorWindow.Show() returned. Key={Key}, IsLoaded={IsLoaded}, IsVisible={IsVisible}", key, window.IsLoaded, window.IsVisible);
+        }
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex, "Audio Editor open path threw an unhandled exception. File={FilePath}", item.FilePath);
+            throw;
+        }
     }
 }
