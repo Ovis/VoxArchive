@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
@@ -35,9 +36,12 @@ public static class AudioEditorWindowManager
         // VoxArchive.Application 名前空間との名前解決競合を避けるため、WPF Application を完全修飾する。
         var app = (App)System.Windows.Application.Current;
         var exportCoordinator = app.Services.GetRequiredService<AudioExportCoordinator>();
-        if (exportCoordinator.IsExporting)
+        var runtimeHolder = app.Services.GetRequiredService<RecordingRuntimeContextHolder>();
+        var recordingState = runtimeHolder.Context?.RecordingService.CurrentState ?? RecordingState.Stopped;
+        var unavailableReason = AudioEditorAvailability.GetUnavailableReason(recordingState, exportCoordinator.IsExporting);
+        if (unavailableReason is not null)
         {
-            ModernDialog.Show(owner, "別の音声を書き出し中のため、新しいAudio Editorは開けません。", "音声編集", MessageBoxButton.OK, MessageBoxImage.Information);
+            ModernDialog.Show(owner, unavailableReason, "音声編集", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
