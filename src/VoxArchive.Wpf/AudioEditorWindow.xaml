@@ -314,7 +314,7 @@
                     <TextBlock Grid.Column="6" Text="選択範囲" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0"/>
                     <TextBlock Grid.Column="7" Text="{Binding SelectionText}" FontWeight="SemiBold"/>
                     <StackPanel Grid.Column="9" Orientation="Horizontal">
-                        <Button Content="選択へ" ToolTip="選択範囲を拡大表示" Click="OnWaveformZoomSelectionClick"/>
+                        <Button Content="選択範囲へズーム" ToolTip="選択範囲に合わせて波形表示を拡大" Click="OnWaveformZoomSelectionClick"/>
                         <Button Content="◀" ToolTip="左へスクロール" Click="OnWaveformScrollLeftClick"/>
                         <Button Content="▶" ToolTip="右へスクロール" Click="OnWaveformScrollRightClick" Margin="0"/>
                     </StackPanel>
@@ -332,7 +332,7 @@
                     <ListBox x:Name="CutRangeList" Grid.Row="1" ItemsSource="{Binding CutRanges}" SelectedItem="{Binding SelectedCutRange, Mode=TwoWay}" DisplayMemberPath="DisplayText" SelectionChanged="OnCutRangeListSelectionChanged" Background="#0F1723" Foreground="{StaticResource TextPrimary}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"/>
                     <Grid Grid.Row="2" Margin="0,8,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Content="選択したカットを削除" Command="{Binding RemoveSelectedCutCommand}"/>
+                        <Button Grid.Column="0" Content="選択したカットを解除" ToolTip="カット指定を解除して、その区間の音声を復元" Command="{Binding RemoveSelectedCutCommand}"/>
                         <Button Grid.Column="2" Content="その他 ▼" ToolTip="先頭→現在 / 現在→末尾などの補助操作" Click="OnOpenAuxiliaryActionsClick" ContextMenuService.Placement="Top">
                             <Button.ContextMenu>
                                 <ContextMenu Style="{StaticResource EditorContextMenuStyle}">
