@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using VoxArchive.Domain;
 
@@ -8,6 +9,8 @@ namespace VoxArchive.Wpf;
 
 public partial class AudioEditorWindow
 {
+    private static readonly TimeSpan InitialWaveformViewportDuration = TimeSpan.FromSeconds(60);
+
     private AudioWaveformDetailService? _waveformDetailService;
     private AudioWaveformDetailResult? _waveformDetail;
     private AudioWaveformViewport _waveformViewport;
@@ -34,10 +37,11 @@ public partial class AudioEditorWindow
 
         if (e.PropertyName is nameof(AudioEditorViewModel.SelectionStart) or nameof(AudioEditorViewModel.SelectionEnd))
         {
-            if (!SelectionStartInput.IsKeyboardFocusWithin)
-                SelectionStartInput.Text = _viewModel.SelectionStart.HasValue ? AudioEditorViewModel.FormatTime(_viewModel.SelectionStart.Value) : "00:00:00.000";
-            if (!SelectionEndInput.IsKeyboardFocusWithin)
-                SelectionEndInput.Text = _viewModel.SelectionEnd.HasValue ? AudioEditorViewModel.FormatTime(_viewModel.SelectionEnd.Value) : "00:00:00.000";
+            // CutRange選択中は同じ入力欄をCut境界編集に使う。Selection更新で上書きしない。
+            if (_viewModel.SelectedCutRange is null)
+            {
+                SyncVisibleBoundaryInputsFromSelection();
+            }
         }
 
         if (e.PropertyName is nameof(AudioEditorViewModel.SelectedCutRange)
@@ -55,12 +59,19 @@ public partial class AudioEditorWindow
         if (waveform is null) return;
         _waveformDetailService?.Dispose();
         _waveformDetailService = new AudioWaveformDetailService(_viewModel.SourceFilePath);
-        _waveformViewport = AudioWaveformViewport.Full(waveform.Duration);
+
+        // 長い録音を全体表示すると編集対象が圧縮されすぎるため、最初の1分を編集開始時の作業領域とする。
+        // 短い録音は従来どおり全体を表示し、「全体」操作ではいつでも全Durationへ戻せる。
+        var initialEnd = waveform.Duration <= InitialWaveformViewportDuration
+            ? waveform.Duration
+            : InitialWaveformViewportDuration;
+        _waveformViewport = AudioWaveformViewport.Normalize(TimeSpan.Zero, initialEnd, waveform.Duration);
         _waveformViewportInitialized = true;
         _waveformDetail = null;
         _followPlayhead = true;
         FollowPlayheadCheckBox.IsChecked = true;
         ApplyWaveformViewportState();
+        RequestWaveformDetailAsync();
     }
 
     private void OnWaveformViewportRequested(object? sender, AudioWaveformViewportRequestedEventArgs e)
@@ -197,6 +208,8 @@ public partial class AudioEditorWindow
     {
         CutStartInput.Text = AudioEditorViewModel.FormatTime(e.Start);
         CutEndInput.Text = AudioEditorViewModel.FormatTime(e.End);
+        SelectionStartInput.Text = CutStartInput.Text;
+        SelectionEndInput.Text = CutEndInput.Text;
         if (!e.IsFinal) return;
         CancelAuditionForTimelineEdit();
         _previewService.Pause();
@@ -210,6 +223,10 @@ public partial class AudioEditorWindow
             _previewService.Stop();
             ClearAuditionMode();
         }
+        if (_viewModel.SelectedCutRange is not null)
+        {
+            _viewModel.ClearSelection();
+        }
         SyncSelectedCutInputs();
         ApplyWaveformViewportState();
     }
@@ -218,12 +235,36 @@ public partial class AudioEditorWindow
     {
         CutStartInput.Text = _viewModel.SelectedCutRange?.StartText ?? string.Empty;
         CutEndInput.Text = _viewModel.SelectedCutRange?.EndText ?? string.Empty;
+
+        if (_viewModel.SelectedCutRange is not null)
+        {
+            if (!SelectionStartInput.IsKeyboardFocusWithin) SelectionStartInput.Text = CutStartInput.Text;
+            if (!SelectionEndInput.IsKeyboardFocusWithin) SelectionEndInput.Text = CutEndInput.Text;
+        }
+        else
+        {
+            SyncVisibleBoundaryInputsFromSelection();
+        }
+    }
+
+    private void SyncVisibleBoundaryInputsFromSelection()
+    {
+        if (!SelectionStartInput.IsKeyboardFocusWithin)
+            SelectionStartInput.Text = _viewModel.SelectionStart.HasValue ? AudioEditorViewModel.FormatTime(_viewModel.SelectionStart.Value) : "00:00:00.000";
+        if (!SelectionEndInput.IsKeyboardFocusWithin)
+            SelectionEndInput.Text = _viewModel.SelectionEnd.HasValue ? AudioEditorViewModel.FormatTime(_viewModel.SelectionEnd.Value) : "00:00:00.000";
     }
 
     private void OnSelectionStartFromPlayheadClick(object sender, RoutedEventArgs e)
     {
         CancelAuditionForTimelineEdit();
         _previewService.Pause();
+        if (_viewModel.SelectedCutRange is { } selectedCut)
+        {
+            if (_playhead < selectedCut.Range.End)
+                _viewModel.UpdateSelectedCutRange(_playhead, selectedCut.Range.End);
+            return;
+        }
         _viewModel.SetSelectionStart(_playhead);
     }
 
@@ -231,18 +272,42 @@ public partial class AudioEditorWindow
     {
         CancelAuditionForTimelineEdit();
         _previewService.Pause();
+        if (_viewModel.SelectedCutRange is { } selectedCut)
+        {
+            if (_playhead > selectedCut.Range.Start)
+                _viewModel.UpdateSelectedCutRange(selectedCut.Range.Start, _playhead);
+            return;
+        }
         _viewModel.SetSelectionEnd(_playhead);
     }
 
     private void OnSelectionTimeInputKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || sender is not TextBox box) return;
-        if (TryParseEditorTime(box.Text, out var value))
+        CancelAuditionForTimelineEdit();
+        _previewService.Pause();
+
+        if (_viewModel.SelectedCutRange is not null)
         {
-            CancelAuditionForTimelineEdit();
-            _previewService.Pause();
+            if (TryParseEditorTime(SelectionStartInput.Text, out var start)
+                && TryParseEditorTime(SelectionEndInput.Text, out var end)
+                && end > start)
+            {
+                _viewModel.UpdateSelectedCutRange(start, end);
+            }
+            else
+            {
+                SyncSelectedCutInputs();
+            }
+        }
+        else if (TryParseEditorTime(box.Text, out var value))
+        {
             if (Equals(box.Tag, "start")) _viewModel.SetSelectionStart(value);
             else _viewModel.SetSelectionEnd(value);
+        }
+        else
+        {
+            SyncVisibleBoundaryInputsFromSelection();
         }
         e.Handled = true;
     }
@@ -255,6 +320,14 @@ public partial class AudioEditorWindow
     }
 
     private void OnApplyCutBoundaryClick(object sender, RoutedEventArgs e) => ApplyCutBoundaryInputs();
+
+    private void OnOpenAuxiliaryActionsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } contextMenu } button) return;
+        contextMenu.PlacementTarget = button;
+        contextMenu.Placement = PlacementMode.Top;
+        contextMenu.IsOpen = true;
+    }
 
     private void ApplyCutBoundaryInputs()
     {

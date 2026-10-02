@@ -95,6 +95,12 @@ public partial class AudioEditorWindow
             edited));
     }
 
+    /// <summary>
+    /// 再設計したカット一覧の補助メニューから、選択中CutRangeの原音確認を開始する。
+    /// </summary>
+    private void OnAuditionCutOriginalClick(object sender, RoutedEventArgs e)
+        => OnAuditionSelectionClick(sender, e);
+
     private async void OnAuditionBoundaryClick(object sender, RoutedEventArgs e)
     {
         await StartSelectedCutBoundaryAuditionAsync();
