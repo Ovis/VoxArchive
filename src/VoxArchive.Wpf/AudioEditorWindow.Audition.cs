@@ -58,17 +58,19 @@ public partial class AudioEditorWindow
 
     private void AttachAuditionContextMenus()
     {
-        var cutMenu = new ContextMenu();
-        var playDeleted = new MenuItem { Header = "削除部分の原音を再生" };
+        var contextMenuStyle = (Style)FindResource("EditorContextMenuStyle");
+        var menuItemStyle = (Style)FindResource("EditorMenuItemStyle");
+        var cutMenu = new ContextMenu { Style = contextMenuStyle };
+        var playDeleted = new MenuItem { Header = "削除部分の原音を再生", Style = menuItemStyle };
         playDeleted.Click += OnAuditionSelectionClick;
         cutMenu.Items.Add(playDeleted);
-        var boundary = new MenuItem { Header = "境界を確認" };
+        var boundary = new MenuItem { Header = "境界を確認", Style = menuItemStyle };
         boundary.Click += OnAuditionBoundaryClick;
         cutMenu.Items.Add(boundary);
         CutRangeList.ContextMenu = cutMenu;
 
-        var waveformMenu = new ContextMenu();
-        var playSelection = new MenuItem { Header = "選択範囲を再生" };
+        var waveformMenu = new ContextMenu { Style = contextMenuStyle };
+        var playSelection = new MenuItem { Header = "選択範囲を再生", Style = menuItemStyle };
         playSelection.Click += OnAuditionSelectionClick;
         waveformMenu.Items.Add(playSelection);
         WaveformControl.ContextMenu = waveformMenu;
