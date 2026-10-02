@@ -45,6 +45,7 @@ public sealed class AudioWaveformControl : FrameworkElement
     private bool _draggingStartBoundary;
     private Point _pointerDownPoint;
     private TimeSpan _selectionAnchor;
+    private DrawingGroup? _staticDrawing;
 
     public event EventHandler<AudioWaveformSelectionChangedEventArgs>? SelectionChanged;
     public event EventHandler<AudioWaveformSeekRequestedEventArgs>? SeekRequested;
@@ -80,7 +81,7 @@ public sealed class AudioWaveformControl : FrameworkElement
             _viewport = AudioWaveformViewport.Full(analysis.Duration);
             _viewportInitialized = true;
         }
-        InvalidateVisual();
+        InvalidateStaticVisual();
     }
 
     /// <summary>
@@ -105,7 +106,7 @@ public sealed class AudioWaveformControl : FrameworkElement
         _viewportInitialized = true;
         _detail = detail;
         _selectedCut = selectedCut;
-        InvalidateVisual();
+        InvalidateStaticVisual();
     }
 
     public AudioWaveformViewport CurrentViewport => _viewport;
@@ -113,6 +114,37 @@ public sealed class AudioWaveformControl : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
+        if (_staticDrawing is null)
+        {
+            var drawing = new DrawingGroup();
+            using (var staticContext = drawing.Open())
+            {
+                DrawStaticContent(staticContext);
+            }
+            _staticDrawing = drawing;
+        }
+        dc.DrawDrawing(_staticDrawing);
+        if (_analysis is not null && _analysis.Duration > TimeSpan.Zero
+            && ActualWidth > ChannelLabelWidth + 1 && ActualHeight > TimeRulerHeight + 1)
+        {
+            DrawPlayhead(dc, GetPlotRect());
+        }
+    }
+
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        _staticDrawing = null;
+        base.OnRenderSizeChanged(sizeInfo);
+    }
+
+    private void InvalidateStaticVisual()
+    {
+        _staticDrawing = null;
+        InvalidateVisual();
+    }
+
+    private void DrawStaticContent(DrawingContext dc)
+    {
         dc.DrawRectangle(BackgroundBrush, null, new Rect(RenderSize));
         dc.DrawRectangle(null, PlayAreaBorderPen, new Rect(0.5, 0.5, Math.Max(0, ActualWidth - 1), Math.Max(0, ActualHeight - 1)));
         if (_analysis is null || _analysis.Duration <= TimeSpan.Zero || ActualWidth <= ChannelLabelWidth + 1 || ActualHeight <= TimeRulerHeight + 1) return;
@@ -124,7 +156,6 @@ public sealed class AudioWaveformControl : FrameworkElement
         DrawWaveforms(dc, plot);
         DrawCutRanges(dc, plot);
         DrawSelection(dc, plot);
-        DrawPlayhead(dc, plot);
         DrawChannelLabels(dc, plot);
         DrawTimeRuler(dc, plot);
     }
@@ -298,7 +329,7 @@ public sealed class AudioWaveformControl : FrameworkElement
             if (end > start)
             {
                 _selectedCut = new AudioCutRange(start, end);
-                InvalidateVisual();
+                InvalidateStaticVisual();
                 CutBoundaryChanged?.Invoke(this, new AudioWaveformCutBoundaryChangedEventArgs(original, start, end, false));
             }
             return;
@@ -317,7 +348,7 @@ public sealed class AudioWaveformControl : FrameworkElement
 
         // Drag中はControl内部のvisualだけを更新する。
         // ViewModelへMouseMoveごとに通知するとPropertyChanged経由で波形全体が再設定され、入力追従性を損なう。
-        InvalidateVisual();
+        InvalidateStaticVisual();
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -340,7 +371,7 @@ public sealed class AudioWaveformControl : FrameworkElement
             _selectionStart = current < _selectionAnchor ? current : _selectionAnchor;
             _selectionEnd = current < _selectionAnchor ? _selectionAnchor : current;
             _selecting = false;
-            InvalidateVisual();
+            InvalidateStaticVisual();
             SelectionChanged?.Invoke(this, new AudioWaveformSelectionChangedEventArgs(_selectionStart.Value, _selectionEnd.Value, true));
         }
         else
@@ -355,7 +386,7 @@ public sealed class AudioWaveformControl : FrameworkElement
                 _selectionStart = null;
                 _selectionEnd = null;
                 _playhead = current;
-                InvalidateVisual();
+                InvalidateStaticVisual();
                 CutRangeSelected?.Invoke(this, new AudioWaveformCutRangeSelectedEventArgs(null));
                 SeekRequested?.Invoke(this, new AudioWaveformSeekRequestedEventArgs(current));
             }

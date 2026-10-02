@@ -34,6 +34,8 @@ public partial class AudioEditorWindow : Window
     private string? _lastExportDirectory;
     private TimeSpan _playhead;
     private int? _soloChannel;
+    private AudioEditState? _timelineMapperState;
+    private AudioTimelineMapper? _timelineMapper;
 
     public AudioEditorWindow(
         LibraryRecordingItem item,
@@ -429,7 +431,12 @@ public partial class AudioEditorWindow : Window
     {
         var state = _viewModel.CurrentState ?? throw new InvalidOperationException("編集状態が初期化されていません。");
         var sampleRate = _viewModel.Waveform?.SampleRate ?? throw new InvalidOperationException("波形解析が完了していません。");
-        return new AudioTimelineMapper(state, sampleRate);
+        if (!ReferenceEquals(_timelineMapperState, state))
+        {
+            _timelineMapper = new AudioTimelineMapper(state, sampleRate);
+            _timelineMapperState = state;
+        }
+        return _timelineMapper!;
     }
 
     private void OnEditStateChanged(object? sender, EventArgs e)
