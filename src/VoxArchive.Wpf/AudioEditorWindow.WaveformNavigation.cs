@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using VoxArchive.Domain;
 
@@ -319,6 +320,14 @@ public partial class AudioEditorWindow
     }
 
     private void OnApplyCutBoundaryClick(object sender, RoutedEventArgs e) => ApplyCutBoundaryInputs();
+
+    private void OnOpenAuxiliaryActionsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } contextMenu } button) return;
+        contextMenu.PlacementTarget = button;
+        contextMenu.Placement = PlacementMode.Top;
+        contextMenu.IsOpen = true;
+    }
 
     private void ApplyCutBoundaryInputs()
     {

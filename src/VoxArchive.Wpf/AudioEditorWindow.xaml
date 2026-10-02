@@ -166,7 +166,7 @@
                     <Grid Grid.Row="2" Margin="0,8,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="選択したカットを削除" Command="{Binding RemoveSelectedCutCommand}"/>
-                        <Button Grid.Column="2" Content="その他 ▼" ToolTip="先頭→現在 / 現在→末尾などの補助操作" ContextMenuService.Placement="Top">
+                        <Button Grid.Column="2" Content="その他 ▼" ToolTip="先頭→現在 / 現在→末尾などの補助操作" Click="OnOpenAuxiliaryActionsClick" ContextMenuService.Placement="Top">
                             <Button.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="先頭から現在位置までをカット" Click="OnCutHeadClick"/>
