@@ -100,6 +100,7 @@ public partial class App : System.Windows.Application
             var logger = _host.Services.GetRequiredService<ILogger<App>>();
             logger.LogInformation("Application startup completed.");
             var window = _host.Services.GetRequiredService<MainWindow>();
+            MainWindow = window;
             window.DataContext = _host.Services.GetRequiredService<MainViewModel>();
             window.Show();
 
@@ -145,6 +146,26 @@ public partial class App : System.Windows.Application
             + "ffmpeg をインストールして PATH を通した後に再起動してください。" + Environment.NewLine + Environment.NewLine
             + "インストール例: winget install Gyan.FFmpeg";
         return string.IsNullOrWhiteSpace(detail) ? baseMessage : baseMessage + Environment.NewLine + Environment.NewLine + "詳細: " + detail;
+    }
+
+    protected override void OnSessionEnding(System.Windows.SessionEndingCancelEventArgs e)
+    {
+        base.OnSessionEnding(e);
+        if (e.Cancel)
+        {
+            return;
+        }
+
+        _host?.Services.GetService<ILogger<App>>()?.LogInformation(
+            "Windows session is ending. reason={Reason}",
+            e.ReasonSessionEnding);
+
+        // WPFはSessionEnding後にShutdownを呼ぶ。先に通常の「閉じる」動作を無効化し、
+        // Closingでトレイ格納ダイアログや非同期設定保存を開始しないようにする。
+        if (MainWindow is VoxArchive.Wpf.MainWindow window)
+        {
+            window.PrepareForSessionEnding();
+        }
     }
 
     protected override void OnExit(System.Windows.ExitEventArgs e)

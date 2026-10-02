@@ -133,6 +133,11 @@ public partial class MainWindow : Window
         HideToTray();
     }
 
+    internal void PrepareForSessionEnding()
+    {
+        _isExitRequested = true;
+    }
+
     private void OnStateChanged(object? sender, EventArgs e)
     {
         if (WindowState == WindowState.Minimized)
