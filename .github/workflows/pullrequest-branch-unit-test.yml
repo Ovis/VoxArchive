@@ -29,3 +29,6 @@ jobs:
 
       - name: Test VoxArchive
         run: dotnet test tests/VoxArchive.IntegrationTests/VoxArchive.IntegrationTests.csproj --configuration Release --verbosity normal
+
+      - name: Test audio editor playback
+        run: dotnet test tests/VoxArchive.Wpf.Tests/VoxArchive.Wpf.Tests.csproj --configuration Release --verbosity normal

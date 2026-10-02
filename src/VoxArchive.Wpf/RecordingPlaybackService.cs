@@ -1,5 +1,6 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using VoxArchive.Domain;
 
 namespace VoxArchive.Wpf;
 
@@ -12,6 +13,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
     private readonly PlaybackCoordinator _coordinator;
     private WasapiOut? _output;
     private AudioFileReader? _reader;
+    private EditedAudioSampleProvider? _editedProvider;
     private StereoGainSampleProvider? _gainProvider;
     private SoundTouchSampleProvider? _timeStretchProvider;
     private double _playbackSpeed = 1.0;
@@ -25,8 +27,8 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
     public bool IsLoaded => _reader is not null;
     public bool IsPlaying => _output?.PlaybackState == PlaybackState.Playing;
-    public TimeSpan Position => _reader?.CurrentTime ?? TimeSpan.Zero;
-    public TimeSpan Duration => _reader?.TotalTime ?? TimeSpan.Zero;
+    public TimeSpan Position => _editedProvider?.Position ?? _reader?.CurrentTime ?? TimeSpan.Zero;
+    public TimeSpan Duration => _editedProvider?.Duration ?? _reader?.TotalTime ?? TimeSpan.Zero;
     public double PlaybackSpeed => _playbackSpeed;
 
     public void Load(string filePath)
@@ -34,7 +36,28 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
         Unload();
 
         _reader = new AudioFileReader(filePath);
-        _gainProvider = new StereoGainSampleProvider(_reader);
+        InitializeOutput(_reader);
+    }
+
+    public void LoadEdited(string filePath, AudioEditState state, AudioRenderChannelMode channelMode)
+    {
+        Unload();
+        _reader = new AudioFileReader(filePath);
+        try
+        {
+            _editedProvider = new EditedAudioSampleProvider(_reader, state, channelMode);
+            InitializeOutput(_editedProvider);
+        }
+        catch
+        {
+            DisposeCore();
+            throw;
+        }
+    }
+
+    private void InitializeOutput(ISampleProvider source)
+    {
+        _gainProvider = new StereoGainSampleProvider(source);
         _timeStretchProvider = new SoundTouchSampleProvider(_gainProvider)
         {
             // Tempo を変更するとピッチを維持したまま再生速度だけを変更できる。
@@ -67,7 +90,11 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
     public void Stop()
     {
         _output?.Stop();
-        if (_reader is not null)
+        if (_editedProvider is not null)
+        {
+            _editedProvider.Seek(TimeSpan.Zero);
+        }
+        else if (_reader is not null)
         {
             _reader.CurrentTime = TimeSpan.Zero;
         }
@@ -99,8 +126,10 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
             return;
         }
 
-        var targetSeconds = Math.Clamp(position.TotalSeconds, 0d, _reader.TotalTime.TotalSeconds);
-        _reader.CurrentTime = TimeSpan.FromSeconds(targetSeconds);
+        var targetSeconds = Math.Clamp(position.TotalSeconds, 0d, Duration.TotalSeconds);
+        var target = TimeSpan.FromSeconds(targetSeconds);
+        if (_editedProvider is not null) _editedProvider.Seek(target);
+        else _reader.CurrentTime = target;
         _timeStretchProvider?.Clear();
     }
 
@@ -158,6 +187,7 @@ public sealed class RecordingPlaybackService : IRecordingPlaybackService
 
         _reader?.Dispose();
         _reader = null;
+        _editedProvider = null;
         _gainProvider = null;
         _timeStretchProvider = null;
     }

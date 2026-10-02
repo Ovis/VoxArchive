@@ -1,3 +1,5 @@
+using VoxArchive.Domain;
+
 namespace VoxArchive.Wpf;
 
 public interface IRecordingPlaybackService : IDisposable
@@ -11,6 +13,7 @@ public interface IRecordingPlaybackService : IDisposable
     double PlaybackSpeed { get; }
 
     void Load(string filePath);
+    void LoadEdited(string filePath, AudioEditState state, AudioRenderChannelMode channelMode);
     void Play();
     void Pause();
     void Stop();
