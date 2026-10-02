@@ -21,7 +21,9 @@ public sealed class ProcessCatalogService : IProcessCatalogService
                 {
                     var processId = p.Id;
                     var appName = SafeGet(() => p.ProcessName) ?? string.Empty;
-                    var executable = SafeGet(() => p.MainModule?.ModuleName) ?? string.Empty;
+                    // MainModuleは保護プロセスや終了直後のプロセスでWin32Exceptionを投げる。
+                    // 実行ファイル名は一覧表示専用なので、既に取得済みのProcessNameから組み立てる。
+                    var executable = string.IsNullOrWhiteSpace(appName) ? string.Empty : $"{appName}.exe";
                     var windowTitle = SafeGet(() => p.MainWindowTitle);
 
                     list.Add(new ProcessInfo(
