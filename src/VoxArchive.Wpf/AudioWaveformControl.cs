@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
@@ -358,14 +357,7 @@ public sealed class AudioWaveformControl : FrameworkElement
                 _playhead = current;
                 InvalidateVisual();
                 CutRangeSelected?.Invoke(this, new AudioWaveformCutRangeSelectedEventArgs(null));
-
-                // Smoke Test中だけ、Waveform clickからWindow側Seek処理が戻るまでの同期経路を計測する。
-                // PreviewService.Seek自体が重いのか、UI再描画側が重いのかを切り分けるための一時診断である。
-                var seekStarted = Stopwatch.GetTimestamp();
-                App.WriteAudioEditorDiagnostic($"Waveform seek requested. TargetMs={current.TotalMilliseconds:F0}");
                 SeekRequested?.Invoke(this, new AudioWaveformSeekRequestedEventArgs(current));
-                var elapsed = Stopwatch.GetElapsedTime(seekStarted);
-                App.WriteAudioEditorDiagnostic($"Waveform seek handler completed. TargetMs={current.TotalMilliseconds:F0}, HandlerElapsedMs={elapsed.TotalMilliseconds:F2}");
             }
         }
         e.Handled = true;

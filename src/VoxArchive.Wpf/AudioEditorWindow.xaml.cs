@@ -159,21 +159,17 @@ public partial class AudioEditorWindow : Window
 
     private void OnPreviewPauseClick(object sender, RoutedEventArgs e)
     {
-        App.WriteAudioEditorDiagnostic($"Preview Pause handler entered. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
         _previewService.Pause();
         UpdatePlayheadFromPlayback();
         _viewModel.StatusText = "プレビューを一時停止しました。";
-        App.WriteAudioEditorDiagnostic($"Preview Pause handler completed. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
     }
 
     private void OnPreviewStopClick(object sender, RoutedEventArgs e)
     {
-        App.WriteAudioEditorDiagnostic($"Preview Stop handler entered. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
         _previewService.Stop();
         SetPlayhead(TimeSpan.Zero);
         ClearAuditionMode();
         _viewModel.StatusText = "プレビューを停止しました。";
-        App.WriteAudioEditorDiagnostic($"Preview Stop handler completed. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
     }
 
     private void OnPlaybackSpeedChanged(object sender, SelectionChangedEventArgs e)
@@ -498,7 +494,6 @@ public partial class AudioEditorWindow : Window
         }
         if (e.Key == Key.Space && _viewModel.IsReady)
         {
-            App.WriteAudioEditorDiagnostic($"Space toggle entered. Playing={_previewService.IsPlaying}, PositionMs={_previewService.Position.TotalMilliseconds:F0}");
             if (_previewService.IsPlaying)
             {
                 OnPreviewPauseClick(this, new RoutedEventArgs());
