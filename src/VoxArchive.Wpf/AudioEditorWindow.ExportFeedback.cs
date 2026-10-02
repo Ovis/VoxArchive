@@ -182,7 +182,8 @@ public partial class AudioEditorWindow
     {
         try
         {
-            await Task.Delay(300, cancellationToken);
+            await Task.Delay(300);
+            if (cancellationToken.IsCancellationRequested) return;
             if (_viewModel.CurrentState is not { } state || !_viewModel.IsReady) return;
             if (!state.HasOutputAudio)
             {
@@ -191,25 +192,26 @@ public partial class AudioEditorWindow
             }
 
             if (_peakFeedbackText is not null) _peakFeedbackText.Text = "編集後ピークを解析しています...";
-            var assessment = await _peakAnalysisCache.GetOrAnalyzeAsync(
+            var assessment = await _peakAnalysisCache.TryGetOrAnalyzeAsync(
                 _viewModel.SourceFilePath,
                 state,
                 GetSelectedChannelMode(),
                 cancellationToken);
+            if (assessment is null) return;
             if (revision != _peakFeedbackRevision) return;
             if (_peakFeedbackText is null) return;
 
-            var peakText = double.IsNegativeInfinity(assessment.PeakDbfs)
+            var peakText = double.IsNegativeInfinity(assessment.Value.PeakDbfs)
                 ? "-∞ dBFS"
-                : $"{assessment.PeakDbfs:+0.00;-0.00;0.00} dBFS";
-            if (assessment.IsClipping)
+                : $"{assessment.Value.PeakDbfs:+0.00;-0.00;0.00} dBFS";
+            if (assessment.Value.IsClipping)
             {
-                _peakFeedbackText.Text = $"Clippingあり / 実ピーク {peakText} / 自動減衰 {assessment.RequiredMasterGainDb:0.00} dB";
+                _peakFeedbackText.Text = $"Clippingあり / 実ピーク {peakText} / 自動減衰 {assessment.Value.RequiredMasterGainDb:0.00} dB";
                 _peakFeedbackText.Foreground = System.Windows.Media.Brushes.OrangeRed;
             }
-            else if (assessment.RequiredMasterGainDb < 0d)
+            else if (assessment.Value.RequiredMasterGainDb < 0d)
             {
-                _peakFeedbackText.Text = $"Clippingなし / 実ピーク {peakText} / -0.1 dBFS保護時 {assessment.RequiredMasterGainDb:0.00} dB";
+                _peakFeedbackText.Text = $"Clippingなし / 実ピーク {peakText} / -0.1 dBFS保護時 {assessment.Value.RequiredMasterGainDb:0.00} dB";
                 _peakFeedbackText.Foreground = System.Windows.Media.Brushes.Goldenrod;
             }
             else

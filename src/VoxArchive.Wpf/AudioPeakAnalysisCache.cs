@@ -36,6 +36,31 @@ public sealed class AudioPeakAnalysisCache
         return assessment;
     }
 
+    /// <summary>
+    /// UIの連続変更で不要になった解析を、キャンセル例外を発生させず破棄する。
+    /// </summary>
+    public async Task<AudioPeakAssessment?> TryGetOrAnalyzeAsync(
+        string inputFilePath,
+        AudioEditState state,
+        AudioRenderChannelMode channelMode,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputFilePath);
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (cancellationToken.IsCancellationRequested) return null;
+
+        var key = BuildKey(inputFilePath, state, channelMode);
+        if (TryGet(key, out var cached)) return cached;
+
+        var analysis = await AudioFileRenderService.TryAnalyzeAsync(inputFilePath, state, channelMode, cancellationToken);
+        if (analysis is null) return null;
+
+        var assessment = AudioPeakAssessment.FromPeak(analysis.PeakAbsoluteSample);
+        Add(key, assessment);
+        return assessment;
+    }
+
     public void Clear()
     {
         lock (_gate)

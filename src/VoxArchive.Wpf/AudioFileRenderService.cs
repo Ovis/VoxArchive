@@ -62,7 +62,43 @@ public static class AudioFileRenderService
             using var reader = OpenAndValidate(inputFilePath, state);
             var plan = AudioRenderPlan.Create(state, reader.WaveFormat.SampleRate);
             var analysis = new AudioClippingAnalysis();
-            StreamRenderedSamples(
+            if (!StreamRenderedSamples(
+                reader,
+                state,
+                plan,
+                channelMode,
+                0d,
+                (samples, count) => analysis.Observe(samples.AsSpan(0, count)),
+                cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            return analysis;
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// UIの再解析要求向けに、キャンセルを例外へ変換せず解析を中断する。
+    /// </summary>
+    /// <remarks>
+    /// GainやMuteの連続変更では直前のピーク解析を破棄するのが通常動作である。
+    /// first-chance例外でVisual Studioの出力を汚さないよう、キャンセル時はnullを返す。
+    /// </remarks>
+    public static Task<AudioClippingAnalysis?> TryAnalyzeAsync(
+        string inputFilePath,
+        AudioEditState state,
+        AudioRenderChannelMode channelMode,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.Run<AudioClippingAnalysis?>(() =>
+        {
+            if (cancellationToken.IsCancellationRequested) return null;
+
+            using var reader = OpenAndValidate(inputFilePath, state);
+            var plan = AudioRenderPlan.Create(state, reader.WaveFormat.SampleRate);
+            var analysis = new AudioClippingAnalysis();
+            var completed = StreamRenderedSamples(
                 reader,
                 state,
                 plan,
@@ -70,8 +106,8 @@ public static class AudioFileRenderService
                 0d,
                 (samples, count) => analysis.Observe(samples.AsSpan(0, count)),
                 cancellationToken);
-            return analysis;
-        }, cancellationToken);
+            return completed ? analysis : null;
+        }, CancellationToken.None);
     }
 
     private static RenderResult RenderWaveCore(
@@ -97,14 +133,17 @@ public static class AudioFileRenderService
             inputChannels = analysisReader.WaveFormat.Channels;
             plan = AudioRenderPlan.Create(state, sampleRate);
             analysis = new AudioClippingAnalysis();
-            StreamRenderedSamples(
+            if (!StreamRenderedSamples(
                 analysisReader,
                 state,
                 plan,
                 channelMode,
                 0d,
                 (samples, count) => analysis.Observe(samples.AsSpan(0, count)),
-                cancellationToken);
+                cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
         }
 
         var appliedMasterGainDb = autoAttenuate
@@ -123,14 +162,17 @@ public static class AudioFileRenderService
         {
             using var renderReader = OpenAndValidate(inputFilePath, state);
             using var writer = new WaveFileWriter(outputFilePath, outputFormat);
-            StreamRenderedSamples(
+            if (!StreamRenderedSamples(
                 renderReader,
                 state,
                 plan,
                 channelMode,
                 appliedMasterGainDb,
                 (samples, count) => writer.WriteSamples(samples, 0, count),
-                cancellationToken);
+                cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
         }
         catch
         {
@@ -175,7 +217,7 @@ public static class AudioFileRenderService
     /// <summary>
     /// Cut / Crossfade / Gain / Mute / Mixdown / Master Gainを共通順序で適用し、結果を逐次通知する。
     /// </summary>
-    private static void StreamRenderedSamples(
+    private static bool StreamRenderedSamples(
         AudioFileReader reader,
         AudioEditState state,
         AudioRenderPlan plan,
@@ -189,7 +231,7 @@ public static class AudioFileRenderService
 
         for (var rangeIndex = 0; rangeIndex < plan.KeepRanges.Count; rangeIndex++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested) return false;
             var range = plan.KeepRanges[rangeIndex];
             var incomingFadeFrames = rangeIndex == 0 ? 0 : plan.Junctions[rangeIndex - 1].CrossfadeFrameCount;
             var outgoingFadeFrames = rangeIndex + 1 < plan.KeepRanges.Count ? plan.Junctions[rangeIndex].CrossfadeFrameCount : 0;
@@ -221,7 +263,7 @@ public static class AudioFileRenderService
             var bodyEnd = range.EndFrameExclusive - outgoingFadeFrames;
             if (bodyEnd > cursor)
             {
-                StreamProcessedSegment(
+                if (!StreamProcessedSegment(
                     reader,
                     state,
                     channelMode,
@@ -229,7 +271,10 @@ public static class AudioFileRenderService
                     bodyEnd - cursor,
                     masterGainDb,
                     emit,
-                    cancellationToken);
+                    cancellationToken))
+                {
+                    return false;
+                }
             }
 
             if (outgoingFadeFrames > 0)
@@ -246,12 +291,15 @@ public static class AudioFileRenderService
 
         if (previousTail is not null)
         {
+            if (cancellationToken.IsCancellationRequested) return false;
             ApplyMasterGainInPlace(previousTail, masterGainDb);
             emit(previousTail, previousTail.Length);
         }
+
+        return true;
     }
 
-    private static void StreamProcessedSegment(
+    private static bool StreamProcessedSegment(
         AudioFileReader reader,
         AudioEditState state,
         AudioRenderChannelMode channelMode,
@@ -263,7 +311,7 @@ public static class AudioFileRenderService
     {
         if (frameCount <= 0)
         {
-            return;
+            return true;
         }
 
         var inputChannels = reader.WaveFormat.Channels;
@@ -275,7 +323,7 @@ public static class AudioFileRenderService
         var remainingFrames = frameCount;
         while (remainingFrames > 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested) return false;
             var wantedFrames = (int)Math.Min(ReadBufferFrames, remainingFrames);
             var wantedSamples = wantedFrames * inputChannels;
             var readSamples = ReadExactlyUpTo(reader, input, wantedSamples);
@@ -296,6 +344,8 @@ public static class AudioFileRenderService
             emit(output, outputSampleCount);
             remainingFrames -= readFrames;
         }
+
+        return true;
     }
 
     private static float[] ReadProcessedSegment(
