@@ -155,15 +155,18 @@ public partial class MainWindow : Window
             _hwndSource = null;
         }
 
-        _trayAppIcon?.Dispose();
-        _trayAppIcon = null;
-
         if (_notifyIcon is not null)
         {
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _notifyIcon = null;
         }
+
+        // NotifyIconは非表示化・破棄の際にもIcon.Handleを参照するため、
+        // トレイ用画像はNotifyIconの後に破棄する（Windows終了時も同様）。
+        _trayAppIcon?.Dispose();
+        _trayAppIcon = null;
+
         AppNotificationHub.BalloonRequested -= OnBalloonRequested;
     }
 
